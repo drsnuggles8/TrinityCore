@@ -28,3 +28,11 @@ INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
 (9634, 'classic_spell_dru_feral_form_talents'),
 (16972, 'classic_spell_dru_predatory_strikes'),
 (5229, 'classic_spell_dru_enrage');
+
+-- Flametongue Totem proc dummies (cast by the totem passive's classic_spell_proc_trigger_bp): Fire damage by main hand speed via 10444.
+DELETE FROM `spell_script_names` WHERE `ScriptName` = 'classic_spell_sha_flametongue_totem_proc';
+INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
+(8253, 'classic_spell_sha_flametongue_totem_proc'),
+(8248, 'classic_spell_sha_flametongue_totem_proc'),
+(10523, 'classic_spell_sha_flametongue_totem_proc'),
+(16389, 'classic_spell_sha_flametongue_totem_proc');
