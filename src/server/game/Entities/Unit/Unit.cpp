@@ -10816,6 +10816,13 @@ void Unit::ProcSkillsAndReactives(bool isVictim, Unit* procTarget, ProcFlagsInit
                 {
                     ModifyAuraState(AURA_STATE_DEFENSIVE, true);
                     StartReactiveTimer(REACTIVE_DEFENSE);
+
+                    // Classic 1.60: Counterattack (19306, 20909, 20910) needs the vanilla hunter parry state (7, AURA_STATE_HUNTER_PARRY)
+                    if (GetClass() == CLASS_HUNTER)
+                    {
+                        ModifyAuraState(AURA_STATE_DEFENSIVE_2, true);
+                        StartReactiveTimer(REACTIVE_DEFENSE_2);
+                    }
                 }
                 // if and victim block attack
                 if (hitMask & PROC_HIT_BLOCK)
