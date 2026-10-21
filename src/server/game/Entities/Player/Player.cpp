@@ -2511,8 +2511,24 @@ void Player::InitTalentForLevel()
     int32 talentTiers = DB2Manager::GetNumTalentsAtLevel(level, Classes(GetClass()));
     if (level < 15)
     {
-        // Remove all talent points
-        ResetTalents(true);
+        // Classic 1.60: a level up never respecs. Nothing can be spent below level 10, and a character of 10-14 that has
+        // points spent keeps them (vanilla talents are not reset by a ding). Only clear a low level config that really
+        // holds purchased ranks, the retail-era cleanup for a character that was squished or granted points.
+        // (ResetTalents also dismissed the summoned pet, which is why a warlock lost its demon on every ding.)
+        bool spentRanks = false;
+        if (UF::TraitConfig const* activeConfig = GetTraitConfig(m_activePlayerData->ActiveCombatTraitConfigID))
+        {
+            WorldPackets::Traits::TraitConfig current(*activeConfig);
+            for (WorldPackets::Traits::TraitEntry const& entry : current.Entries)
+                if (entry.Rank > 0 && entry.GrantedRanks == 0)
+                {
+                    spentRanks = true;
+                    break;
+                }
+        }
+
+        if (spentRanks)
+            ResetTalents(true);
     }
     else
     {
@@ -3742,7 +3758,10 @@ bool Player::ResetTalents(bool involuntarily /*= false*/)
     if (HasAtLoginFlag(AT_LOGIN_RESET_TALENTS))
         RemoveAtLoginFlag(AT_LOGIN_RESET_TALENTS, true);
 
-    RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true);
+    // Classic 1.60 (vanilla): a talent reset does not touch the pet. This retail-era line dismissed the warlock's demon
+    // (and un-summoned a hunter pet) because retail pets carry their own spec and talents; vanilla pets have training
+    // points, which ResetTalents never touches. GiveLevel -> InitTalentForLevel() also reached this function on low
+    // levels, so the demon vanished on every level up.
 
     for (uint32 talentId = 0; talentId < sTalentStore.GetNumRows(); ++talentId)
     {
