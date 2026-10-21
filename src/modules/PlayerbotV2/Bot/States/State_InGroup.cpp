@@ -875,6 +875,10 @@ void DispatchInGroup(BotAI& ai,
             auto resolves_hostile = [&](ObjectGuid v) -> bool
             {
                 if (v.IsEmpty()) return false;
+                // Local (M7): not a mob this bot gave up on (opener_give_up shields it for 5 minutes). Copying the leader's victim
+                // re-selected it at once, and the give-up repeated every 300 ms (live 2026-10-21: Terenelli 166 times on one
+                // Mottled Boar). A mob on a member is still defended below (defend_member).
+                if (ai.engage_shielded(v, snapshot.published_at_ms())) return false;
                 for (auto const& u : snapshot.raw().combat.nearby_enemies)
                     if (u.guid == v && u.hp > 0) return true;
                 for (auto const& u : snapshot.raw().combat.attackers)
