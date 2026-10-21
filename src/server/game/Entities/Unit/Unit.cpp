@@ -1897,7 +1897,12 @@ void Unit::HandleEmoteCommand(Emote emoteId, Player* target /*=nullptr*/, Trinit
         casterLevel = std::max<uint32>(caster->ToUnit()->GetLevelForTarget(victim), 1);
         int32 levelDiff = int32(victim->GetLevelForTarget(caster)) - int32(casterLevel);
         if (levelDiff > 0 && victim->GetTypeId() == TYPEID_UNIT && !(spellInfo && spellInfo->HasAttribute(SPELL_ATTR0_CU_BINARY_SPELL)))
-            victimResistance += float(levelDiff * 8);
+            // Classic 1.60 (vanilla, VMaNGOS SpellCaster::GetSpellResistChance): the 8 resistance per level above the caster is
+            // given on the level 63 scale and has to be rescaled to the caster's level before the * 0.75 / (5 * level)
+            // conversion below, or the penalty grows as the caster shrinks: 8 * 0.75 / (5 * level) is 1.2 / level percent,
+            // i.e. 2% per level at 60 but 60% at level 2 (a level 2 caster half-resisted a level 3 mob). Rescaled it is the
+            // level independent ~1.9% per level of vanilla, 0 below level 8 (the int32 truncation of VMaNGOS).
+            victimResistance += float(int32(8.0f * levelDiff * float(casterLevel) / 63.0f));
     }
 
     return std::min(victimResistance * 0.75f / (5.0f * casterLevel), 0.75f);
