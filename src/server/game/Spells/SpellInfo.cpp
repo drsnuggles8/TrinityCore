@@ -708,7 +708,16 @@ bool SpellEffectInfo::UsesClassicFlatBasePoints(WorldObject const* caster) const
 SpellEffectValue SpellEffectInfo::CalcBaseValue(WorldObject const* caster, Unit const* target, uint32 itemId, int32 itemLevel) const
 {
     if (ClassicSpellValue::Value const* vanilla = GetClassicValue(caster, _spellInfo->Id, EffectIndex))
-        return ClassicSpellValue::Mean(*vanilla);
+    {
+        float value = ClassicSpellValue::Mean(*vanilla);
+        // Classic 1.60: a legacy creature spell flagged "spell damage depends on caster level" carries the dice of its own rank and
+        // is scaled to the caster's level, as vanilla does (VMaNGOS Unit::CalculateSpellDamage). Unscaled, the level 9 Surena
+        // Caledon Fireballed a level 9 player for 74..98 and killed her in two casts (Aluraz, 2026-10-22).
+        if (Unit const* casterUnit = caster ? caster->ToUnit() : nullptr)
+            if (_spellInfo->HasAttribute(SPELL_ATTR0_SCALES_WITH_CREATURE_LEVEL) && ClassicSpellValue::ScalesWithCasterLevel(Effect, ApplyAuraName))
+                value = ClassicSpellValue::LevelScaled(value, int32(casterUnit->GetLevel()), int32(_spellInfo->SpellLevel));
+        return value;
+    }
 
     if (Scaling.Coefficient != 0.0f)
     {

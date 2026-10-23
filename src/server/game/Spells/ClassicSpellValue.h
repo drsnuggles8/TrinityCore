@@ -124,6 +124,40 @@ namespace ClassicSpellValue
         return spellId < FirstScaledSpellId;
     }
 
+    // Vanilla's "spell damage depends on caster level" attribute (SPELL_ATTR0_SCALES_WITH_CREATURE_LEVEL): the dice of a creature
+    // spell are the dice of its own rank, and a caster below that rank rolls them scaled down (VMaNGOS Unit::CalculateSpellDamage).
+    // Fireball 20793 carries 74..98, the dice of its level 20 rank: in vanilla a level 9 caster (Surena Caledon) rolls 29..38.
+    inline float LevelScaled(float value, int32_t casterLevel, int32_t spellLevel)
+    {
+        if (spellLevel <= 0)
+            return value;
+        return float(int32_t(value * 0.25f * std::exp(float(casterLevel) * float(70 - spellLevel) / 1000.0f)));
+    }
+
+    // The effects that attribute scales: the damaging / healing ones, and the periodic damage / leech / power burn auras. A heal over
+    // time, an absorb or a stat modifier on the same spell keeps its full value (Renew, Power Word: Shield, Fire Ward).
+    inline bool ScalesWithCasterLevel(uint32_t effect, uint32_t applyAura)
+    {
+        if (applyAura)
+            return applyAura == 3 || applyAura == 53 || applyAura == 162;   // periodic damage, periodic leech, power burn
+        switch (effect)
+        {
+            case 2:   // school damage
+            case 7:   // environmental damage
+            case 8:   // power drain
+            case 9:   // health leech
+            case 10:  // heal
+            case 17:  // weapon damage no school
+            case 28:  // summon
+            case 58:  // weapon damage
+            case 62:  // power burn
+            case 121: // normalized weapon damage
+                return true;
+            default:
+                return false;
+        }
+    }
+
     // The base points of a vanilla effect at a caster level: base points and mean die, plus points per level for the levels the
     // caster has above the spell (level above the spell's MaxLevel does not count). What SpellEffectInfo::CalcValue computes
     // before the modifiers.
