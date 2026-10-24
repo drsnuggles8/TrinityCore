@@ -11702,7 +11702,26 @@ void Unit::SetMeleeAnimKitId(uint16 animKitId)
                 else if (!tappers.empty())
                 {
                     Group* group = !groups.empty() ? *groups.begin() : nullptr;
-                    Player* looter = group ? ASSERT_NOTNULL(ObjectAccessor::GetPlayer(*creature, group->GetLooterGuid())) : tappers[0];
+                    // The group's round robin looter can be missing: UpdateLooterGuid leaves it empty when no member is at reward
+                    // distance (a dead member counts from their corpse) and never updates it under free-for-all, so it can name a
+                    // member on another map. The assert here took the world down; fall back to a tapper of that group instead.
+                    Player* looter = tappers[0];
+                    if (group)
+                    {
+                        if (Player* groupLooter = ObjectAccessor::GetPlayer(*creature, group->GetLooterGuid()))
+                            looter = groupLooter;
+                        else
+                        {
+                            for (Player* tapper : tappers)
+                            {
+                                if (tapper->GetGroup() == group)
+                                {
+                                    looter = tapper;
+                                    break;
+                                }
+                            }
+                        }
+                    }
 
                     Loot* loot = new Loot(creature->GetMap(), creature->GetGUID(), LOOT_CORPSE, dungeonEncounter ? group : nullptr);
 
