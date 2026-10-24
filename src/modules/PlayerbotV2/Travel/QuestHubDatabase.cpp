@@ -20,6 +20,7 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <unordered_map>
 
 namespace Playerbot::V2::Travel {
 
@@ -563,6 +564,10 @@ uint32 QuestHubDatabase::LoadQuestGiversFromDB()
     // the zone from the terrain, as ObjectMgr does for
     // Calculate.Creature.Zone.Area.Data (world thread, boot only).
     const bool vanilla = IsVanillaRealm();
+    // TerrainMgr keeps weak references. Before maps/players are loaded, a
+    // standalone GetZoneId call can destroy the terrain immediately and reload
+    // it for the next giver. Retain each terrain for this startup scan only.
+    std::unordered_map<uint32, std::shared_ptr<TerrainInfo>> giverTerrain;
     uint32 count = 0, no_quests = 0, zones_resolved = 0;
     do
     {
@@ -585,7 +590,11 @@ uint32 QuestHubDatabase::LoadQuestGiversFromDB()
             }
             if (d.zoneId == 0)
             {
-                d.zoneId = sTerrainMgr.GetZoneId(PhasingHandler::GetEmptyPhaseShift(), d.mapId, d.position);
+                auto [terrainIt, inserted] = giverTerrain.try_emplace(d.mapId);
+                if (inserted)
+                    terrainIt->second = sTerrainMgr.LoadTerrain(d.mapId);
+                if (terrainIt->second)
+                    d.zoneId = terrainIt->second->GetZoneId(PhasingHandler::GetEmptyPhaseShift(), d.mapId, d.position);
                 if (d.zoneId != 0)
                     ++zones_resolved;
             }
