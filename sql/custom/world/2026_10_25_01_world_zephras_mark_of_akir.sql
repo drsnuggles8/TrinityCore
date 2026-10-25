@@ -19,5 +19,5 @@ UPDATE `creature_template` SET `AIName` = 'SmartAI' WHERE `entry` = 257065 AND `
 DELETE FROM `smart_scripts` WHERE `entryorguid` = 257065 AND `source_type` = 0;
 INSERT INTO `smart_scripts` (`entryorguid`, `source_type`, `id`, `link`, `event_type`, `event_phase_mask`, `event_chance`,
     `event_flags`, `event_param1`, `event_param2`, `action_type`, `action_param1`, `action_param2`, `target_type`, `comment`) VALUES
-(257065, 0, 0, 1, 62, 0, 100, 0, 41761, 0, 85, 1254832, 2, 7, 'Missionary Jasaan - On Gossip Option 0 Selected - Invoker Cast Mark of Akir'),
+(257065, 0, 0, 1, 62, 0, 100, 0, 41761, 0, 85, 1254832, 2, 7, 'Missionary Jasaan - On Gossip Option 0 Selected - Invoker Self Cast Mark of Akir'),
 (257065, 0, 1, 0, 61, 0, 100, 0, 0, 0, 72, 0, 0, 7, 'Missionary Jasaan - On Link - Close Gossip');
