@@ -14,22 +14,13 @@
 -- Что исправлено:
 --   1) шкафу ставится флаг беседы (npcflag 1) и SmartAI;
 --   2) пункт беседы показывается только пока задание 92528 взято и не выполнено (условие QUESTTAKEN);
---   3) выбор пункта: игрок кастует 1261177 на себя, окно закрывается, через 13 с засчитывается цель 252078;
---      заклинанию задано условие цели — шкаф 254128;
---   4) заведён шаблон 252078 по образцу «[DNT] Kill Credit: …» из базы (тип 10, модель 52318, без спавнов): ядро
---      отклоняет скрипт с кредитом за несуществующее существо («uses non-existent Creature entry 252078», DBErrors.log
---      после рестарта 25.10). Названия 252078 в снифах и клиентских таблицах нет, имя придумано по тексту цели и игрокам
---      не видно; VerifiedBuild = 0 (не из сниффа). Таких дыр в базе много: ~930 целей заданий (тип 0) ссылаются на
---      несуществующие шаблоны.
+--   3) выбор пункта: игрок кастует 1261177 на себя, окно закрывается, через 13 с игрок кастует на себя 1254871
+--      (тоже «Подслушивание»: эффект «кредит за существо» 252078 + засчитывание задания 92543, которого в базе нет);
+--      заклинанию 1261177 задано условие цели — шкаф 254128. Кредит скриптом (действие 33) ядро запрещает, если для
+--      существа есть заклинание-кредит («There is a killcredit spell for creatureEntry 252078 (SpellId: 1254871)»,
+--      DBErrors.log после рестарта 25.10), поэтому шаблон существа 252078 не нужен.
 -- Не проверено в игре: посадит ли заклинание игрока в шкаф. Если нет, цель всё равно засчитается через 13 с.
 -- Можно запускать повторно.
-
-INSERT IGNORE INTO `creature_template` (`entry`, `name`, `unit_class`, `type`, `VerifiedBuild`) VALUES
-(252078, '[DNT] Kill Credit: Learn of the cultists'' plans', 1, 10, 0);
-INSERT IGNORE INTO `creature_template_difficulty` (`Entry`, `DifficultyID`, `HealthScalingExpansion`) VALUES
-(252078, 0, 11);
-INSERT IGNORE INTO `creature_template_model` (`CreatureID`, `Idx`, `CreatureDisplayID`, `DisplayScale`, `Probability`) VALUES
-(252078, 0, 52318, 1, 1);
 
 UPDATE `creature_template` SET `npcflag` = (`npcflag` | 1), `AIName` = 'SmartAI' WHERE `entry` = 254128;
 
@@ -49,4 +40,4 @@ INSERT INTO `smart_scripts` (`entryorguid`, `source_type`, `id`, `link`, `event_
 (254128, 0, 0, 1, 62, 0, 100, 0, 41095, 0, 85, 1261177, 2, 0, 7, 'Wardrobe - On Gossip Option 0 Selected - Invoker Self Cast Eavesdropping'),
 (254128, 0, 1, 2, 61, 0, 100, 0, 0, 0, 72, 0, 0, 0, 7, 'Wardrobe - On Link - Close Gossip'),
 (254128, 0, 2, 0, 61, 0, 100, 0, 0, 0, 80, 25412800, 2, 0, 1, 'Wardrobe - On Link - Run Timed Action List'),
-(25412800, 9, 0, 0, 0, 0, 100, 0, 13000, 13000, 33, 252078, 0, 0, 7, 'Wardrobe Eavesdrop - After 13 s - Quest Credit Learn of the Cultists'' Plans');
+(25412800, 9, 0, 0, 0, 0, 100, 0, 13000, 13000, 85, 1254871, 2, 0, 7, 'Wardrobe Eavesdrop - After 13 s - Invoker Self Cast Eavesdropping (kill credit 252078)');
