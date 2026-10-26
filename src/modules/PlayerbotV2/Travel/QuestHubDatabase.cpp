@@ -211,6 +211,11 @@ bool QuestHub::IsAppropriateFor(BotSnapshot const& snap) const
     if (snap.identity.level < minLevel) return false;
     if (maxLevel > 0 && snap.identity.level > maxLevel) return false;
     if (!(factionMask & race_team_bit(snap.identity.race))) return false;
+    // Launch bots stay in the dwarf and gnome leveling area (Dun Morogh, Ironforge, Loch Modan) until 20.
+    if (snap.identity.launch_area_hubs &&
+        (mapId != 0 || location.GetPositionX() < -6800.f || location.GetPositionX() > -4500.f ||
+         location.GetPositionY() < -4800.f || location.GetPositionY() > 1000.f))
+        return false;
     return true;
 }
 

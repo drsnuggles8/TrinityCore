@@ -997,6 +997,9 @@ struct IdentityState
 {
     std::string name;
     uint8       level   = 0;
+    // A launch bot below level 20 (Fleet/LaunchSim): quest hubs outside Dun Morogh, Ironforge and Loch Modan are not for it
+    // (QuestHub::IsAppropriateFor). Set by the builder every build.
+    bool        launch_area_hubs = false;
     // Experience progress at the current level. xp / xp_for_level give the
     // raw counters; rest_bonus_xp is the rested xp pool (>0 in inns/cities).
     // All zero for max-level bots since GetXP returns 0 there.
