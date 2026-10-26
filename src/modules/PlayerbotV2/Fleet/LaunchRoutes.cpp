@@ -37,7 +37,8 @@ void LaunchRoutes::Load()
     routes_.clear();
     givers_.clear();
 
-    // Class trainers (talent-type trainers) of the launch area: within 3000 y of Coldridge Valley on map 0.
+    // Class trainers of the launch area (within 3000 y of Coldridge Valley on map 0): trainers that are neither profession nor
+    // pet trainers and teach a known set of classes (GetClassMask is every class when the data does not say).
     trainers_.clear();
     for (auto const& [spawn_id, data] : sObjectMgr->GetAllCreatureData())
     {
@@ -50,9 +51,12 @@ void LaunchRoutes::Load()
         if (!ct || !(ct->npcflag & UNIT_NPC_FLAG_TRAINER))
             continue;
         Trainer::Trainer const* tr = sObjectMgr->GetTrainer(sObjectMgr->GetCreatureDefaultTrainer(data.id));
-        if (!tr || tr->GetType() != Trainer::Type::Talent)
+        if (!tr || tr->GetType() == Trainer::Type::Tradeskill || tr->GetType() == Trainer::Type::Pet)
             continue;
-        trainers_.push_back({ spawn_id, tr->GetClassMask(), x, y, data.spawnPoint.GetPositionZ() });
+        uint32 const mask = tr->GetClassMask();
+        if (mask == 0 || (mask & 0x7FF) == 0x7FF)
+            continue;
+        trainers_.push_back({ spawn_id, mask, x, y, data.spawnPoint.GetPositionZ() });
     }
     TC_LOG_INFO("playerbot.v2", "[launch] {} class trainers in the launch area", trainers_.size());
 

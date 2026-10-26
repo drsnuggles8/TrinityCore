@@ -10131,7 +10131,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     // TaxiPathGraph can route between them. Idle rule fires fly_to_node
     // when the bot reaches the start FM. We *don't* run this if the bot
     // already has no known taxi nodes (fresh char) or no nearby FM.
-    if (!snap->travel.taxi_mask.empty() && p->GetTeam() != TEAM_OTHER)
+    // A launch bot below level 10 walks (a fresh character on launch day does not fly from Ironforge to its next quest).
+    bool const launch_walks = bot_ai && bot_ai->launch().active && p->GetLevel() < 10;
+    if (!snap->travel.taxi_mask.empty() && p->GetTeam() != TEAM_OTHER && !launch_walks)
     {
         // 1) Resolve the long-distance travel goal (same map only). Priority
         //    order matches the auto-mount and idle rule: current quest POI

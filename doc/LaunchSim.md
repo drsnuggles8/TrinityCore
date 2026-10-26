@@ -97,6 +97,37 @@ Measurements go here, each with the build, bot count and what changed.
 
 | Date | Build | Bots | Idle RSS | RSS with bots | Update diff avg | CPU | Notes |
 |---|---|---|---|---|---|---|---|
+| 26 Oct | build9 (98147d0c) | 100 (72 online at 25 min) | 2329 MB | 2200-2300 MB | 1-2 ms | 26-31% | defaults; no bot took a quest (companion rule bug, fixed in f660dfc9) |
+
+The bots themselves are cheap; the worldserver's own data is what fills the memory. Startup profile (RSS sampled every
+0.2 s against the timestamped Server.log, `startup-mem.sh` on the home server), biggest steps with the defaults:
+
+| Step | RSS growth |
+|---|---|
+| DB2 data stores | ~560 MB |
+| creature locale strings (222875) | ~550 MB |
+| quest template locale strings | ~270 MB |
+| query cache (creature / gameobject / quest query packets, every locale) | ~210 MB |
+| waypoint path nodes | ~190 MB |
+
+Configuration changes, each measured against the defaults (steady state about two minutes after startup, no bots):
+
+| Change | Idle RSS | Idle CPU | Notes |
+|---|---|---|---|
+| defaults | 2329 MB | 37% | the world loop ticks every ~1 ms (55k ticks a minute) |
+| `Load.Locales = 0`, `CacheDataQueries = 0` | | | locales: enUS only (the client is enUS); queries answered on demand, a handful of real players |
+| + `MinWorldUpdateTime = 20`, `MapUpdateInterval = 50` | 1712 MB | ~36-42% (noisy) | the bot module's own `[mem]` line |
+
+In `worldserver.env` (home server): `TC_LOAD_LOCALES=0`, `TC_CACHE_DATA_QUERIES=0`, `TC_MIN_WORLD_UPDATE_TIME=20`,
+`TC_MAP_UPDATE_INTERVAL=50`.
+
+Code changes for capacity:
+
+- Bot sessions get no update blocks (`BaseEntity` create / values builders return early for a bot target,
+  `Player::SendInitialVisiblePackets` too): a bot has no client and `BotSession::SendPacket` drops everything, yet every
+  visible object was serialized for every bot. Visibility (`m_clientGUIDs`) is tracked as before.
+- jemalloc options (`malloc_conf` in worldserver `Main.cpp`; the build ignores `MALLOC_CONF`): background purging, dirty
+  pages back to the OS after 2 s, 8 arenas.
 
 ## Open items
 
