@@ -27,6 +27,17 @@
 #include "Transport.h"
 #include "UpdateData.h"
 #include "Vehicle.h"
+#include "WorldSession.h"
+
+namespace
+{
+// A bot session has no client: whatever is serialized for it is thrown away (BotSession::SendPacket), so the create and
+// values blocks are not built at all. Visibility itself (Player::m_clientGUIDs) is still tracked as for a real player.
+bool IsHeadless(Player const* target)
+{
+    return target->GetSession() && target->GetSession()->IsBot();
+}
+}
 
 namespace WowCS
 {
@@ -93,7 +104,7 @@ void BaseEntity::RemoveFromWorld()
 
 void BaseEntity::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) const
 {
-    if (!target)
+    if (!target || IsHeadless(target))
         return;
 
     uint8 updateType = m_isNewObject ? UPDATETYPE_CREATE_OBJECT2 : UPDATETYPE_CREATE_OBJECT;
@@ -158,6 +169,9 @@ void BaseEntity::SendUpdateToPlayer(Player* player) const
 
 void BaseEntity::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player const* target) const
 {
+    if (IsHeadless(target))
+        return;
+
     ByteBuffer& buf = PrepareValuesUpdateBuffer(data);
 
     EnumFlag<UF::UpdateFieldFlag> fieldFlags = GetUpdateFieldFlagsFor(target);
@@ -703,6 +717,9 @@ void BaseEntity::BuildUpdateChangesMask()
 
 void BaseEntity::BuildFieldsUpdate(Player* player, UpdateDataMapType& data_map) const
 {
+    if (IsHeadless(player))
+        return;
+
     UpdateDataMapType::iterator iter = data_map.emplace(player, player->GetMapId()).first;
     BuildValuesUpdateBlockForPlayer(&iter->second, iter->first);
 }

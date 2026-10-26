@@ -25717,6 +25717,9 @@ void Player::UpdateTriggerVisibility()
 
 void Player::SendInitialVisiblePackets(WorldObject* target) const
 {
+    if (GetSession()->IsBot())
+        return;   // no client to show auras and vignettes to (see BaseEntity IsHeadless)
+
     auto sendVignette = [](Vignettes::VignetteData const& vignette, Player const* where)
     {
         if (!vignette.Data->IsInfiniteAOI() && Vignettes::CanSee(where, vignette))
