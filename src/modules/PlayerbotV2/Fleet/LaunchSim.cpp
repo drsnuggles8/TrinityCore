@@ -36,8 +36,6 @@ namespace {
 // Strategy x temperament x pace drawn together. Shares and paces from the launch research (2019 launch, Season of Mastery,
 // Hardcore, Season of Discovery, the Forever beta and stress test); 1.0 pace = an uncrowded speedrun (Coldridge left at
 // ~35 min). Weights can be overridden with Playerbot.Launch.PersonaWeights = "racer:5,rxp:12,...".
-enum class Arrival : uint8 { Curve, Instant, Early };
-
 struct Persona
 {
     char const*       key;
@@ -50,27 +48,26 @@ struct Persona
     uint16            afk_every_min;      // 0 = never
     uint16            afk_lo_s, afk_hi_s;
     uint16            session_lo_min, session_hi_min;   // 0 = plays on
-    Arrival           arrival;
     uint8             class_pref;         // 0 = any
 };
 
 //                                                                     N   F   G   L   Gr
 constexpr std::array<Persona, 15> kPersonas = { {
-    { "racer",     5, LaunchStrategy::GuideRoute,   0.95f, 1.10f, { 25,  5, 60, 10,  0 },   0,  30, 0.0f,  0.5f,   0,   0,   0,   0,   0, Arrival::Instant, 0 },
-    { "rxp",      12, LaunchStrategy::GuideRoute,   1.00f, 1.30f, { 45, 10, 35, 10,  0 },  10, 120, 0.3f,  1.5f,  90,  60, 180,   0,   0, Arrival::Early,   0 },
-    { "trolls",    3, LaunchStrategy::TrollGrinder, 1.00f, 1.20f, { 20,  0, 50, 30,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0, Arrival::Early,   0 },
-    { "skipper",   2, LaunchStrategy::Skipper,      1.00f, 1.20f, { 40,  0, 40, 20,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0, Arrival::Early,   0 },
-    { "questie",  25, LaunchStrategy::Quester,      1.60f, 2.40f, { 55, 30, 10,  5,  0 },  60, 300, 2.0f,  8.0f,  45,  60, 300, 120, 600, Arrival::Curve,   0 },
-    { "friends",  14, LaunchStrategy::Quester,      1.20f, 1.60f, { 50, 50,  0,  0,  0 },  30, 180, 1.0f,  5.0f,  60,  60, 240,   0,   0, Arrival::Curve,   0 },
-    { "grinder",   6, LaunchStrategy::CrowdGrinder, 1.20f, 1.60f, { 50,  0, 20, 30,  0 },  30, 120, 0.5f,  3.0f,  60,  60, 180,   0,   0, Arrival::Curve,   0 },
-    { "hunter",    5, LaunchStrategy::Quester,      1.20f, 1.50f, { 50,  0, 25, 25,  0 },  30, 150, 0.5f,  3.0f,  60,  60, 180,   0,   0, Arrival::Curve,   CLASS_HUNTER },
-    { "gatherer",  6, LaunchStrategy::Gatherer,     2.00f, 2.60f, { 50, 50,  0,  0,  0 },  60, 300, 2.0f,  8.0f,  45,  60, 300, 120, 480, Arrival::Curve,   0 },
-    { "casual",   15, LaunchStrategy::Casual,       3.00f, 4.00f, { 40, 50,  0, 10,  0 }, 120, 600, 8.0f, 40.0f,  20, 120, 600,  30, 180, Arrival::Curve,   0 },
-    { "partylead", 3, LaunchStrategy::PartyBuilder, 1.30f, 1.70f, { 40, 60,  0,  0,  0 },  30, 120, 1.0f,  4.0f,  60,  60, 180,   0,   0, Arrival::Curve,   0 },
-    { "idle",      6, LaunchStrategy::Idle,         4.00f, 4.00f, { 50, 20,  0, 30,  0 }, 300,1500,10.0f, 60.0f,  10, 180, 900,   5,  30, Arrival::Curve,   0 },
-    { "reroller",  4, LaunchStrategy::Reroller,     1.50f, 2.50f, { 50, 30, 10, 10,  0 },  60, 300, 1.0f,  6.0f,  30,  60, 240,  10,  40, Arrival::Curve,   0 },
-    { "ninja",     2, LaunchStrategy::KillStealer,  1.10f, 1.40f, {  0,  0, 30,  0, 70 },  10,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0, Arrival::Early,   0 },
-    { "leaver",    2, LaunchStrategy::Quester,      1.10f, 1.30f, { 50, 20, 20, 10,  0 },  10,  90, 0.3f,  2.0f,  90,  60, 180,   0,   0, Arrival::Early,   0 },
+    { "racer",     5, LaunchStrategy::GuideRoute,   0.95f, 1.10f, { 25,  5, 60, 10,  0 },   0,  30, 0.0f,  0.5f,   0,   0,   0,   0,   0, 0 },
+    { "rxp",      12, LaunchStrategy::GuideRoute,   1.00f, 1.30f, { 45, 10, 35, 10,  0 },  10, 120, 0.3f,  1.5f,  90,  60, 180,   0,   0,   0 },
+    { "trolls",    3, LaunchStrategy::TrollGrinder, 1.00f, 1.20f, { 20,  0, 50, 30,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
+    { "skipper",   2, LaunchStrategy::Skipper,      1.00f, 1.20f, { 40,  0, 40, 20,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
+    { "questie",  25, LaunchStrategy::Quester,      1.60f, 2.40f, { 55, 30, 10,  5,  0 },  60, 300, 2.0f,  8.0f,  45,  60, 300, 120, 600,   0 },
+    { "friends",  14, LaunchStrategy::Quester,      1.20f, 1.60f, { 50, 50,  0,  0,  0 },  30, 180, 1.0f,  5.0f,  60,  60, 240,   0,   0,   0 },
+    { "grinder",   6, LaunchStrategy::CrowdGrinder, 1.20f, 1.60f, { 50,  0, 20, 30,  0 },  30, 120, 0.5f,  3.0f,  60,  60, 180,   0,   0,   0 },
+    { "hunter",    5, LaunchStrategy::Quester,      1.20f, 1.50f, { 50,  0, 25, 25,  0 },  30, 150, 0.5f,  3.0f,  60,  60, 180,   0,   0,   CLASS_HUNTER },
+    { "gatherer",  6, LaunchStrategy::Gatherer,     2.00f, 2.60f, { 50, 50,  0,  0,  0 },  60, 300, 2.0f,  8.0f,  45,  60, 300, 120, 480,   0 },
+    { "casual",   15, LaunchStrategy::Casual,       3.00f, 4.00f, { 40, 50,  0, 10,  0 }, 120, 600, 8.0f, 40.0f,  20, 120, 600,  30, 180,   0 },
+    { "partylead", 3, LaunchStrategy::PartyBuilder, 1.30f, 1.70f, { 40, 60,  0,  0,  0 },  30, 120, 1.0f,  4.0f,  60,  60, 180,   0,   0,   0 },
+    { "idle",      6, LaunchStrategy::Idle,         4.00f, 4.00f, { 50, 20,  0, 30,  0 }, 300,1500,10.0f, 60.0f,  10, 180, 900,   5,  30,   0 },
+    { "reroller",  4, LaunchStrategy::Reroller,     1.50f, 2.50f, { 50, 30, 10, 10,  0 },  60, 300, 1.0f,  6.0f,  30,  60, 240,  10,  40,   0 },
+    { "ninja",     2, LaunchStrategy::KillStealer,  1.10f, 1.40f, {  0,  0, 30,  0, 70 },  10,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
+    { "leaver",    2, LaunchStrategy::Quester,      1.10f, 1.30f, { 50, 20, 20, 10,  0 },  10,  90, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
 } };
 
 // Classes of the Forever beta census (Alliance, 20 Sep, ~5000 characters, in percent x10), restricted below to what a
@@ -170,20 +167,14 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late)
         }
     }
 
-    // Arrival after T0: most of the crowd in the first hour (35% in 3 min, 35% by 15 min, the rest by 60), racers at once,
-    // speedrunners in the first minutes, late arrivals spread over hours one to six.
+    // Arrival after T0, the same for every persona (the login queue does not care who is a racer): 35% in the first 3 min,
+    // 35% by 15 min, the rest by 60; late arrivals spread over hours one to six.
     if (late)
         e.arrival_s = urand(3600, 6 * 3600);
-    else switch (p.arrival)
+    else
     {
-        case Arrival::Instant: e.arrival_s = urand(0, 40); break;
-        case Arrival::Early:   e.arrival_s = urand(5, 180); break;
-        default:
-        {
-            uint32 const r = urand(0, 99);
-            e.arrival_s = r < 35 ? urand(30, 180) : r < 70 ? urand(180, 900) : urand(900, 3600);
-            break;
-        }
+        uint32 const r = urand(0, 99);
+        e.arrival_s = r < 35 ? urand(5, 180) : r < 70 ? urand(180, 900) : urand(900, 3600);
     }
     e.session_s = p.session_hi_min ? urand(p.session_lo_min, p.session_hi_min) * 60u : 0u;
 }
