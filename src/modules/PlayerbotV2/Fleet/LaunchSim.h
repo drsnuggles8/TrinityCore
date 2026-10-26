@@ -37,6 +37,8 @@ public:
     std::string Stop();
     std::string Reset();
     std::string Status() const;
+    // One line on the online launch bots: average level, quests turned in, dead, the rules they fired last.
+    std::string Report() const;
 
     void OnWorldTick(uint32 now_ms);
     // A real (non-bot) player entered the world: T0 of an armed run.
@@ -76,6 +78,7 @@ private:
     std::vector<Entry> roster_;
     std::unordered_map<uint64, size_t> by_guid_;
     uint32             t0_ms_ = 0;
+    uint32             last_report_ms_ = 0;
     uint32             late_count_ = 0;   // the last late_count_ roster entries arrive after the first hour
     bool               recreate_after_delete_ = false;
 };

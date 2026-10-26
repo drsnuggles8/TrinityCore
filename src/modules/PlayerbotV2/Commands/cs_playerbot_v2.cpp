@@ -2352,9 +2352,10 @@ public:
         else if (sub == "stop")   out = sim.Stop();
         else if (sub == "reset")  out = sim.Reset();
         else if (sub == "status") out = sim.Status();
+        else if (sub == "report") out = sim.Report();
         else
         {
-            handler->SendSysMessage("Usage: .playerbot launch prepare [bots] [late] | arm | start | stop | reset | status");
+            handler->SendSysMessage("Usage: .playerbot launch prepare [bots] [late] | arm | start | stop | reset | status | report");
             return false;
         }
         for (auto const& line : Trinity::Tokenize(out, '\n', true))

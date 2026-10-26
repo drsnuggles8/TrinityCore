@@ -345,8 +345,49 @@ std::string LaunchSim::Status() const
     return o.str();
 }
 
+std::string LaunchSim::Report() const
+{
+    // What the online launch bots are doing: XP progress, quests turned in, dead ones, and the rule each fired last
+    // (the busiest ten), so a run can be judged from the log without watching it.
+    uint32 online = 0, dead = 0, quests = 0;
+    uint64 xp_levels_x100 = 0;
+    std::map<std::string, uint32> rules;
+    for (Entry const& e : roster_)
+    {
+        if (e.state != BotState::Online)
+            continue;
+        Player* p = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(e.guid_low));
+        if (!p)
+            continue;
+        ++online;
+        dead += p->isDead() ? 1u : 0u;
+        quests += uint32(p->GetRewardedQuestCount());
+        uint32 const need = p->GetXPForNextLevel();
+        xp_levels_x100 += uint64(p->GetLevel()) * 100u + (need ? uint64(p->GetXP()) * 100u / need : 0u);
+        if (BotAI* ai = Services::Registry().ai(e.guid_low))
+            if (char const* r = ai->last_rule_fired())
+                ++rules[r];
+    }
+    std::ostringstream o;
+    o << "T0+" << (phase_ == Phase::Running ? (GameTime::GetGameTimeMS() - t0_ms_) / 60000u : 0u) << "min online=" << online
+      << " avg_level=" << (online ? double(xp_levels_x100) / 100.0 / online : 0.0) << " quests=" << quests << " dead=" << dead
+      << " rules:";
+    std::vector<std::pair<uint32, std::string>> top;
+    for (auto const& [r, n] : rules)
+        top.emplace_back(n, r);
+    std::sort(top.rbegin(), top.rend());
+    for (size_t i = 0; i < top.size() && i < 10; ++i)
+        o << ' ' << top[i].second << '=' << top[i].first;
+    return o.str();
+}
+
 void LaunchSim::OnWorldTick(uint32 now_ms)
 {
+    if (phase_ == Phase::Running && now_ms - last_report_ms_ >= 60000u)
+    {
+        last_report_ms_ = now_ms;
+        TC_LOG_INFO("playerbot.v2", "[launch] report {}", Report());
+    }
     switch (phase_)
     {
         case Phase::Creating:
