@@ -424,6 +424,117 @@ DisconnectToleranceInterval = 0
 mmap.enablePathFinding = 1
 
 #
+#    Pathfinding.PreferRoads
+#        Description: Road-aware pathfinding. When enabled, Detour's
+#                     query filter biases shortest-path search toward
+#                     polygons tagged NAV_AREA_ROAD by the mmaps
+#                     generator. Requires mmaps regenerated with the
+#                     road-aware mapextractor + mmaps_generator binaries
+#                     (writes parallel <map>_<y>_<x>.road files alongside
+#                     each <map>_<y>_<x>.map). Polygons without a road
+#                     tag are unaffected — old extracted mmaps without
+#                     .road files behave identically to before.
+#        Default:     0 - (Disabled, neutral cost for road polygons)
+#                     1 - (Enabled, road polygons cost less to traverse)
+
+Pathfinding.PreferRoads = 0
+
+#
+#    Pathfinding.RoadCost
+#        Description: Per-polygon traversal cost for road-tagged
+#                     polygons when Pathfinding.PreferRoads is enabled.
+#                     Default 0.5 means roads cost half as much as
+#                     plain ground — Detour will prefer routes that
+#                     stay on roads even when they're geometrically
+#                     longer (up to 2x). Lower = stronger preference;
+#                     1.0 = neutral; values above 1.0 actively avoid
+#                     roads (unusual).
+#        Default:     0.5
+
+Pathfinding.RoadCost = 0.5
+
+#
+#    Pathfinding.RoadCostMounted
+#        Description: Road cost when the unit is mounted. Mounted bots
+#                     benefit more from roads (mount speed applies
+#                     cleanly, no terrain skidding) so we offer a
+#                     tighter cost than the on-foot RoadCost. Only
+#                     active when PreferRoads = 1.
+#        Default:     0.35
+#
+
+Pathfinding.RoadCostMounted = 0.35
+
+#
+#    Pathfinding.SlopeCoefficient
+#        Description: Road-aware pathfinding Phase 3 — slope-aware cost
+#                     modifier. Each path segment's cost is multiplied by
+#                     `1.0 + slopeAngleDegrees * SlopeCoefficient / 100`
+#                     (clamped to 2.0). At default 1.0: 30° slope costs
+#                     1.3×, 60° costs 1.6×. The slope term tempers raw
+#                     road preference so bots don't switchback up a
+#                     mountain just because there's a road on it.
+#                     Set to 0.0 to disable the slope penalty entirely (stock
+#                     pathing for every creature). The bot module's
+#                     playerbot.conf sets 1.0.
+#                     The dtQueryFilterTC subclass implements this; see
+#                     src/server/game/Movement/dtQueryFilterTC.cpp.
+#        Default:     0.0
+
+Pathfinding.SlopeCoefficient = 0.0
+
+###################################################################################################
+# Handcrafted road segments
+#
+#    HandcraftedRoads.Enable
+#        Description: Apply operator-curated road segments from the handcrafted_road table
+#                     to each map's navmesh at load time.  Tagged polys get the road-bias in
+#                     PathGenerator (slope-aware road bonus). The bot module's playerbot.conf sets 1.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+###################################################################################################
+HandcraftedRoads.Enable = 0
+
+###################################################################################################
+# Handcrafted road centerline routing (bots)
+#
+#    RoadGraph.Enable
+#        Description: Build a routable centerline graph from the handcrafted_road table and have
+#                     bots FOLLOW the authored road polylines for long ground trips (via a waypoint
+#                     spline) instead of only getting the NAV_AREA_ROAD area-cost nudge. The
+#                     area-cost bias (HandcraftedRoads.Enable above) remains the fallback.
+#                     The bot module's playerbot.conf sets 1.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+#
+#    RoadGraph.MinDistance
+#        Description: Minimum straight-line distance (yards) before road routing is considered.
+#                     Shorter hops use direct navmesh movement.
+#        Default:     150.0
+#
+#    RoadGraph.MaxDetourRatio
+#        Description: Max allowed ratio of (entry + road + exit) length to the direct distance.
+#                     A road route longer than this is rejected in favour of the direct path.
+#        Default:     1.6
+#
+#    RoadGraph.MaxEntryDistance
+#        Description: Max distance (yards) a bot will treat a road node as a viable on/off ramp.
+#                     If no road node is within this range of the start or destination, the bot
+#                     uses direct movement.
+#        Default:     120.0
+#
+#    RoadGraph.NodeMergeEpsilon
+#        Description: Authored segment endpoints within this distance (yards) collapse into one
+#                     shared junction node when building the graph.
+#        Default:     3.0
+###################################################################################################
+RoadGraph.Enable = 0
+RoadGraph.MinDistance = 150.0
+RoadGraph.MaxDetourRatio = 1.6
+RoadGraph.MaxEntryDistance = 120.0
+RoadGraph.NodeMergeEpsilon = 3.0
+
+#
 #    vmap.enableLOS
 #    vmap.enableHeight
 #        Description: Vmap support for line of sight and height calculation.
@@ -1083,6 +1194,62 @@ Instance.IgnoreAttunement = 0
 #                     1 - (Enabled)
 
 Instance.IgnoreRaid = 0
+
+#
+#    Instance.BindOnEntry
+#        Description: Save a raid lockout (instance id, boss states) for every real player the moment
+#                     they enter a raid with a reset schedule, instead of waiting for the first boss
+#                     kill. Players who are game masters or bots are never bound by this.
+#                     The instance, its boss states and (with Instance.PersistRaidTrash) its dead
+#                     creatures then survive logout, instance unload and server restarts until the
+#                     normal lockout reset.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+Instance.BindOnEntry = 0
+
+#
+#    Instance.PersistRaidTrash
+#        Description: Keep creatures killed inside a locked raid dead until the lockout resets
+#                     (their respawn time is stored in the characters.respawn table). Without this
+#                     all trash returns whenever the instance map is unloaded or the server restarts.
+#                     Only applies to raid instances that carry a lockout.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+Instance.PersistRaidTrash = 0
+
+#
+#    Instance.AhnQirajGatesOpen
+#        Description: Optional server-owner option. The Gate of Ahn'Qiraj (door plug 176146 and gate
+#                     176149) stands open, so neither the war effort nor ringing the Scarab Gong is
+#                     needed to reach the two Ahn'Qiraj instances.
+#        Default:     0 - (Disabled, Blizzlike)
+#                     1 - (Enabled)
+
+Instance.AhnQirajGatesOpen = 0
+
+#
+#    Instance.MoltenCoreHoundsLinked
+#        Description: Molten Core Core Hounds as in 1.12: a hound that would die feigns death at 1 hp
+#                     and rises again at full health after 10 seconds unless every hound of the pack
+#                     dies within that time. Disabled: every hound simply dies when its health runs
+#                     out and stays dead, so a pack can be killed one by one.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+Instance.MoltenCoreHoundsLinked = 0
+
+#
+#    Instance.MoltenCoreSkipRunes
+#        Description: The Molten Core bosses are all up from the start: the seven runes count as doused
+#                     (no Aqual Quintessence needed), Majordomo Executus stands in his hall, and
+#                     Ragnaros is in his lair ready to fight. A boss that is already killed in the
+#                     instance (raid lock) stays dead.
+#        Default:     0 - (Disabled, the 1.12 way: douse the runes, kill Majordomo, summon Ragnaros)
+#                     1 - (Enabled, optional shortcut for private servers)
+
+Instance.MoltenCoreSkipRunes = 0
 
 #
 #    Instance.CombatResurrectionLimit
@@ -4268,7 +4435,7 @@ BlackMarket.UpdatePeriod = 24
 #
 
 Appender.Console=1,3,0
-Appender.Server=2,2,0,Server.log,w
+Appender.Server=2,2,0,Server.log,w,104857600,3
 Appender.GM=2,2,1,GM.log
 Appender.DBErrors=2,2,0,DBErrors.log,w
 Appender.CrashRing=4,3,7,300

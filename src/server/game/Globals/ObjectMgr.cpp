@@ -694,6 +694,44 @@ ClassicCreatureStats const* ObjectMgr::GetCreatureClassicStats(uint32 entry) con
     return Trinity::Containers::MapGetValuePtr(_creatureClassicStatsStore, entry);
 }
 
+// Classic 1.60: vanilla melee hit and swing time of every creature (imported from VMaNGOS)
+void ObjectMgr::LoadCreatureClassicMelee()
+{
+    uint32 oldMSTime = getMSTime();
+
+    _creatureClassicMeleeStore.clear();
+
+    //                                               0      1         2         3          4
+    QueryResult result = WorldDatabase.Query("SELECT entry, dmg_min, dmg_max, attack_ms, ranged_attack_ms FROM creature_classic_melee");
+    if (!result)
+    {
+        TC_LOG_INFO("server.loading", ">> Loaded 0 classic creature melee rows. DB table `creature_classic_melee` is empty.");
+        return;
+    }
+
+    do
+    {
+        Field* fields = result->Fetch();
+        uint32 entry = fields[0].GetUInt32();
+        if (!GetCreatureTemplate(entry))
+            continue;
+
+        CreatureClassicMelee melee;
+        melee.DamageMin = fields[1].GetFloat();
+        melee.DamageMax = std::max(fields[2].GetFloat(), melee.DamageMin);
+        melee.AttackMs = fields[3].GetUInt32();
+        melee.RangedAttackMs = fields[4].GetUInt32();
+        _creatureClassicMeleeStore[entry] = melee;
+    } while (result->NextRow());
+
+    TC_LOG_INFO("server.loading", ">> Loaded {} classic creature melee rows in {} ms", _creatureClassicMeleeStore.size(), GetMSTimeDiffToNow(oldMSTime));
+}
+
+ObjectMgr::CreatureClassicMelee const* ObjectMgr::GetCreatureClassicMelee(uint32 entry) const
+{
+    return Trinity::Containers::MapGetValuePtr(_creatureClassicMeleeStore, entry);
+}
+
 ClassicCreatureClassLevelStats const* ObjectMgr::GetCreatureClassicClassLevelStats(uint8 level, uint8 unitClass) const
 {
     return Trinity::Containers::MapGetValuePtr(_creatureClassicClassLevelStatsStore, MAKE_PAIR16(level, unitClass));
@@ -4550,8 +4588,9 @@ void ObjectMgr::LoadPlayerInfo()
 
         } while (raceStatsResult->NextRow());
 
-        //                                                  0      1     2    3    4    5    6    7
-        QueryResult result  = WorldDatabase.Query("SELECT class, level, str, agi, sta, inte, spi, basehp FROM player_classlevelstats");
+        //                                                  0      1     2    3    4    5    6    7       8
+        QueryResult result  = WorldDatabase.Query("SELECT class, level, str, agi, sta, inte, spi, basehp, basemana FROM player_classlevelstats");
+        _classicBaseMana.clear();
 
         if (!result)
         {
@@ -4596,6 +4635,10 @@ void ObjectMgr::LoadPlayerInfo()
                     levelInfo.baseHealth = fields[7].GetUInt32();
                 }
             }
+
+            // Classic 1.60 (vanilla, VMaNGOS player_classlevelstats.basemana): 0 keeps the client's game table value
+            if (uint32 classicBaseMana = fields[8].GetUInt32())
+                _classicBaseMana[(current_class << 8) | current_level] = classicBaseMana;
 
             ++count;
         }
@@ -4691,6 +4734,13 @@ void ObjectMgr::GetPlayerClassLevelInfo(uint32 class_, uint8 level, uint32& base
 
     if (level > sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
         level = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
+
+    // Classic 1.60 (vanilla): the base mana of the class at this level from VMaNGOS, base health was replaced the same way
+    if (uint32 const* classicBaseMana = Trinity::Containers::MapGetValuePtr(_classicBaseMana, (class_ << 8) | level))
+    {
+        baseMana = *classicBaseMana;
+        return;
+    }
 
     GtBaseMPEntry const* mp = sBaseMPGameTable.GetRow(level);
     if (!mp)

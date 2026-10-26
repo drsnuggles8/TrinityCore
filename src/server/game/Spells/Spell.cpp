@@ -9407,6 +9407,18 @@ void Spell::TriggerGlobalCooldown()
         }
 
         // Classic 1.60 (vanilla): the global cooldown is not shortened by spell haste or haste regen (retail scaled it down to 0.75 s)
+
+        // PlayerbotV2 pacing multiplier (bots only): scales the GCD, floor 750 ms.
+        if (m_caster->GetTypeId() == TYPEID_PLAYER)
+        {
+            float const botMod = m_caster->ToPlayer()->GetBotCastSpeedMod();
+            if (botMod != 1.0f)
+            {
+                gcd = Milliseconds(int64(gcd.count() * botMod));
+                if (gcd < MinGCD)
+                    gcd = MinGCD;
+            }
+        }
     }
 
     m_caster->ToUnit()->GetSpellHistory()->AddGlobalCooldown(m_spellInfo, gcd);

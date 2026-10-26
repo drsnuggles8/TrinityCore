@@ -1303,6 +1303,21 @@ void Creature::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, 
     float totalPct         = addTotalPct ? GetPctModifierValue(unitMod, TOTAL_PCT) : 1.0f;
     float dmgMultiplier    = GetCreatureDifficulty()->DamageModifier; // = DamageModifier * GetDamageMod(rank);
 
+    // Classic 1.60 (vanilla): the VMaNGOS hit of the creature, per hit whatever its swing time (the client's damage per second table and the
+    // old damage modifiers are 0-60% off per creature, and scale the hit with the swing)
+    if (attType != RANGED_ATTACK && !IsPet() && !IsGuardian())
+        if (ObjectMgr::CreatureClassicMelee const* classic = sObjectMgr->GetCreatureClassicMelee(GetEntry()); classic && classic->DamageMax > 0.0f)
+        {
+            float const mainHand = CanUseAttackType(attType) ? 1.0f : 0.0f;
+            float const auraAttackPower = attackPower - baseAttackPower;
+            float const swingMs = float(GetBaseAttackTime(attType));
+            float const flat = GetFlatModifierValue(unitMod, BASE_VALUE);
+            float const pct = GetPctModifierValue(unitMod, BASE_PCT);
+            minDamage = ClassicSpellValue::CreatureClassicHit(classic->DamageMin * mainHand, auraAttackPower, variance, swingMs, flat, pct, totalValue, totalPct);
+            maxDamage = ClassicSpellValue::CreatureClassicHit(classic->DamageMax * mainHand, auraAttackPower, variance, swingMs, flat, pct, totalValue, totalPct);
+            return;
+        }
+
     // Classic 1.60: vanilla creatures (creature_classic_stats) hit for their per-hit weapon damage, which already holds their
     // damage multiplier (Creature::UpdateLevelDependantStats); only attack power changes from auras scale with attack time
     if (!IsPet() && sObjectMgr->GetCreatureClassicStats(GetEntry()))

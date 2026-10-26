@@ -647,6 +647,11 @@ public:
         _value = RoundToInterval<float>(value, 0.0f, 100.0f);
     }
 
+    // Diagnostic read of the live capture-bar value (0 = horde captured,
+    // 100 = alliance captured, between = contested/neutral band). Consumed
+    // by GameObject::GetControlZoneValue for GM tooling.
+    float GetValue() const { return _value; }
+
     void HandleHeartbeat()
     {
         // update player list inside control zone
@@ -945,6 +950,11 @@ void GameObject::AddToWorld()
         GetMap()->GetObjectsStore().Insert<GameObject>(this);
         if (m_spawnId)
             GetMap()->GetGameObjectBySpawnIdStore().insert(std::make_pair(m_spawnId, this));
+
+        // Instance.AhnQirajGatesOpen: the Gate of Ahn'Qiraj stands open without the war effort and the Scarab Gong
+        // (176146 Doodad_Ahn_Qiraj_DoorPlug01, 176149 Gate of Ahn'Qiraj2)
+        if ((GetEntry() == 176146 || GetEntry() == 176149) && sWorld->getBoolConfig(CONFIG_AQ_GATES_OPEN))
+            SetGoState(GO_STATE_ACTIVE);
 
         // The state can be changed after GameObject::Create but before GameObject::AddToWorld
         bool toggledState = GetGoType() == GAMEOBJECT_TYPE_CHEST ? getLootState() == GO_READY : (GetGoState() == GO_STATE_READY || IsTransport());
@@ -4696,6 +4706,18 @@ TeamId GameObject::GetControllingTeam() const
         return TEAM_NEUTRAL;
 
     return controlZone->GetControllingTeam();
+}
+
+float GameObject::GetControlZoneValue() const
+{
+    if (GetGoType() != GAMEOBJECT_TYPE_CONTROL_ZONE)
+        return -1.0f;
+
+    GameObjectType::ControlZone const* controlZone = dynamic_cast<GameObjectType::ControlZone const*>(m_goTypeImpl.get());
+    if (!controlZone)
+        return -1.0f;
+
+    return controlZone->GetValue();
 }
 
 void GameObject::CreateModel()

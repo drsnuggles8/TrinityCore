@@ -514,6 +514,18 @@ uint32 SpellEffectInfo::GetPeriodicTickCount() const
     return totalTicks;
 }
 
+// Classic 1.60: the vanilla (1.12) dice of an effect of a legacy spell, whoever casts it (ClassicSpellValue.h). The client's flat
+// values differ from vanilla for part of the legacy spells (Evoker Flamestrike 11829: 479, vanilla 76..88; player Shadow Bolt
+// rank 10 25307: 257, vanilla 482..538).
+static ClassicSpellValue::Value const* GetClassicValue(WorldObject const* caster, uint32 spellId, uint32 effectIndex)
+{
+    if (!caster)
+        return nullptr;
+    if (!ClassicSpellValue::AppliesToSpell(spellId))
+        return nullptr;
+    return sSpellMgr->GetClassicSpellValue(spellId, effectIndex);
+}
+
 int32 SpellEffectInfo::CalcValueAsInt(WorldObject const* caster /*= nullptr*/, SpellEffectValue const* basePoints /*= nullptr*/, Unit const* target /*= nullptr*/, float* variance /*= nullptr*/, uint32 castItemId /*= 0*/, int32 itemLevel /*= -1*/) const
 {
     return int32(CalcValue(caster, basePoints, target, variance, castItemId, itemLevel));
@@ -525,6 +537,14 @@ SpellEffectValue SpellEffectInfo::CalcValue(WorldObject const* caster /*= nullpt
     SpellEffectValue value = bp ? *bp : basePoints;
     SpellEffectValue basePointsPerLevel = RealPointsPerLevel;
     SpellEffectValue comboDamage = PointsPerResource;
+    float scalingVariance = Scaling.Variance;
+    ClassicSpellValue::Value const* vanilla = GetClassicValue(caster, _spellInfo->Id, EffectIndex);
+    if (vanilla)
+    {
+        basePointsPerLevel = vanilla->PointsPerLevel;
+        scalingVariance = ClassicSpellValue::Variance(*vanilla);
+        comboDamage = vanilla->PointsPerCombo;      // vanilla points per combo point (the client's PointsPerResource differs for part of the finishers)
+    }
 
     Unit const* casterUnit = nullptr;
     if (caster)
@@ -558,9 +578,9 @@ SpellEffectValue SpellEffectInfo::CalcValue(WorldObject const* caster /*= nullpt
         }
     }
 
-    if (Scaling.Variance)
+    if (scalingVariance)
     {
-        float delta = fabs(Scaling.Variance * 0.5f);
+        float delta = fabs(scalingVariance * 0.5f);
         float valueVariance = frand(-delta, delta);
         value += basePoints * valueVariance;
 
@@ -569,12 +589,12 @@ SpellEffectValue SpellEffectInfo::CalcValue(WorldObject const* caster /*= nullpt
     }
 
     // base amount modification based on spell lvl vs caster lvl
-    if (Scaling.Coefficient != 0.0f)
+    if (Scaling.Coefficient != 0.0f && !vanilla)
     {
         if (Scaling.ResourceCoefficient)
             comboDamage = value * Scaling.ResourceCoefficient;
     }
-    else if (GetScalingExpectedStat() == ExpectedStatType::None || UsesClassicFlatBasePoints(caster))
+    else if (vanilla || GetScalingExpectedStat() == ExpectedStatType::None || UsesClassicFlatBasePoints(caster))
     {
         // Classic 1.60 (vanilla): spells cast by a player's object (hunter traps: Explosive Trap, Immolation Trap) scale with the
         // owner's level
@@ -687,6 +707,9 @@ bool SpellEffectInfo::UsesClassicFlatBasePoints(WorldObject const* caster) const
 
 SpellEffectValue SpellEffectInfo::CalcBaseValue(WorldObject const* caster, Unit const* target, uint32 itemId, int32 itemLevel) const
 {
+    if (ClassicSpellValue::Value const* vanilla = GetClassicValue(caster, _spellInfo->Id, EffectIndex))
+        return ClassicSpellValue::Mean(*vanilla);
+
     if (Scaling.Coefficient != 0.0f)
     {
         uint32 level = _spellInfo->SpellLevel;
@@ -4236,8 +4259,17 @@ Optional<SpellPowerCost> SpellInfo::CalcPowerCost(SpellPowerEntry const* power, 
     if (!optionalCost)
     {
         powerCost = power->ManaCost;
+        // Classic 1.60: the vanilla mana cost of a legacy spell (classic_spell_cost: flat plus percent of the base mana) replaces the
+        // client's; the cost modifiers below (talents, auras) still apply to it
+        bool usesVanillaCost = false;
+        if (power->PowerType == POWER_MANA && ClassicSpellValue::AppliesToSpell(Id))
+            if (ClassicSpellValue::Cost const* vanillaCost = sSpellMgr->GetClassicSpellCost(Id))
+            {
+                powerCost = ClassicSpellValue::ManaCost(*vanillaCost, int32(unitCaster->GetCreateMana()));
+                usesVanillaCost = true;
+            }
         // PCT cost from total amount
-        if (power->PowerCostPct)
+        if (power->PowerCostPct && !usesVanillaCost)
         {
             switch (power->PowerType)
             {

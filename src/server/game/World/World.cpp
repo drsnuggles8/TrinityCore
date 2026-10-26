@@ -60,6 +60,7 @@
 #include "GridNotifiersImpl.h"
 #include "GroupMgr.h"
 #include "GuildMgr.h"
+#include "HandcraftedRoadStorage.h"
 #include "IPLocation.h"
 #include "InstanceLockMgr.h"
 #include "ItemBonusMgr.h"
@@ -625,6 +626,11 @@ void World::LoadConfigSettings(bool reload)
         { .Name = "InstantFlightPaths"sv, .DefaultValue = false, .Index = CONFIG_INSTANT_TAXI },
         { .Name = "Instance.IgnoreLevel"sv, .DefaultValue = false, .Index = CONFIG_INSTANCE_IGNORE_LEVEL },
         { .Name = "Instance.IgnoreAttunement"sv, .DefaultValue = false, .Index = CONFIG_INSTANCE_IGNORE_ATTUNEMENT },
+        { .Name = "Instance.AhnQirajGatesOpen"sv, .DefaultValue = false, .Index = CONFIG_AQ_GATES_OPEN },
+        { .Name = "Instance.BindOnEntry"sv, .DefaultValue = false, .Index = CONFIG_INSTANCE_BIND_ON_ENTRY },
+        { .Name = "Instance.PersistRaidTrash"sv, .DefaultValue = false, .Index = CONFIG_INSTANCE_PERSIST_RAID_TRASH },
+        { .Name = "Instance.MoltenCoreHoundsLinked"sv, .DefaultValue = false, .Index = CONFIG_MC_CORE_HOUNDS_LINKED },
+        { .Name = "Instance.MoltenCoreSkipRunes"sv, .DefaultValue = false, .Index = CONFIG_MC_SKIP_RUNES },
         { .Name = "Instance.IgnoreRaid"sv, .DefaultValue = false, .Index = CONFIG_INSTANCE_IGNORE_RAID },
         { .Name = "Instance.CombatResurrectionLimit"sv, .DefaultValue = false, .Index = CONFIG_INSTANCE_COMBAT_RES_LIMIT },
         { .Name = "CastUnstuck"sv, .DefaultValue = true, .Index = CONFIG_CAST_UNSTUCK },
@@ -1420,6 +1426,11 @@ bool World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Loading SpellInfo corrections...");
     sSpellMgr->LoadSpellInfoCorrections();
 
+    TC_LOG_INFO("server.loading", "Loading classic spell values...");
+    sSpellMgr->LoadClassicSpellInfo();
+    sSpellMgr->LoadClassicSpellValues();
+    sSpellMgr->LoadClassicSpellCosts();
+
     TC_LOG_INFO("server.loading", "Loading SkillLineAbilityMultiMap Data...");
     sSpellMgr->LoadSkillLineAbilityMap();
 
@@ -1557,6 +1568,7 @@ bool World::SetInitialWorldSettings()
 
     TC_LOG_INFO("server.loading", "Loading Classic creature levels...");
     sObjectMgr->LoadCreatureClassicLevels();
+    sObjectMgr->LoadCreatureClassicMelee();
     sObjectMgr->LoadItemClassicBlock();
 
     TC_LOG_INFO("server.loading", "Loading Shop products...");                 // must be after LoadItemTemplates
@@ -1720,6 +1732,17 @@ bool World::SetInitialWorldSettings()
 
     TC_LOG_INFO("server.loading", "Loading Graveyard-zone links...");
     sObjectMgr->LoadGraveyardZones();
+
+    TC_LOG_INFO("server.loading", "Loading Handcrafted Road Segments...");
+    HandcraftedRoadStorage::LoadFromDB();
+    // Belt-and-suspenders for ordering: if any continent navmesh was
+    // already loaded (e.g. by a prewarm helper) BEFORE LoadFromDB
+    // completed, the LoadMMapImpl hook would have seen only an empty
+    // segment list. Walk every currently-loaded Map and retag now. At
+    // first-boot this is typically a no-op (MapManager::Initialize
+    // happens later) — but the AlreadyLoaded branch of LoadMMapImpl
+    // catches the remaining cases.
+    TerrainMgrDetail::ApplyHandcraftedRoadsToAllLoadedMaps();
 
     TC_LOG_INFO("server.loading", "Loading spell pet auras...");
     sSpellMgr->LoadSpellPetAuras();

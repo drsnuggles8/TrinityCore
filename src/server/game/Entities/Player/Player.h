@@ -27,6 +27,7 @@
 #include "GroupReference.h"
 #include "Hash.h"
 #include "ItemDefines.h"
+#include "IteratorPair.h"
 #include "ItemEnchantmentMgr.h"
 #include "MapReference.h"
 #include "PetDefines.h"
@@ -63,6 +64,7 @@ struct MapEntry;
 struct PvpTalentEntry;
 struct QuestPackageItemEntry;
 struct RewardPackEntry;
+struct SkillLineEntry;
 struct SkillRaceClassInfoEntry;
 struct SpellCastRequest;
 struct TalentEntry;
@@ -1345,6 +1347,12 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         void SetCommandStatusOn(uint32 command) { _activeCheats |= command; }
         void SetCommandStatusOff(uint32 command) { _activeCheats &= ~command; }
 
+        // PlayerbotV2 pacing: aura-free multiplier on this bot's cast times and GCD
+        // (1.0 = none, <1 faster). Set on the world thread, read by map threads.
+        // See WorldObject::ModSpellCastTime and Spell::TriggerGlobalCooldown.
+        float GetBotCastSpeedMod() const { return _botCastSpeedMod.load(std::memory_order_relaxed); }
+        void SetBotCastSpeedMod(float mod) { _botCastSpeedMod.store(mod, std::memory_order_relaxed); }
+
         // Played Time Stuff
         time_t m_logintime;
         time_t m_Last_tick;
@@ -1684,7 +1692,10 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         Player* GetTrader() const;
         TradeData* GetTradeData() const { return m_trade; }
         void TradeCancel(bool sendback, TradeStatus status = TRADE_STATUS_CANCELLED);
+        // Closes a trade that can no longer finish: the partner is gone, left the map or walked out of range, or the two sides
+        // disagree about being in it. Called every Update, free when no trade is open.
         void UpdateTradeState();
+        void InitiateTrade(Player* trader); // PlayerBot integration: minimal core hook
 
         CinematicMgr* GetCinematicMgr() const { return _cinematicMgr.get(); }
 
@@ -2319,6 +2330,10 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         LootRoll* GetLootRoll(ObjectGuid const& lootObjectGuid, uint8 lootListId);
         void AddLootRoll(LootRoll* roll);
         void RemoveLootRoll(LootRoll* roll);
+        // Read-only access to in-flight loot rolls. Lets external systems
+        // (Playerbot V2) enumerate pending rolls without going through
+        // the per-roll GetLootRoll lookup.
+        std::vector<LootRoll*> const& GetLootRolls() const { return m_lootRolls; }
 
         void RemovedInsignia(Player* looterPlr);
 
@@ -3315,6 +3330,8 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
 
         uint32 m_ExtraFlags;
         bool m_preferDrawableAmmo = false;
+
+        std::atomic<float> _botCastSpeedMod{ 1.0f };
 
         QuestStatusMap m_QuestStatus;
         QuestObjectiveStatusMap m_questObjectiveStatus;

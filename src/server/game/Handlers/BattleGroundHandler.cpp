@@ -68,14 +68,19 @@ void WorldSession::HandleBattlemasterHelloOpcode(WorldPackets::NPC::Hello& hello
 
 void WorldSession::HandleBattlemasterJoinOpcode(WorldPackets::Battleground::BattlemasterJoin& battlemasterJoin)
 {
-    bool isPremade = false;
     if (battlemasterJoin.QueueIDs.empty())
     {
         TC_LOG_ERROR("network", "Battleground: no bgtype received. possible cheater? {}", _player->GetGUID().ToString());
         return;
     }
 
-    BattlegroundQueueTypeId bgQueueTypeId = BattlegroundQueueTypeId::FromPacked(battlemasterJoin.QueueIDs[0]);
+    JoinBattlegroundQueue(BattlegroundQueueTypeId::FromPacked(battlemasterJoin.QueueIDs[0]));
+}
+
+void WorldSession::JoinBattlegroundQueue(BattlegroundQueueTypeId bgQueueTypeId)
+{
+    bool isPremade = false;
+
     if (!BattlegroundMgr::IsValidQueueId(bgQueueTypeId))
     {
         TC_LOG_ERROR("network", "Battleground: invalid bg queue {{ BattlemasterListId: {}, Type: {}, Rated: {}, TeamSize: {} }} received. possible cheater? {}",
@@ -118,6 +123,25 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPackets::Battleground::Batt
     GroupJoinBattlegroundResult err = ERR_BATTLEGROUND_NONE;
 
     Group const* grp = _player->GetGroup();
+
+    // Playerbot: a human leader whose group holds companion bots outside the leader's level bracket (a level 47 companion next to a
+    // level 60 player) would fail Group::CanJoinBattlegroundQueue with ERR_BATTLEGROUND_JOIN_RANGE_INDEX and the client closes the
+    // window without queueing. Bots cannot be levelled to fit, so the human queues alone and OnPlayerJoinedBgQueue fills the match.
+    if (grp && !IsBot() && grp->GetLeaderGUID() == _player->GetGUID())
+    {
+        bool botOutOfBracket = false, humanOutOfBracket = false;
+        for (GroupReference const& itr : grp->GetMembers())
+        {
+            Player const* member = itr.GetSource();
+            if (!member || member == _player)
+                continue;
+            if (DB2Manager::GetBattlegroundBracketByLevel(bracketEntry->MapID, member->GetLevel()) == bracketEntry)
+                continue;
+            (member->GetSession()->IsBot() ? botOutOfBracket : humanOutOfBracket) = true;
+        }
+        if (botOutOfBracket && !humanOutOfBracket)
+            grp = nullptr;
+    }
 
     auto getQueueTeam = [&]() -> Team
     {
@@ -525,7 +549,28 @@ void WorldSession::HandleBattlefieldLeaveOpcode(WorldPackets::Battleground::Batt
             if (bg->GetStatus() != STATUS_WAIT_LEAVE)
                 return;
 
+    Battleground* leftBg = _player->GetBattleground();
     _player->LeaveBattleground();
+
+    // A real player leaving takes his group's bots out of the same match with him (they return to where they queued from), so
+    // the next queue starts from the open world with the whole group instead of leaving the bots behind in the old instance.
+    if (leftBg && !IsBot())
+        if (Group* group = _player->GetGroup())
+            for (GroupReference const& itr : group->GetMembers())
+            {
+                Player* member = itr.GetSource();
+                if (!member || member == _player || !member->GetSession() || !member->GetSession()->IsBot() || member->GetBattleground() != leftBg)
+                    continue;
+                member->LeaveBattleground(true, /*withoutDeserterDebuff*/ true);   // no Deserter: it would block the group's next queue
+                for (uint8 i = 0; i < PLAYER_MAX_BATTLEGROUND_QUEUES; ++i)
+                {
+                    BattlegroundQueueTypeId qid = member->GetBattlegroundQueueTypeId(i);
+                    if (qid == BATTLEGROUND_QUEUE_NONE)
+                        continue;
+                    sBattlegroundMgr->GetBattlegroundQueue(qid).RemovePlayer(member->GetGUID(), true);
+                    member->RemoveBattlegroundQueueId(qid);
+                }
+            }
 }
 
 void WorldSession::HandleRequestBattlefieldStatusOpcode(WorldPackets::Battleground::RequestBattlefieldStatus& /*requestBattlefieldStatus*/)

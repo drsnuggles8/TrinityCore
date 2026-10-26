@@ -640,6 +640,17 @@ bool Creature::UpdateEntry(uint32 entry, CreatureData const* data /*= nullptr*/,
     SetBaseAttackTime(BASE_ATTACK,   cInfo->BaseAttackTime);
     SetBaseAttackTime(OFF_ATTACK,    cInfo->BaseAttackTime);
     SetBaseAttackTime(RANGED_ATTACK, cInfo->RangeAttackTime);
+    // Classic 1.60 (vanilla): the VMaNGOS swing times
+    if (ObjectMgr::CreatureClassicMelee const* classicMelee = IsPet() || IsGuardian() ? nullptr : sObjectMgr->GetCreatureClassicMelee(GetEntry()))
+    {
+        if (classicMelee->AttackMs)
+        {
+            SetBaseAttackTime(BASE_ATTACK, classicMelee->AttackMs);
+            SetBaseAttackTime(OFF_ATTACK, classicMelee->AttackMs);
+        }
+        if (classicMelee->RangedAttackMs)
+            SetBaseAttackTime(RANGED_ATTACK, classicMelee->RangedAttackMs);
+    }
 
     if (updateLevel)
         SelectLevel();
@@ -2290,6 +2301,10 @@ void Creature::setDeathState(DeathState s)
             else
                 m_respawnTime = GameTime::GetGameTime() + respawnDelay;
         }
+
+        // Instance.PersistRaidTrash: inside a locked raid, killed spawns stay dead until the lockout resets
+        if (m_spawnId && !IsSummon() && m_respawnDelay && GetMap()->IsRaid() && GetMap()->PersistsRespawnTimes())
+            m_respawnTime = std::numeric_limits<time_t>::max();
 
         SaveRespawnTime();
 

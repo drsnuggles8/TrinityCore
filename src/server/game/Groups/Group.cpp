@@ -962,7 +962,10 @@ void Group::BroadcastAddonMessagePacket(WorldPacket const* packet, const std::st
         if ((!ignore.IsEmpty() && player->GetGUID() == ignore) || (ignorePlayersInBGRaid && player->GetGroup() != this))
             continue;
 
-        if (player->GetSession()->IsAddonRegistered(prefix) && (group == -1 || itr.getSubGroup() == group))
+        // Null-session guard for mid-logout group members in addon-msg
+        // broadcast path. Skipping a logging-out target is the right
+        // outcome — they can't process the addon msg anyway.
+        if (player->GetSession() && player->GetSession()->IsAddonRegistered(prefix) && (group == -1 || itr.getSubGroup() == group))
             player->SendDirectMessage(packet);
     }
 }
@@ -1066,6 +1069,20 @@ void Group::ChangeMembersGroup(ObjectGuid guid, uint8 group)
     // Broadcast the changes to the group
     SendUpdate();
     sScriptMgr->OnGroupSubgroupChange(this, guid, group);
+}
+
+void Group::ReorderMembers(std::vector<ObjectGuid> const& order)
+{
+    MemberSlotList sorted;
+    for (ObjectGuid const& guid : order)
+    {
+        member_witerator it = _getMemberWSlot(guid);
+        if (it != m_memberSlots.end())
+            sorted.splice(sorted.end(), m_memberSlots, it);
+    }
+    sorted.splice(sorted.end(), m_memberSlots);
+    m_memberSlots.swap(sorted);
+    SendUpdate();
 }
 
 void Group::SwapMembersGroups(ObjectGuid firstGuid, ObjectGuid secondGuid)

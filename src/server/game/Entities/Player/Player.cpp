@@ -1592,13 +1592,18 @@ void Player::RemoveFromWorld()
         UnsummonPetTemporaryIfAny();
         UnsummonBattlePetTemporaryIfAny();
         SetPower(POWER_COMBO_POINTS, 0);
-        m_session->DoLootReleaseAll();
+        // Null-session guard: a Player can sit briefly in its grid after
+        // its WorldSession has been torn down (logout race). Bot session
+        // churn at scale exposes this routinely; same surface as the
+        // SendDirectMessage crash we already patched.
+        if (m_session) m_session->DoLootReleaseAll();
         m_lootRolls.clear();
         sOutdoorPvPMgr->HandlePlayerLeaveZone(this, m_zoneUpdateId);
         sBattlefieldMgr->HandlePlayerLeaveZone(this, m_zoneUpdateId);
     }
 
-    GetSession()->GetBattlenetAccount().RemoveFromWorld();
+    if (WorldSession* sess = GetSession())
+        sess->GetBattlenetAccount().RemoveFromWorld();
 
     // Remove items from world before self - player must be found in Item::RemoveFromObjectUpdate
     for (uint8 i = PLAYER_SLOT_START; i < PLAYER_SLOT_END; ++i)
@@ -3151,7 +3156,50 @@ bool Player::AddSpell(uint32 spellId, bool active, bool learning, bool dependent
     if (uint32 freeProfs = GetFreePrimaryProfessionPoints())
     {
         if (spellInfo->IsPrimaryProfessionFirstRank())
-            SetFreePrimaryProfessions(freeProfs - 1);
+        {
+            // A primary-profession slot must be consumed ONCE PER PROFESSION,
+            // not once per spell. Modern (12.0) profession data ships MULTIPLE
+            // first-rank spells that all teach the SAME profession skill — e.g.
+            // classic "Apprentice Skinning" (8613) and modern "Skinning"
+            // (205243) both grant skill 393 (Skinning) — and the skill-reward
+            // cascade auto-learns the modern one when the character has the
+            // profession. The old "decrement per first-rank spell" logic then
+            // counted one profession twice, exhausting the 2-slot cap (bots
+            // with only Skinning ended up with freeProf=0 and could never learn
+            // a real 2nd profession like Leatherworking). Only decrement when no
+            // OTHER known spell already teaches this same profession skill.
+            uint32 profSkill = 0;
+            for (SpellEffectInfo const& eff : spellInfo->GetEffects())
+                if (eff.IsEffect(SPELL_EFFECT_SKILL) && IsPrimaryProfessionSkill(uint32(eff.MiscValue)))
+                {
+                    profSkill = uint32(eff.MiscValue);
+                    break;
+                }
+
+            bool alreadyCounted = false;
+            if (profSkill)
+            {
+                for (auto const& [knownSpellId, knownSpell] : m_spells)
+                {
+                    if (knownSpellId == spellId || knownSpell.state == PLAYERSPELL_REMOVED)
+                        continue;
+                    SpellInfo const* knownInfo = sSpellMgr->GetSpellInfo(knownSpellId, DIFFICULTY_NONE);
+                    if (!knownInfo || !knownInfo->IsPrimaryProfessionFirstRank())
+                        continue;
+                    for (SpellEffectInfo const& e2 : knownInfo->GetEffects())
+                        if (e2.IsEffect(SPELL_EFFECT_SKILL) && uint32(e2.MiscValue) == profSkill)
+                        {
+                            alreadyCounted = true;
+                            break;
+                        }
+                    if (alreadyCounted)
+                        break;
+                }
+            }
+
+            if (!alreadyCounted)
+                SetFreePrimaryProfessions(freeProfs - 1);
+        }
     }
 
     SkillLineAbilityMapBounds skill_bounds = sSpellMgr->GetSkillLineAbilityMapBounds(spellId);
@@ -3202,6 +3250,29 @@ bool Player::AddSpell(uint32 spellId, bool active, bool learning, bool dependent
 
                     if (rcInfo->Flags & SKILL_FLAG_ALWAYS_MAX_VALUE)
                         skill_value = new_skill_max_value;
+                }
+                else if (IsPrimaryProfessionSkill(spellLearnSkill->skill))
+                {
+                    // Modern 12.0+ client DB2 dropped SkillRaceClassInfo for
+                    // the classic primary-profession skill lines while the
+                    // foundation spells (2108 Apprentice LW etc.) are still
+                    // present with SPELL_EFFECT_SKILL. Without this branch,
+                    // learning the foundation spell adds it to the spellbook
+                    // but SetSkill writes value=0 max=0, leaving the player
+                    // unable to use the profession. Fall back to the classic
+                    // apprentice/journeyman/expert/artisan/master/grand-master
+                    // tier caps (75/150/225/300/375/450) — same tiering
+                    // BotSetupPipeline::DoLearnProfessions uses for L10+ bots
+                    // (verified working for 1351+ bots). Pinning value=1
+                    // matches an in-game "Learn Apprentice X" UX where the
+                    // profession appears at rank 1 of 75 immediately.
+                    static constexpr uint16 kPrimaryProfessionTierMax[] = { 75, 150, 225, 300, 375, 450 };
+                    uint8 stepIdx = spellLearnSkill->step ? spellLearnSkill->step - 1 : 0;
+                    if (stepIdx >= std::size(kPrimaryProfessionTierMax))
+                        stepIdx = std::size(kPrimaryProfessionTierMax) - 1;
+                    new_skill_max_value = kPrimaryProfessionTierMax[stepIdx];
+                    if (skill_value < 1)
+                        skill_value = 1;
                 }
             }
 
@@ -6675,6 +6746,20 @@ void Player::SendMessageToSet(WorldPacket const* data, Player const* skipped_rcv
 
 void Player::SendDirectMessage(WorldPacket const* data) const
 {
+    // Null-session guard. A Player can sit briefly in its map's grid
+    // *after* its WorldSession has been torn down — the logout flow
+    // detaches the session and queues the Player for grid removal, but
+    // the next world tick may still visit this Player via packet
+    // broadcasts (MessageDistDeliverer iterating a creature spell's
+    // visibility range), and this code dereferenced m_session
+    // unconditionally. Crash signature observed under V2 bot session
+    // churn: ACCESS_VIOLATION at this line, RAX=0, called from
+    // Spell::SendSpellStart → SendMessageToSetInRange → ... visiting a
+    // logging-out Player. Drop the packet silently — the player won't
+    // see the spell visual, which is the correct outcome since they're
+    // already gone.
+    if (!m_session)
+        return;
     m_session->SendPacket(data);
 }
 
@@ -13973,6 +14058,17 @@ void Player::UpdateTradeState()
         TradeCancel(true, TRADE_STATUS_TOO_FAR_AWAY);
 }
 
+void Player::InitiateTrade(Player* trader)
+{
+    // PlayerBot integration: minimal core hook for trade initiation
+    // Pattern from TradeHandler.cpp:714-715
+    if (!trader || m_trade || trader->m_trade)
+        return;
+
+    m_trade = new TradeData(this, trader);
+    trader->m_trade = new TradeData(trader, this);
+}
+
 void Player::UpdateSoulboundTradeItems()
 {
     // also checks for garbage data
@@ -14843,7 +14939,20 @@ void Player::OnGossipSelect(WorldObject* source, int32 gossipOptionId, uint32 me
             }
             break;
         case GossipOptionNpc::Vendor:
-            GetSession()->SendListInventory(guid);
+            PlayerTalkClass->SendCloseGossip();
+            // Send NIOR only; don't send VendorInventory in the same flush.
+            // The client's NIOR case 5 handler queues a UI event that sets
+            // PIM+48 = Merchant(5) and opens MerchantFrame. The frame then
+            // requests vendor data via CMSG_LIST_INVENTORY in a second round-trip,
+            // by which time PIM+48 is set and IsSellAllJunkEnabled works.
+            PlayerTalkClass->GetInteractionData().StartInteraction(guid, PlayerInteractionType::Vendor);
+            {
+                WorldPackets::NPC::NPCInteractionOpenResult npcInteraction;
+                npcInteraction.Npc = guid;
+                npcInteraction.InteractionType = PlayerInteractionType::Merchant;
+                npcInteraction.Success = true;
+                SendDirectMessage(npcInteraction.Write());
+            }
             break;
         case GossipOptionNpc::Taxinode:
             GetSession()->SendTaxiMenu(source->ToCreature());
@@ -18216,6 +18325,7 @@ void Player::SendQuestConfirmAccept(Quest const* quest, Player* receiver) const
     packet.QuestTitle = quest->GetLogTitle();
     uint32 questID = quest->GetQuestId();
 
+    if (!receiver->GetSession()) return;   // logging-out — drop quest-share confirm
     LocaleConstant localeConstant = receiver->GetSession()->GetSessionDbLocaleIndex();
     if (localeConstant != LOCALE_enUS)
         if (QuestTemplateLocale const* questTemplateLocale = sObjectMgr->GetQuestLocale(questID))
@@ -23207,7 +23317,7 @@ void Player::WhisperAddon(std::string const& text, std::string const& prefix, bo
     std::string _text(text);
     sScriptMgr->OnPlayerChat(this, CHAT_MSG_WHISPER, uint32(isLogged ? LANG_ADDON_LOGGED : LANG_ADDON), _text, receiver);
 
-    if (!receiver->GetSession()->IsAddonRegistered(prefix))
+    if (!receiver->GetSession() || !receiver->GetSession()->IsAddonRegistered(prefix))
         return;
 
     WorldPackets::Chat::Chat packet;
@@ -23275,6 +23385,7 @@ void Player::Whisper(uint32 textId, Player* target, bool /*isBossWhisper = false
         return;
     }
 
+    if (!target->GetSession()) return;   // logging-out target — drop the whisper
     LocaleConstant locale = target->GetSession()->GetSessionDbLocaleIndex();
     WorldPackets::Chat::Chat packet;
     packet.Initialize(CHAT_MSG_WHISPER, LANG_UNIVERSAL, this, target, DB2Manager::GetBroadcastTextValue(bct, locale, GetGender()));
@@ -25959,7 +26070,10 @@ void Player::SendInitialPacketsAfterAddToMap()
     // saved raid locks; the Classic client does not ask for them on its own
     SendRaidInfo();
 
-    CastSpell(this, 836, true);                             // LOGINEFFECT
+    // Skip LOGINEFFECT for bots - visual effect requires client rendering
+    // Bots don't send CMSG_CAST_SPELL ACKs, causing m_spellModTakingSpell assertion failures (Spell.cpp:603)
+    if (!GetSession()->IsBot())
+        CastSpell(this, 836, true);                         // LOGINEFFECT
 
     WorldPackets::Movement::MoveSetCompoundState setCompoundState;
 
@@ -26762,6 +26876,7 @@ bool Player::IsSpellFitByClassAndRace(uint32 spell_id, uint32 learnSpellDepth /*
         return true;
     }
 
+    bool primaryProfFitsByMasks = false;
     for (SkillLineAbilityMap::const_iterator _spell_idx = bounds.first; _spell_idx != bounds.second; ++_spell_idx)
     {
         // skip wrong race skills
@@ -26774,12 +26889,28 @@ bool Player::IsSpellFitByClassAndRace(uint32 spell_id, uint32 learnSpellDepth /*
 
         // skip wrong class and race skill saved in SkillRaceClassInfo.dbc
         if (!sDB2Manager.GetSkillRaceClassInfo(_spell_idx->second->SkillLine, GetRace(), GetClass()))
+        {
+            // Modern 12.0+ client DB2 dropped SkillRaceClassInfo entries
+            // for the classic primary-profession skill lines (165 LW, 164
+            // BS, 186 Mining, 182 Herbalism, 393 Skinning, etc.) while the
+            // spells (2108 Apprentice LW, 2018 Apprentice BS, ...) still
+            // exist and function via direct SetSkill — that's how
+            // BotSetupPipeline::DoLearnProfessions grants LW to 1351+ L10+
+            // bots. Without this fallback, trainer learn rejects every
+            // classic foundation profession spell for every race/class
+            // (manual play "click yes → nothing happens"), even though the
+            // race/class masks on the SkillLineAbility itself pass. Allow
+            // primary profession spells through when race+class masks
+            // pass and only rcInfo is missing.
+            if (IsPrimaryProfessionSkill(_spell_idx->second->SkillLine))
+                primaryProfFitsByMasks = true;
             continue;
+        }
 
         return true;
     }
 
-    return false;
+    return primaryProfFitsByMasks;
 }
 
 bool Player::HasQuestForGO(int32 GOId) const

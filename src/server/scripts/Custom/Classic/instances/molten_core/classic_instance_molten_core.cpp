@@ -27,12 +27,15 @@
 #include "GameObjectAI.h"
 #include "InstanceScript.h"
 #include "Map.h"
+#include "Log.h"
 #include "MapReference.h"
+#include "ObjectMgr.h"
 #include "Player.h"
 #include "TemporarySummon.h"
 #include "classic_boss_pack.h"
 #include "classic_molten_core.h"
 #include "classic_script_text.h"
+#include <algorithm>
 #include <array>
 #include <list>
 #include <vector>
@@ -111,6 +114,7 @@ public:
         std::array<PersistentInstanceScriptValue<uint32>*, 7> m_runeStates;
         std::array<ObjectGuid, 7> m_GOUseGuidList;
         uint32 m_dataDomoSpawned;
+        bool m_bossesRaised = false;
 
         uint32 RuneState(uint8 idx) const { return uint32(*m_runeStates[idx]); }
 
@@ -277,7 +281,10 @@ public:
                 SetData(CLASSIC_MC_TYPE_MAGMADAR, DONE);
         }
 
-        // A boss that is not killed resets with his pack: the adds the raid killed during the failed attempt come back.
+        // Classic: a boss that is not killed resets with his pack - the adds the raid killed during the failed attempt come
+        // back (Karrz, MC Gehennas wipe 2026-10-08). Instance.PersistRaidTrash otherwise keeps every killed spawn dead until
+        // the lockout resets. Packs are plain spawns (creature_formations is empty), so they are found by entry within
+        // 80 y of the boss's home position.
         void RespawnBossPack(uint32 bossType)
         {
             struct Pack { uint32 type; uint32 boss; std::vector<uint32> adds; };
@@ -380,6 +387,43 @@ public:
             return ObjectGuid::Empty;
         }
 
+        // Instance.MoltenCoreSkipRunes: the runes count as doused (their fire and stone are removed through the normal
+        // restart path), Majordomo stands in his hall and Ragnaros is up in his lair, attackable. Bosses already dead in the
+        // instance (raid lock) are left alone, and so is an encounter that is running.
+        void RaiseBosses(Player* player)
+        {
+            bool const domoDone = GetBossState(CLASSIC_MC_TYPE_MAJORDOMO) == DONE;
+            bool const ragDone = GetBossState(CLASSIC_MC_TYPE_RAGNAROS) == DONE;
+            if (ragDone)
+                return;
+
+            ObjectGuid* runeGuids[7] = { &m_uiRuneKoroGUID, &m_uiRuneZethGUID, &m_uiRuneMazjGUID, &m_uiRuneTheriGUID,
+                                         &m_uiRuneBlazGUID, &m_uiRuneKressGUID, &m_uiRuneMohnGUID };
+            for (uint8 i = 0; i < 7; ++i)
+            {
+                SetData(CLASSIC_MC_DATA_RUNE_ACTIVE_0 + i, DONE);
+                if (!runeGuids[i]->IsEmpty())
+                    m_GOUseGuidList[i] = *runeGuids[i];
+            }
+
+            // Majordomo Executus, summoned where the last rune would have called him (an alive one is left as is)
+            if (!domoDone && m_dataDomoSpawned != DONE && !instance->GetCreature(m_uiMajorDomoGUID))
+            {
+                m_dataDomoSpawned = DONE;
+                player->SummonCreature(CLASSIC_MC_NPC_MAJORDOMO, 758.089f, -1176.71f, -118.640f, 3.12414f, TEMPSUMMON_MANUAL_DESPAWN,
+                    Milliseconds(2 * HOUR * IN_MILLISECONDS));
+            }
+
+            // Ragnaros in his lair, ready: the summoning event normally lifts these flags
+            if (!instance->GetCreature(m_uiRagnarosGUID))
+                if (Creature* rag = player->SummonCreature(CLASSIC_MC_NPC_RAGNAROS, 838.308f, -831.466f, -232.185f, 2.19911f,
+                        TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, Milliseconds(2 * HOUR * IN_MILLISECONDS)))
+                {
+                    rag->SetImmuneToPC(false);
+                    rag->SetUninteractible(false);
+                }
+        }
+
         void RemoveRuneFire(GameObject* pRune, Unit* pUser, uint32 goEntry, ObjectGuid& guid)
         {
             if (GameObject* pGoFireAnim = pRune->FindNearestGameObject(goEntry, 20.f))
@@ -406,6 +450,13 @@ public:
 
             if (!firstPlayer)
                 return;
+
+            if (!m_bossesRaised)
+            {
+                m_bossesRaised = true;
+                if (sWorld->getBoolConfig(CONFIG_MC_SKIP_RUNES))
+                    RaiseBosses(firstPlayer);
+            }
 
             for (ObjectGuid& guid : m_GOUseGuidList)
             {

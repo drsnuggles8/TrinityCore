@@ -32,6 +32,7 @@
 #include "ScriptedCreature.h"
 #include "SpellInfo.h"
 #include "SpellScript.h"
+#include "classic_boss_pack.h"
 #include "TemporarySummon.h"
 #include "classic_boss_pack.h"
 #include "classic_script_text.h"

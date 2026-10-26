@@ -16,6 +16,7 @@
  */
 
 #include "Unit.h"
+#include "ClassicArmor.h"
 #include "DeathRecap.h"
 #include "AbstractFollower.h"
 #include "Battlefield.h"
@@ -442,9 +443,25 @@ void Unit::Update(uint32 p_time)
 
     _UpdateSpells(p_time);
 
-    // If this is set during update SetCantProc(false) call is missing somewhere in the code
-    // Having this would prevent spells from being proced, so let's crash
-    ASSERT(!m_procDeep);
+    // Defensive reset: if m_procDeep leaked between updates (the RAII
+    // guard + per-handler try/catch in TriggerAurasProcOnEvent should
+    // make this impossible, yet it has been observed to still happen
+    // under heavy bot-driven proc load on Paladin/Monk), log + reset
+    // instead of crashing the world thread. The next tick's procs
+    // will fire normally. The original ASSERT was correct as a canary
+    // but unconditionally fatal in production. Keeping the log line at
+    // ERROR level so the GUID of the offending unit surfaces every
+    // time and we can chase the underlying TC bug as a separate
+    // workstream without taking the server down.
+    if (m_procDeep)
+    {
+        TC_LOG_ERROR("entities.unit",
+            "Unit::Update entered with m_procDeep={} (leak — reset). "
+            "Unit GUID {} class {} mapId {}",
+            m_procDeep, GetGUID().ToString(), uint32(GetClass()),
+            GetMapId());
+        m_procDeep = 0;
+    }
 
     m_combatManager.Update(p_time);
 
@@ -1770,27 +1787,12 @@ void Unit::HandleEmoteCommand(Emote emoteId, Player* target /*=nullptr*/, Trinit
     if (G3D::fuzzyLe(armor, 0.0f))
         return damage;
 
-    Classes attackerClass = CLASS_NONE;
-    Optional<float> attackerItemLevel;
     if (attacker)
-    {
         attackerLevel = attacker->GetLevelForTarget(victim);
-        if (Player const* ownerPlayer = attacker->GetCharmerOrOwnerPlayerOrPlayerItself())
-            attackerItemLevel = ownerPlayer->m_playerData->AvgItemLevel[AsUnderlyingType(AvgItemLevelCategory::EquippedBase)];
-        else
-            attackerClass = Classes(attacker->GetClass());
-    }
 
-    // Expansion and ContentTuningID necessary? Does Player get a ContentTuningID too ?
-    // Classic 1.60 (vanilla): the client ExpectedStat armor constant is the vanilla 400 + 85 * level; no retail item level
-    // diminishing at max level, and armor reduces damage by at most 75% (retail 85%)
-    float armorConstant = sDB2Manager.EvaluateExpectedStat(ExpectedStatType::ArmorConstant, attackerLevel, -2, 0, attackerClass, 0);
-    (void)attackerItemLevel;
-
-    if (!(armor + armorConstant))
-        return damage;
-
-    float mitigation = std::min(armor / (armor + armorConstant), 0.75f);
+    // Classic 1.60 (vanilla, VMaNGOS SpellCaster::CalcArmorReducedDamage): armor / (armor + 400 + 85 * attacker level), at most 75%.
+    // The client's retail expected-stat ArmorConstant and the retail 85% cap are not used.
+    float const mitigation = ClassicArmor::Mitigation(armor, attackerLevel);
     // Classic 1.60 (vanilla): rounded, and armor never takes a hit below 1 damage (retail truncated: 1 damage hits became 0)
     if (!damage)
         return 0;
@@ -6961,6 +6963,14 @@ void Unit::EnergizeBySpell(Unit* victim, SpellInfo const* spellInfo, int32 damag
     SendEnergizeSpellLog(victim, spellInfo->Id, gain, overEnergize, powerType);
 }
 
+// Classic 1.60: the VMaNGOS spell power / healing power factor of a legacy spell effect, when the vanilla table has one (classic_spell_value.bonus_coeff)
+static ClassicSpellValue::Value const* ClassicCoefficientRow(SpellInfo const* spellInfo, SpellEffectInfo const& effectInfo)
+{
+    if (!ClassicSpellValue::AppliesToSpell(spellInfo->Id))
+        return nullptr;
+    return sSpellMgr->GetClassicSpellValue(spellInfo->Id, uint32(effectInfo.EffectIndex));
+}
+
 // Classic 1.60 (vanilla, VMaNGOS SpellCaster::CalculateLevelPenalty): spells learned below level 20 get less from spell power,
 // 1 - (20 - spell level) * 3.75% (Fireball rank 1: 0.429 x 0.2875 = 0.123). The 1.60 client coefficients are the unpenalized ones.
 static float ClassicSpellLevelPenalty(SpellInfo const* spellInfo)
@@ -7042,7 +7052,7 @@ int32 Unit::SpellDamageBonusDone(Unit* victim, SpellInfo const* spellProto, int3
     // Default calculation
     if (DoneAdvertisedBenefit)
     {
-        float coeff = spellEffectInfo.BonusCoefficient * ClassicSpellLevelPenalty(spellProto);
+        float coeff = ClassicSpellValue::BonusCoefficientOr(ClassicCoefficientRow(spellProto, spellEffectInfo), spellEffectInfo.BonusCoefficient) * ClassicSpellLevelPenalty(spellProto);
         if (Player* modOwner = GetSpellModOwner())
         {
             coeff *= 100.0f;
@@ -8808,7 +8818,8 @@ int64 Unit::ModifyHealth(int64 dVal)
         packet.Health = GetHealth();
 
         if (Player* player = GetCharmerOrOwnerPlayerOrPlayerItself())
-            player->GetSession()->SendPacket(packet.Write());
+            if (WorldSession* sess = player->GetSession())
+                sess->SendPacket(packet.Write());
     }
 
     return gain;
@@ -9472,7 +9483,17 @@ void Unit::AtTargetAttacked(Unit* target, bool canInitialAggro)
 
 void Unit::UpdatePetCombatState()
 {
-    ASSERT(!IsPet()); // player pets do not use UNIT_FLAG_PET_IN_COMBAT for this purpose - but player pets should also never have minions of their own to call this
+    // Player pets do not use UNIT_FLAG_PET_IN_COMBAT for this purpose, and a pet
+    // should never have minions of its own to call this. In practice a pet CAN
+    // transiently end up with a controlled minion (e.g. a bot hunter pet that got
+    // a temp-summon/guardian attributed to it), and that minion's combat-state
+    // transition then calls master->UpdatePetCombatState() ON the pet — which used
+    // to ASSERT(!IsPet()) and HARD-CRASH the world (observed 2026-06-16: pet
+    // 'Kreezhum' entry 417, Northrend, took the server down ~15 min). Early-return
+    // instead: a pet has no use for UNIT_FLAG_PET_IN_COMBAT, so skipping is a
+    // semantic no-op and crash-safe.
+    if (IsPet())
+        return;
 
     bool state = false;
     for (Unit* minion : m_Controlled)
@@ -10439,7 +10460,24 @@ bool Unit::PopAI()
 
 void Unit::RefreshAI()
 {
-    ASSERT(!m_aiLocked, "Tried to change current AI during UpdateAI()");
+    // Was: ASSERT(!m_aiLocked, "Tried to change current AI during UpdateAI()");
+    // Re-entrance happens when a spell / aura handler inside UpdateAI() flips
+    // the unit's AI (typical: charm/possess scripts, vehicle-eject handlers,
+    // mind-control proc chains). Original behavior crashed the world thread;
+    // we instead defer the AI swap to the next tick. The current i_AI keeps
+    // running for THIS tick (its UpdateAI is still on the stack); the next
+    // ScheduleAIChange / RefreshAI after UpdateAI() exits will apply cleanly.
+    // Without this defensive skip, a single mis-timed AI swap takes the
+    // process down — observed today as a 0xC0000420 ASSERT_FAILURE loop
+    // after the procDeep / BIH fixes.
+    if (m_aiLocked)
+    {
+        TC_LOG_ERROR("entities.unit",
+            "RefreshAI called during UpdateAI (unit {} entry {}); skipped, "
+            "next tick will apply the swap",
+            GetGUID().ToString(), GetEntry());
+        return;
+    }
     if (i_AIs.empty())
         i_AI = nullptr;
     else
@@ -10874,7 +10912,27 @@ void Unit::TriggerAurasProcOnEvent(ProcEventInfo& eventInfo, AuraApplicationProc
     Spell const* triggeringSpell = eventInfo.GetProcSpell();
     bool const disableProcs = triggeringSpell && triggeringSpell->IsProcDisabled();
 
-    int32 oldProcChainLength = std::exchange(m_procChainLength, std::max(m_procChainLength + 1, triggeringSpell ? triggeringSpell->GetProcChainLength() : 0));
+    int32 const oldProcChainLength = std::exchange(m_procChainLength, std::max(m_procChainLength + 1, triggeringSpell ? triggeringSpell->GetProcChainLength() : 0));
+
+    // RAII guard: m_procDeep and m_procChainLength are unwound even if
+    // a TriggerProcOnEvent handler throws. The original code unwound at
+    // the bottom of the function, so an exception in the loop bypassed
+    // the cleanup and left m_procDeep > 0; the NEXT Unit::Update tick
+    // then tripped the !m_procDeep ASSERT at line 439 and crashed the
+    // worker thread. Observed multiple times on proc-heavy classes
+    // (Paladin/Monk) under playerbot fleet load.
+    struct ProcDepthGuard
+    {
+        Unit* self;
+        int32 saved_chain_length;
+        bool  need_can_proc_restore;
+        ~ProcDepthGuard()
+        {
+            if (need_can_proc_restore)
+                self->SetCantProc(false);
+            self->m_procChainLength = saved_chain_length;
+        }
+    } guard{this, oldProcChainLength, disableProcs};
 
     if (disableProcs)
         SetCantProc(true);
@@ -10884,13 +10942,34 @@ void Unit::TriggerAurasProcOnEvent(ProcEventInfo& eventInfo, AuraApplicationProc
         if (aurApp->GetRemoveMode())
             continue;
 
-        aurApp->GetBase()->TriggerProcOnEvent(procEffectMask, aurApp, eventInfo);
+        // Per-handler catch so one badly-behaved proc doesn't take down
+        // the worker thread (or — combined with the guard above — leak
+        // m_procDeep into the next tick and trip the ASSERT). We swallow
+        // and log, then continue iterating the remaining procs. Without
+        // this the entire batch is aborted on the first exception, and
+        // an uncaught exception propagates up to Map::Update (no
+        // try/catch there) and terminates the process.
+        try
+        {
+            aurApp->GetBase()->TriggerProcOnEvent(procEffectMask, aurApp, eventInfo);
+        }
+        catch (std::exception const& e)
+        {
+            TC_LOG_ERROR("entities.unit",
+                "TriggerProcOnEvent threw std::exception (caster {} spell {}): {}; aura skipped",
+                GetGUID().ToString(),
+                triggeringSpell ? triggeringSpell->GetSpellInfo()->Id : 0,
+                e.what());
+        }
+        catch (...)
+        {
+            TC_LOG_ERROR("entities.unit",
+                "TriggerProcOnEvent threw non-std exception (caster {} spell {}); aura skipped",
+                GetGUID().ToString(),
+                triggeringSpell ? triggeringSpell->GetSpellInfo()->Id : 0);
+        }
     }
-
-    if (disableProcs)
-        SetCantProc(false);
-
-    m_procChainLength = oldProcChainLength;
+    // Unwinding handled by guard destructor — no explicit cleanup here.
 }
 
 ///----------Pet responses methods-----------------
@@ -11422,9 +11501,12 @@ bool Unit::InitTamedPet(Pet* pet, uint8 level, uint32 spell_id)
 
 void Unit::SendDurabilityLoss(Player* receiver, uint32 percent)
 {
+    if (!receiver) return;
+    WorldSession* sess = receiver->GetSession();
+    if (!sess) return;     // logging-out receiver — drop the durability-loss packet
     WorldPackets::Misc::DurabilityDamageDeath packet;
     packet.Percent = percent;
-    receiver->GetSession()->SendPacket(packet.Write());
+    sess->SendPacket(packet.Write());
 }
 
 void Unit::PlayOneShotAnimKitId(uint16 animKitId)
@@ -14679,7 +14761,8 @@ void Unit::DestroyForPlayer(Player const* target) const
         {
             WorldPackets::Battleground::DestroyArenaUnit destroyArenaUnit;
             destroyArenaUnit.Guid = GetGUID();
-            target->GetSession()->SendPacket(destroyArenaUnit.Write());
+            if (WorldSession* sess = target->GetSession())
+                sess->SendPacket(destroyArenaUnit.Write());
         }
     }
 

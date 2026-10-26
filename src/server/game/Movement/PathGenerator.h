@@ -22,9 +22,13 @@
 #include "DetourNavMeshQuery.h"
 #include "MMapDefines.h"
 #include "MoveSplineInitArgs.h"
+#include "dtQueryFilterTC.h"
 #include <G3D/Vector3.h>
 
 class WorldObject;
+
+// Unlocks the nav lock the calling thread still holds after a caught hardware fault skipped its destructor (MapUpdater). No-op otherwise.
+TC_GAME_API void ReleaseNavLockAfterFault();
 
 // 74*4.0f=296y number_of_points*interval = max_path_len
 // this is way more than actual evade range
@@ -66,6 +70,14 @@ class TC_GAME_API PathGenerator
         // Calculate the path from owner to given destination
         // return: true if new path was calculated, false otherwise (no change needed)
         bool CalculatePath(float srcX, float srcY, float srcZ, float destX, float destY, float destZ, bool forceDest = false);
+        // Sources that keep out of liquid (see SetLiquidRouteCheck): the last CalculatePath found only a route through liquid,
+        // no land route exists.
+        bool IsWetRoute() const { return _wetRoute; }
+
+        // Optional check (set by a module): returns true when `source` should keep out of liquid and `path` touches liquid.
+        // CalculatePath then searches a land-only route and keeps it when it is dry, else keeps the first route (IsWetRoute).
+        using LiquidRouteCheck = bool(*)(WorldObject const* source, Movement::PointsArray const& path);
+        static void SetLiquidRouteCheck(LiquidRouteCheck check) { _liquidRouteCheck = check; }
         bool CalculatePath(float destX, float destY, float destZ, bool forceDest = false);
         bool IsInvalidDestinationZ(WorldObject const* target) const;
 
@@ -84,6 +96,17 @@ class TC_GAME_API PathGenerator
 
         PathType GetPathType() const { return _type; }
 
+        // Off-mesh crossing info. True when the smoothed path traverses at least one
+        // off-mesh connection (e.g. an offmesh.txt bridge). GetFirstOffMeshLanding()
+        // is the FAR (landing) endpoint, in game (x,y,z), of the FIRST off-mesh
+        // connection along the path. It is an authoritative WORLD POSITION (not a
+        // point index), so it survives path dedupe / NormalizePath mutations — used
+        // by movement steppers to honor a crossing regardless of its (possibly short)
+        // span, instead of guessing from segment length. Only populated by
+        // FindSmoothPath (the default path mode); false for raycast/straight paths.
+        bool PathTraversesOffMesh() const { return _pathTraversesOffMesh; }
+        G3D::Vector3 const& GetFirstOffMeshLanding() const { return _firstOffMeshLanding; }
+
         // shortens the path until the destination is the specified distance from the target point
         void ShortenPathUntilDist(G3D::Vector3 const& target, float dist);
 
@@ -94,6 +117,12 @@ class TC_GAME_API PathGenerator
 
         Movement::PointsArray _pathPoints;  // our actual (x,y,z) path to the target
         PathType _type;                     // tells what kind of path this is
+
+        // Off-mesh crossing info (see PathTraversesOffMesh()/GetFirstOffMeshLanding()).
+        // Reset at the start of each CalculatePath; set by FindSmoothPath when the
+        // smoothed path crosses an off-mesh connection.
+        bool _pathTraversesOffMesh = false;
+        G3D::Vector3 _firstOffMeshLanding;
 
         bool _useStraightPath;  // type of path will be generated
         bool _forceDestination; // when set, we will always arrive at given point
@@ -108,7 +137,34 @@ class TC_GAME_API PathGenerator
         dtNavMesh const* _navMesh;              // the nav mesh
         dtNavMeshQuery const* _navMeshQuery;    // the nav mesh query used to find the path
 
-        dtQueryFilter _filter;  // use single filter for all movements, update it when needed
+        // Custom filter: stock dtQueryFilter behavior PLUS slope penalty PLUS
+        // per-instance road-bonus disable (for tanks pulling / healers
+        // following). See dtQueryFilterTC.h.
+        dtQueryFilterTC _filter;  // use single filter for all movements, update it when needed
+        bool _avoidWater = false;
+        bool _wetRoute = false;
+        bool CalculatePathImpl(float srcX, float srcY, float srcZ, float destX, float destY, float destZ, bool forceDest);
+        static LiquidRouteCheck _liquidRouteCheck;
+
+    public:
+        // Per-pathfind opt-out from the road-cost bonus. When set, this
+        // PathGenerator's NEXT and subsequent path queries treat
+        // NAV_AREA_ROAD polygons with neutral cost (no preference).
+        // Reset to false to re-enable. Useful for combat-pulling tanks
+        // and tight-formation followers that shouldn't detour for roads.
+        void SetDisableRoadBonus(bool disable) { _filter.SetDisableRoadBonus(disable); }
+        bool GetDisableRoadBonus() const { return _filter.GetDisableRoadBonus(); }
+
+        // Slope-penalty coefficient (0.0 = disabled, 1.0 = default).
+        // Default is set in CreateFilter; callers can override for one
+        // specific path (e.g. flying-mount-style "ignore slope" mode).
+        // Route over land only: water polygons are excluded for the following queries (a bot keeping out of canals). The caller
+        // falls back to a normal query when no land route exists.
+        void SetAvoidWater(bool avoid) { _avoidWater = avoid; }
+        void  SetSlopeCoefficient(float c) { _filter.SetSlopeCoefficient(c); }
+        float GetSlopeCoefficient() const  { return _filter.GetSlopeCoefficient(); }
+
+    private:
 
         void SetStartPosition(G3D::Vector3 const& point) { _startPosition = point; }
         void SetEndPosition(G3D::Vector3 const& point) { _actualEndPosition = point; _endPosition = point; }
