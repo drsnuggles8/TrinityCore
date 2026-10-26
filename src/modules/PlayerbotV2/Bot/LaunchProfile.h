@@ -73,6 +73,8 @@ struct LaunchSocial
     uint32 last_ask_ms = 0;         // the last "inv?" whisper (one every 40 s at most)
     uint64 asked_low = 0;           // the player it asked: an invite from them is taken without thinking twice
     uint32 group_since_ms = 0;      // first tick seen in the current group (0 = not in one)
+    uint32 busy_until_ms = 0;       // browsing a trainer's list: idle:launch_hold keeps it still until then
+    uint32 train_move_ms = 0;       // the last move order towards the trainer
 };
 
 } // namespace Playerbot

@@ -2790,6 +2790,10 @@ struct BotSnapshot
     using QuestTool           = Playerbot::QuestTool;
     using ActionableObjective = Playerbot::ActionableObjective;
     QuestLogState quest_log{};
+    // Launch simulation (Fleet/LaunchSim): the class trainer a launch bot walks to after a level that brings new spells
+    // (trainer empty = no visit due). Set by the builder every build; idle:launch_train acts on it.
+    ObjectGuid launch_trainer;
+    float      launch_trainer_x = 0.f, launch_trainer_y = 0.f, launch_trainer_z = 0.f;
     // What a companion does with its owner's quests (accept / turn in / share / quest objects). Built by
     // CompanionQuest::BuildState on the world thread; empty for a bot that is not grouped with its owner.
     CompanionQuestState companion_quest{};
@@ -3003,6 +3007,7 @@ struct BotSnapshot
         progression.reset();
         group.reset();
         quest_log.reset();
+        launch_trainer = ObjectGuid::Empty;
         companion_quest.reset();
         gossip.reset();
         quest_discovery.reset();

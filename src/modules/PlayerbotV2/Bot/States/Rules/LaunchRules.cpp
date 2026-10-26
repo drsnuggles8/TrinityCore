@@ -14,6 +14,10 @@
 // idle:launch_leave_group @852 - leaves the group out of combat once it has stayed long enough for its temperament:
 //   greedy bots and loners right after the kill, friendly ones after a while.
 // LaunchAcceptsInvite - the group_invite_accept rule asks it whether a launch bot takes an invite.
+//
+// idle:launch_train @740 - after each even level from 4 a launch bot walks to its class trainer (the builder names it in
+//   the snapshot) and buys what it can afford, then reads the list a few seconds (idle:launch_hold). Above the quest and
+//   vendor errands, below the social rules.
 
 #include "Bot/IdleRule.h"
 #include "Group/GroupSnapshot.h"
@@ -24,6 +28,7 @@
 #include "QuestDef.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 
 namespace Playerbot {
 
@@ -60,6 +65,8 @@ char const* HoldReason(LaunchProfile const& lp, uint32 now)
 
 bool LaunchHoldGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
 {
+    if (ai.launch().active && s.published_at_ms() < ai.launch_social().busy_until_ms && !s.in_combat())
+        return true;
     return *HoldReason(ai.launch(), s.published_at_ms()) != '\0';
 }
 
@@ -67,7 +74,8 @@ bool LaunchHoldFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const
 {
     if (s.is_moving())
         emit.stop_movement();
-    ai.set_last_rule_fired(*HoldReason(ai.launch(), s.published_at_ms()) == 's' ? "idle:launch_setup" : "idle:launch_afk");
+    char const* why = HoldReason(ai.launch(), s.published_at_ms());
+    ai.set_last_rule_fired(*why == 's' ? "idle:launch_setup" : *why == 'a' ? "idle:launch_afk" : "idle:launch_browse");
     return true;
 }
 
@@ -183,6 +191,39 @@ bool LaunchLeaveGroupFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView
     return true;
 }
 
+bool LaunchTrainGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
+{
+    return ai.launch().active && !s.raw().launch_trainer.IsEmpty() && s.is_alive() && !s.in_combat();
+}
+
+bool LaunchTrainFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32)
+{
+    auto const& r = s.raw();
+    float bx, by, bz;
+    s.position(bx, by, bz);
+    float const dx = r.launch_trainer_x - bx, dy = r.launch_trainer_y - by;
+    float const d = std::sqrt(dx * dx + dy * dy);
+    uint32 const now = s.published_at_ms();
+    LaunchSocial& soc = ai.launch_social();
+    if (d > 4.5f)
+    {
+        // One order every 2.5 s while it walks: the move generator keeps the path between orders.
+        if (soc.train_move_ms && now - soc.train_move_ms < 2500u && s.is_moving())
+            return false;
+        soc.train_move_ms = now;
+        float const k = (d - 3.0f) / d;
+        emit.move_to(bx + dx * k, by + dy * k, r.launch_trainer_z, /*run*/ true);
+        ai.set_last_rule_fired("idle:launch_train_walk");
+        return true;
+    }
+    emit.trainer_buy_all(r.launch_trainer);
+    ai.set_launch_trained_level(uint8(s.level() & ~1u));
+    LaunchProfile const& lp = ai.launch();
+    soc.busy_until_ms = now + uint32(float(4000u + Mix(lp.seed, now / 1000u) % 8000u) * std::min(lp.pace, 3.0f));
+    ai.set_last_rule_fired("idle:launch_train");
+    return true;
+}
+
 } // anonymous namespace
 
 bool LaunchAcceptsInvite(BotSnapshotView const& s, BotAI& ai)
@@ -210,6 +251,14 @@ void RegisterLaunchRules(IdleRuleRegistry& r)
         rule.priority = 852;   // below group_invite_accept (855)
         rule.gate     = &LaunchLeaveGroupGate;
         rule.fire     = &LaunchLeaveGroupFire;
+        r.register_rule(std::move(rule));
+    }
+    {
+        IdleRule rule;
+        rule.name     = "idle:launch_train";
+        rule.priority = 740;   // above the vendor (735) and quest errands, below the social rules
+        rule.gate     = &LaunchTrainGate;
+        rule.fire     = &LaunchTrainFire;
         r.register_rule(std::move(rule));
     }
     {

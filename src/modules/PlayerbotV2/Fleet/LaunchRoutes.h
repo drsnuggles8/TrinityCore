@@ -30,6 +30,14 @@ struct RouteStep
 
 struct RouteGiver { uint32 map = 0; float x = 0.f, y = 0.f, z = 0.f; };
 
+// A class trainer of the launch area (Dun Morogh, Ironforge, Loch Modan) on map 0.
+struct ClassTrainer
+{
+    uint64 spawn_id = 0;
+    uint32 class_mask = 0;   // Trainer::GetClassMask
+    float  x = 0.f, y = 0.f, z = 0.f;
+};
+
 class LaunchRoutes
 {
 public:
@@ -49,12 +57,16 @@ public:
     // Where a quest's giver stands (first spawn of a creature that starts it), nullptr when unknown.
     RouteGiver const* Giver(uint32 quest) const;
 
+    // The class trainer for `cls` nearest to (x, y) on map 0, nullptr when there is none in the launch area.
+    ClassTrainer const* NearestTrainer(uint8 cls, float x, float y) const;
+
     static uint32 ComboBit(uint8 race, uint8 cls);
 
 private:
     std::vector<std::string>             names_;
     std::vector<std::vector<RouteStep>>  routes_;
     std::unordered_map<uint32, RouteGiver> givers_;
+    std::vector<ClassTrainer>            trainers_;
 };
 
 } // namespace Playerbot::V2::Fleet

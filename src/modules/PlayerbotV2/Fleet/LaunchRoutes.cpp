@@ -7,6 +7,7 @@
 #include "Player.h"
 #include "QuestDef.h"
 #include "SharedDefines.h"
+#include "Trainer.h"
 #include <unordered_set>
 
 namespace Playerbot::V2::Fleet {
@@ -34,6 +35,26 @@ void LaunchRoutes::Load()
     names_.clear();
     routes_.clear();
     givers_.clear();
+
+    // Class trainers (talent-type trainers) of the launch area: within 3000 y of Coldridge Valley on map 0.
+    trainers_.clear();
+    for (auto const& [spawn_id, data] : sObjectMgr->GetAllCreatureData())
+    {
+        if (data.mapId != 0)
+            continue;
+        float const x = data.spawnPoint.GetPositionX(), y = data.spawnPoint.GetPositionY();
+        if ((x + 6230.f) * (x + 6230.f) + (y - 400.f) * (y - 400.f) > 3000.f * 3000.f)
+            continue;
+        CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(data.id);
+        if (!ct || !(ct->npcflag & UNIT_NPC_FLAG_TRAINER))
+            continue;
+        Trainer::Trainer const* tr = sObjectMgr->GetTrainer(sObjectMgr->GetCreatureDefaultTrainer(data.id));
+        if (!tr || tr->GetType() != Trainer::Type::Talent)
+            continue;
+        trainers_.push_back({ spawn_id, tr->GetClassMask(), x, y, data.spawnPoint.GetPositionZ() });
+    }
+    TC_LOG_INFO("playerbot.v2", "[launch] {} class trainers in the launch area", trainers_.size());
+
     QueryResult r = CharacterDatabase.Query("SELECT route, combos, action, quest, objective FROM playerbot_launch_route_step ORDER BY route, step");
     if (!r)
     {
@@ -78,6 +99,24 @@ void LaunchRoutes::Load()
     size_t steps = 0;
     for (auto const& r2 : routes_) steps += r2.size();
     TC_LOG_INFO("playerbot.v2", "[launch] {} routes loaded ({} steps), {} quest givers placed", names_.size(), steps, givers_.size());
+}
+
+ClassTrainer const* LaunchRoutes::NearestTrainer(uint8 cls, float x, float y) const
+{
+    if (cls == 0 || cls > 32)
+        return nullptr;
+    uint32 const bit = 1u << (cls - 1);
+    ClassTrainer const* best = nullptr;
+    float best_d = 0.f;
+    for (ClassTrainer const& t : trainers_)
+    {
+        if (!(t.class_mask & bit))
+            continue;
+        float const d = (t.x - x) * (t.x - x) + (t.y - y) * (t.y - y);
+        if (!best || d < best_d)
+            best = &t, best_d = d;
+    }
+    return best;
 }
 
 uint8 LaunchRoutes::Find(std::string const& name) const

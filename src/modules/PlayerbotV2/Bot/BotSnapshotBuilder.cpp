@@ -9684,6 +9684,27 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             }
         }
     }
+    // ---- Launch: a visit to the class trainer after each even level from 4 (idle:launch_train) ----
+    // Launch bots learn nothing for free on a level-up (Module::OnLevelUp); they walk to their class trainer when it is within
+    // 350 y, as players do between quests. A trainer farther away waits until the bot passes one.
+    if (bot_ai && bot_ai->launch().active && p->GetMapId() == 0)
+    {
+        uint8 const lvl = p->GetLevel();
+        uint8 const due = lvl >= 4 ? uint8(lvl & ~1u) : uint8(0);
+        if (due > bot_ai->launch_trained_level())
+            if (V2::Fleet::ClassTrainer const* t = V2::Fleet::LaunchRoutes::Instance().NearestTrainer(p->GetClass(), p->GetPositionX(), p->GetPositionY()))
+            {
+                float const dx = t->x - p->GetPositionX(), dy = t->y - p->GetPositionY();
+                if (dx * dx + dy * dy < 350.f * 350.f)
+                    if (Creature const* c = p->GetMap()->GetCreatureBySpawnId(t->spawn_id); c && c->IsAlive())
+                    {
+                        snap->launch_trainer = c->GetGUID();
+                        snap->launch_trainer_x = c->GetPositionX();
+                        snap->launch_trainer_y = c->GetPositionY();
+                        snap->launch_trainer_z = c->GetPositionZ();
+                    }
+            }
+    }
     // ---- Manual travel goal (owner /goto <map> <x> <y>) ----
     // Overrides quest/hub goal selection entirely while set: the owner
     // asked for this destination, so the bot travels there via the full

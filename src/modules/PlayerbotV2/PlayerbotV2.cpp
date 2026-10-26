@@ -2825,7 +2825,9 @@ void Module::OnLevelUp(Player* p, uint8 new_level)
     ::Playerbot::API api(p);
     api.purge_foreign_class_spells();
     uint32 const quest_spells = api.learn_class_quest_spells_free();
-    uint32 const spells = api.learn_trainer_spells_free();
+    // A launch bot walks to its trainer instead (idle:launch_train).
+    bool const launch = V2::Fleet::LaunchSim::Instance().IsLaunchBot(p->GetGUID().GetCounter());
+    uint32 const spells = launch ? 0u : api.learn_trainer_spells_free();
     uint32 const weapon_skills = api.learn_weapon_skills_free();
     // Riding (vanilla: apprentice and the race's mount at 40, journeyman and the swift mount at 60). The call does nothing below 40 and
     // when the skill and mount are already there, so a level past 40 (or a jump over it) is safe to hand to it.
