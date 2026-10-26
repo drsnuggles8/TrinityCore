@@ -38,7 +38,7 @@ public:
     std::string Stop();
     // bots > 0: a new roster of that size instead of the same characters again.
     std::string Reset(uint32 bots = 0, uint32 late = 0);
-    std::string Status() const;
+    std::string Status();   // loads the roster first (after a restart it is read lazily)
     // One line on the online launch bots: average level, quests turned in, dead, the rules they fired last.
     std::string Report() const;
 

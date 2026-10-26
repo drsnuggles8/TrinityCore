@@ -364,8 +364,9 @@ std::string LaunchSim::Reset(uint32 bots, uint32 late)
     return "Resetting: the launch bots log out, are deleted and created again fresh at level 1 with new personas.";
 }
 
-std::string LaunchSim::Status() const
+std::string LaunchSim::Status()
 {
+    LoadRoster();
     std::array<uint32, 6> by_state{};
     std::vector<uint32> online_by_persona(kPersonas.size(), 0);
     std::map<uint32, uint32> levels;
