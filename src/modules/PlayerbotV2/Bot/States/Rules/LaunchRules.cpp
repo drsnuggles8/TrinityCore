@@ -15,6 +15,8 @@
 //   greedy bots and loners right after the kill, friendly ones after a while.
 // LaunchAcceptsInvite - the group_invite_accept rule asks it whether a launch bot takes an invite.
 //
+// idle:launch_party_build @849 - a party builder (LaunchStrategy::PartyBuilder) working a kill objective invites solo
+//   players of about its level close by, up to a group of three, with a "LF group" line the first time.
 // idle:launch_train @740 - after each even level from 4 a launch bot walks to its class trainer (the builder names it in
 //   the snapshot) and buys what it can afford, then reads the list a few seconds (idle:launch_hold). Above the quest and
 //   vendor errands, below the social rules.
@@ -191,6 +193,58 @@ bool LaunchLeaveGroupFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView
     return true;
 }
 
+ObjectGuid PartyRecruit(BotSnapshotView const& s, BotAI& ai)
+{
+    float bx, by, bz;
+    s.position(bx, by, bz);
+    for (NearbyUnit const& u : s.raw().combat.nearby_friends)
+    {
+        if (!u.is_player || u.is_in_group || u.guid == s.raw().guid || !u.victim.IsEmpty())
+            continue;
+        int32 const dl = int32(u.level) - int32(s.level());
+        if (dl > 2 || dl < -2)
+            continue;
+        float const dx = u.x - bx, dy = u.y - by;
+        if (dx * dx + dy * dy > 30.0f * 30.0f)
+            continue;
+        if (ai.action_recently_tried(BotAI::ActionKind::InviteOther, u.guid.GetCounter(), s.published_at_ms()))
+            continue;
+        return u.guid;
+    }
+    return ObjectGuid::Empty;
+}
+
+bool LaunchPartyBuildGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32)
+{
+    LaunchProfile const& lp = ai.launch();
+    if (!lp.active || lp.strategy != LaunchStrategy::PartyBuilder || !s.is_alive() || s.in_combat() || s.has_group_invite())
+        return false;
+    if (s.in_group() && g.member_count() >= 3)
+        return false;
+    auto const& obj = s.raw().quest_log.current_objective;
+    if (s.raw().quest_log.current_quest_id == 0 || obj.type != QUEST_OBJECTIVE_MONSTER || obj.progress >= obj.amount)
+        return false;
+    return !PartyRecruit(s, ai).IsEmpty();
+}
+
+bool LaunchPartyBuildFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32)
+{
+    ObjectGuid const who = PartyRecruit(s, ai);
+    if (who.IsEmpty())
+        return false;
+    uint32 const now = s.published_at_ms();
+    if (!s.in_group() && !ai.action_recently_tried(BotAI::ActionKind::InviteOther, 0, now))
+    {
+        static constexpr std::array<char const*, 4> kLf = {"LF group for this, inv up", "anyone want to group?", "grp?", "LFG, send inv"};
+        emit.say_world(kLf[Mix(ai.launch().seed, now / 60000u) % kLf.size()]);
+        ai.note_action_retry(BotAI::ActionKind::InviteOther, 0, now);   // key 0: the shout, once in 5 minutes
+    }
+    ai.note_action_retry(BotAI::ActionKind::InviteOther, who.GetCounter(), now);
+    emit.invite_to_group(who);
+    ai.set_last_rule_fired("idle:launch_party_build");
+    return true;
+}
+
 bool LaunchTrainGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
 {
     return ai.launch().active && !s.raw().launch_trainer.IsEmpty() && s.is_alive() && !s.in_combat();
@@ -259,6 +313,15 @@ void RegisterLaunchRules(IdleRuleRegistry& r)
         rule.priority = 740;   // above the vendor (735) and quest errands, below the social rules
         rule.gate     = &LaunchTrainGate;
         rule.fire     = &LaunchTrainFire;
+        r.register_rule(std::move(rule));
+    }
+    {
+        IdleRule rule;
+        rule.name     = "idle:launch_party_build";
+        rule.priority = 849;
+        rule.gate     = &LaunchPartyBuildGate;
+        rule.fire     = &LaunchPartyBuildFire;
+        rule.min_interval_ms = 8000;   // per bot
         r.register_rule(std::move(rule));
     }
     {
