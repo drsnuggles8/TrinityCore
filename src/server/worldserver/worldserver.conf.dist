@@ -4814,6 +4814,16 @@ Classic.OfficialFeatureFlags = 1
 
 Classic.MountIndoorsRules = 1
 
+#    Classic.SharedTagging
+#        Description: Retail shared tagging: every player who damages a creature (up to 5) is rewarded for its kill.
+#                     Off is the Classic rule (WoW Classic Forever has no shared tagging): the first player to tag a
+#                     creature owns it for their group; anyone outside that group gets no experience, loot or quest
+#                     credit. A player who joins the tagger's group before the kill still shares it (group reward).
+#        Default:     0 - (Disabled, Classic first-tag rule)
+#                     1 - (Enabled, retail shared tagging)
+
+Classic.SharedTagging = 0
+
 #    Classic.SecuredBagSlotsForAll
 #        Description: Every account gets the 4 extra backpack slots (and no "attach an Authenticator" prompt) that the
 #                     client otherwise shows locked until the Battle.net account has an authenticator.

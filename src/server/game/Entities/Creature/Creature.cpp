@@ -1402,6 +1402,16 @@ void Creature::SetTappedBy(Unit const* unit, bool withGroup)
     if (!player)                                             // normal creature, no player involved
         return;
 
+    // Classic: no shared tagging. Once tagged, the creature belongs to the first tagger and their group; a later
+    // attacker outside that group is not added and gets nothing for the kill (Classic.SharedTagging).
+    if (!m_tapList.empty() && !m_tapList.contains(player->GetGUID()) && !sWorld->getBoolConfig(CONFIG_CLASSIC_SHARED_TAGGING))
+    {
+        Group const* group = player->GetGroup();
+        bool const groupOfTagger = group && std::ranges::any_of(m_tapList, [group](ObjectGuid const& tapper) { return group->IsMember(tapper); });
+        if (!groupOfTagger)
+            return;
+    }
+
     m_tapList.insert(player->GetGUID());
     if (withGroup)
         if (Group const* group = player->GetGroup())

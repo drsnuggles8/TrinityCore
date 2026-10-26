@@ -706,6 +706,7 @@ void World::LoadConfigSettings(bool reload)
         { .Name = "Load.Locales"sv, .DefaultValue = true, .Index = CONFIG_LOAD_LOCALES },
         { .Name = "Classic.MountIndoorsRules"sv, .DefaultValue = true, .Index = CONFIG_CLASSIC_MOUNT_INDOORS_RULES },
         { .Name = "Classic.SecuredBagSlotsForAll"sv, .DefaultValue = true, .Index = CONFIG_CLASSIC_SECURED_BAG_SLOTS_FOR_ALL },
+        { .Name = "Classic.SharedTagging"sv, .DefaultValue = false, .Index = CONFIG_CLASSIC_SHARED_TAGGING },
     } };
 
     static constexpr ConfigOptionLoadDefinitionArray<uint32, INT_CONFIG_VALUE_COUNT> ints =
