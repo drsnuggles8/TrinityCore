@@ -330,7 +330,7 @@ std::string LaunchSim::Start()
     if (phase_ != Phase::Ready && phase_ != Phase::Armed)
         return std::string("Cannot start: the run is ") + PhaseName(int(phase_)) + " (needs ready or armed).";
     t0_ms_ = GameTime::GetGameTimeMS();
-    asks_ = grants_ = 0;
+    asks_ = grants_ = rerolls_ = 0;
     replies_.clear();
     phase_ = Phase::Running;
     TC_LOG_INFO("playerbot.v2", "[launch] T0: {} bots arrive over the next hours", roster_.size());
@@ -366,7 +366,7 @@ std::string LaunchSim::Reset(uint32 bots, uint32 late)
 
 std::string LaunchSim::Status() const
 {
-    std::array<uint32, 5> by_state{};
+    std::array<uint32, 6> by_state{};
     std::vector<uint32> online_by_persona(kPersonas.size(), 0);
     std::map<uint32, uint32> levels;
     for (Entry const& e : roster_)
@@ -382,7 +382,7 @@ std::string LaunchSim::Status() const
     std::ostringstream o;
     o << "Launch " << PhaseName(int(phase_)) << ": " << roster_.size() << " bots (" << late_count_ << " late); to create "
       << by_state[0] << ", offline " << by_state[1] << ", logging in " << by_state[2] << ", online " << by_state[3]
-      << ", done " << by_state[4];
+      << ", done " << by_state[4] << ", rerolling " << by_state[5];
     if (phase_ == Phase::Running)
         o << "; T0 + " << (GameTime::GetGameTimeMS() - t0_ms_) / 60000u << " min";
     o << "\nOnline by persona:";
@@ -422,7 +422,8 @@ std::string LaunchSim::Report() const
     std::ostringstream o;
     o << "T0+" << (phase_ == Phase::Running ? (GameTime::GetGameTimeMS() - t0_ms_) / 60000u : 0u) << "min online=" << online
       << " avg_level=" << (online ? double(xp_levels_x100) / 100.0 / online : 0.0) << " quests=" << quests << " dead=" << dead
-      << " grouped=" << grouped << " inv_asked=" << asks_ << " inv_granted=" << grants_ << " rules:";
+      << " grouped=" << grouped << " inv_asked=" << asks_ << " inv_granted=" << grants_ << " rerolls=" << rerolls_
+      << " rules:";
     std::vector<std::pair<uint32, std::string>> top;
     for (auto const& [r, n] : rules)
         top.emplace_back(n, r);
@@ -542,9 +543,31 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                         else if (e.session_s && now_ms - e.online_since_ms >= e.session_s * 1000u)
                         {
                             Services::SessionMgr().LogoutBot(g);
-                            e.state = BotState::Done;
-                            TC_LOG_INFO("playerbot.v2", "[launch] {} ({}) ends its session after {} min", e.name,
-                                kPersonas[e.persona].key, e.session_s / 60u);
+                            bool const reroll = kPersonas[e.persona].strategy == LaunchStrategy::Reroller;
+                            e.state = reroll ? BotState::Rerolling : BotState::Done;
+                            e.reroll_at_ms = now_ms + 15000u;   // after the logout went through
+                            TC_LOG_INFO("playerbot.v2", "[launch] {} ({}) ends its session after {} min{}", e.name,
+                                kPersonas[e.persona].key, e.session_s / 60u, reroll ? ", rerolls" : "");
+                        }
+                        break;
+                    case BotState::Rerolling:
+                        if (int32(now_ms - e.reroll_at_ms) >= 0 && !ObjectAccessor::FindConnectedPlayer(g) && logins < 6)
+                        {
+                            ++logins;
+                            std::string const old_name = e.name;
+                            by_guid_.erase(e.guid_low);
+                            DeleteOne(e);
+                            e.guid_low = 0;
+                            Roll(e, /*keep_identity*/ false, /*late*/ false);
+                            e.arrival_s = elapsed_s + urand(60, 180);   // character creation, a new name, the intro
+                            if (CreateOne(e))
+                            {
+                                ++rerolls_;
+                                TC_LOG_INFO("playerbot.v2", "[launch] {} deleted, back as {} ({} {}) in {} s", old_name, e.name,
+                                    kPersonas[e.persona].key, uint32(e.cls), e.arrival_s - elapsed_s);
+                            }
+                            else
+                                e.state = BotState::Done;
                         }
                         break;
                     default:

@@ -55,7 +55,9 @@ public:
 
 private:
     enum class Phase : uint8 { Empty, Creating, Ready, Armed, Running, Stopping, Deleting };
-    enum class BotState : uint8 { ToCreate, Offline, LoggingIn, Online, Done };
+    // Rerolling: a reroller logged out at the end of its session; once it is gone it is deleted and comes back as a new
+    // level-1 character a minute or three later.
+    enum class BotState : uint8 { ToCreate, Offline, LoggingIn, Online, Done, Rerolling };
 
     struct Entry
     {
@@ -69,6 +71,7 @@ private:
         BotState    state = BotState::ToCreate;
         uint32      online_since_ms = 0;
         uint32      login_sent_ms = 0;
+        uint32      reroll_at_ms = 0;
     };
 
     // An answer to an "inv?" whisper, sent by `from` (a launch bot) once due: an invite, or a whisper back.
@@ -100,6 +103,7 @@ private:
     uint32             resize_bots_ = 0, resize_late_ = 0;
     std::vector<Reply> replies_;
     uint32             asks_ = 0, grants_ = 0;   // this run, for the report
+    uint32             rerolls_ = 0;
 };
 
 } // namespace Playerbot::V2::Fleet
