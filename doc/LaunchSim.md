@@ -98,6 +98,7 @@ Measurements go here, each with the build, bot count and what changed.
 | Date | Build | Bots | Idle RSS | RSS with bots | Update diff avg | CPU | Notes |
 |---|---|---|---|---|---|---|---|
 | 26 Oct | build9 (98147d0c) | 100 (72 online at 25 min) | 2329 MB | 2200-2300 MB | 1-2 ms | 26-31% | defaults; no bot took a quest (companion rule bug, fixed in f660dfc9) |
+| 27 Oct | build10 (f660dfc9) | 100 (72 online at 29 min) | 1707 MB | 1745-1820 MB | 20 ms (the MinWorldUpdateTime floor) | 9.5-12% | locales/query cache off, tick 20/50 ms, no update blocks for bots; at 27 min L1=21 L2=29 L3=16 L4=5, 92 quests turned in, 46 "inv?" (24 granted) |
 
 The bots themselves are cheap; the worldserver's own data is what fills the memory. Startup profile (RSS sampled every
 0.2 s against the timestamped Server.log, `startup-mem.sh` on the home server), biggest steps with the defaults:
