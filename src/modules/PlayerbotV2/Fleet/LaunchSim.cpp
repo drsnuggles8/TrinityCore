@@ -329,13 +329,20 @@ std::string LaunchSim::Stop()
     return "Stopping: every launch bot logs out.";
 }
 
-std::string LaunchSim::Reset()
+std::string LaunchSim::Reset(uint32 bots, uint32 late)
 {
     LoadRoster();
     if (roster_.empty())
         return "No roster: use `.playerbot launch prepare`.";
+    if (bots + late > 2000)
+        return "Bots must be 1-2000 in total.";
     phase_ = Phase::Stopping;
     recreate_after_delete_ = true;
+    resize_bots_ = bots;
+    resize_late_ = late;
+    if (bots)
+        return "Resetting: the launch bots log out and are deleted; then " + std::to_string(bots) + " + " + std::to_string(late) +
+               " new ones are created fresh at level 1.";
     return "Resetting: the launch bots log out, are deleted and created again fresh at level 1 with new personas.";
 }
 
@@ -497,13 +504,22 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                 DeleteOne(e);
                 e.guid_low = 0;
             }
+            recreate_after_delete_ = false;
+            // A new size: a new roster altogether.
+            if (resize_bots_)
+            {
+                roster_.clear();
+                phase_ = Phase::Empty;
+                TC_LOG_INFO("playerbot.v2", "[launch] roster deleted; {}", Prepare(resize_bots_, resize_late_));
+                resize_bots_ = resize_late_ = 0;
+                return;
+            }
             // All gone: the same names, races and classes again, fresh, with new personas, arrivals and sessions.
             for (size_t i = 0; i < roster_.size(); ++i)
             {
                 Roll(roster_[i], /*keep_identity*/ true, /*late*/ i + late_count_ >= roster_.size());
                 roster_[i].state = BotState::ToCreate;
             }
-            recreate_after_delete_ = false;
             phase_ = Phase::Creating;
             TC_LOG_INFO("playerbot.v2", "[launch] roster deleted; recreating {} bots", roster_.size());
             return;

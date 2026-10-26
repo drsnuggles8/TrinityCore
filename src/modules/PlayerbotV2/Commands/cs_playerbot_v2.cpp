@@ -2350,12 +2350,12 @@ public:
         else if (sub == "arm")    out = sim.Arm();
         else if (sub == "start")  out = sim.Start();
         else if (sub == "stop")   out = sim.Stop();
-        else if (sub == "reset")  out = sim.Reset();
+        else if (sub == "reset")  out = sim.Reset(a.value_or(0), b.value_or(0));
         else if (sub == "status") out = sim.Status();
         else if (sub == "report") out = sim.Report();
         else
         {
-            handler->SendSysMessage("Usage: .playerbot launch prepare [bots] [late] | arm | start | stop | reset | status | report");
+            handler->SendSysMessage("Usage: .playerbot launch prepare [bots] [late] | arm | start | stop | reset [bots] [late] | status | report");
             return false;
         }
         for (auto const& line : Trinity::Tokenize(out, '\n', true))

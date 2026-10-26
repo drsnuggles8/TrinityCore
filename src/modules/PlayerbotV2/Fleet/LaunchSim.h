@@ -35,7 +35,8 @@ public:
     std::string Arm();
     std::string Start();
     std::string Stop();
-    std::string Reset();
+    // bots > 0: a new roster of that size instead of the same characters again.
+    std::string Reset(uint32 bots = 0, uint32 late = 0);
     std::string Status() const;
     // One line on the online launch bots: average level, quests turned in, dead, the rules they fired last.
     std::string Report() const;
@@ -81,6 +82,7 @@ private:
     uint32             last_report_ms_ = 0;
     uint32             late_count_ = 0;   // the last late_count_ roster entries arrive after the first hour
     bool               recreate_after_delete_ = false;
+    uint32             resize_bots_ = 0, resize_late_ = 0;
 };
 
 } // namespace Playerbot::V2::Fleet
