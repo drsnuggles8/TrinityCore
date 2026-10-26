@@ -2509,35 +2509,13 @@ void Player::InitTalentForLevel()
         ResetTalentSpecialization();
 
     int32 talentTiers = DB2Manager::GetNumTalentsAtLevel(level, Classes(GetClass()));
-    if (level < 15)
-    {
-        // Classic 1.60: a level up never respecs. Nothing can be spent below level 10, and a character of 10-14 that has
-        // points spent keeps them (vanilla talents are not reset by a ding). Only clear a low level config that really
-        // holds purchased ranks, the retail-era cleanup for a character that was squished or granted points.
-        // (ResetTalents also dismissed the summoned pet, which is why a warlock lost its demon on every ding.)
-        bool spentRanks = false;
-        if (UF::TraitConfig const* activeConfig = GetTraitConfig(m_activePlayerData->ActiveCombatTraitConfigID))
-        {
-            WorldPackets::Traits::TraitConfig current(*activeConfig);
-            for (WorldPackets::Traits::TraitEntry const& entry : current.Entries)
-                if (entry.Rank > 0 && entry.GrantedRanks == 0)
-                {
-                    spentRanks = true;
-                    break;
-                }
-        }
-
-        if (spentRanks)
-            ResetTalents(true);
-    }
-    else
-    {
-        if (!GetSession()->HasPermission(rbac::RBAC_PERM_SKIP_CHECK_MORE_TALENTS_THAN_ALLOWED))
-            for (int32 t = talentTiers; t < MAX_TALENT_TIERS; ++t)
-                for (uint32 c = 0; c < MAX_TALENT_COLUMNS; ++c)
-                    for (TalentEntry const* talent : sDB2Manager.GetTalentsByPosition(GetClass(), t, c))
-                        RemoveTalent(talent);
-    }
+    // Classic 1.60: a level change never respecs (vanilla only resets talents at a trainer). The retail-era "level < 15 ->
+    // ResetTalents" cleanup wiped the points a level 10-14 character had spent on every ding and spec activation.
+    if (level >= 15 && !GetSession()->HasPermission(rbac::RBAC_PERM_SKIP_CHECK_MORE_TALENTS_THAN_ALLOWED))
+        for (int32 t = talentTiers; t < MAX_TALENT_TIERS; ++t)
+            for (uint32 c = 0; c < MAX_TALENT_COLUMNS; ++c)
+                for (TalentEntry const* talent : sDB2Manager.GetTalentsByPosition(GetClass(), t, c))
+                    RemoveTalent(talent);
 
     SetUpdateFieldValue(m_values.ModifyValue(&Player::m_activePlayerData).ModifyValue(&UF::ActivePlayerData::MaxTalentTiers), talentTiers);
 
