@@ -26,6 +26,7 @@ enum class LaunchStrategy : uint8
     Idle          = 8,   // stands around, AFK, logs out early
     Reroller      = 9,   // plays a while, deletes, comes back at level 1
     KillStealer   = 10,  // tags what others are fighting, skips lines
+    Leaver        = 11,  // quests like a Quester, moves on to Loch Modan at level 8
     Count
 };
 

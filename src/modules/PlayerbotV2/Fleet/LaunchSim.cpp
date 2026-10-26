@@ -68,7 +68,7 @@ constexpr std::array<Persona, 15> kPersonas = { {
     { "idle",      6, LaunchStrategy::Idle,         4.00f, 4.00f, { 50, 20,  0, 30,  0 }, 300,1500,10.0f, 60.0f,  10, 180, 900,   5,  30,   0 },
     { "reroller",  4, LaunchStrategy::Reroller,     1.50f, 2.50f, { 50, 30, 10, 10,  0 },  60, 300, 1.0f,  6.0f,  30,  60, 240,  10,  40,   0 },
     { "ninja",     2, LaunchStrategy::KillStealer,  1.10f, 1.40f, {  0,  0, 30,  0, 70 },  10,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
-    { "leaver",    2, LaunchStrategy::Quester,      1.10f, 1.30f, { 50, 20, 20, 10,  0 },  10,  90, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
+    { "leaver",    2, LaunchStrategy::Leaver,       1.10f, 1.30f, { 50, 20, 20, 10,  0 },  10,  90, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
 } };
 
 // Classes of the Forever beta census (Alliance, 20 Sep, ~5000 characters, in percent x10), restricted below to what a
