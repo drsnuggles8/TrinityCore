@@ -8,6 +8,7 @@
 #include "QuestDef.h"
 #include "SharedDefines.h"
 #include "Trainer.h"
+#include "UnitDefines.h"
 #include <unordered_set>
 
 namespace Playerbot::V2::Fleet {
