@@ -173,6 +173,7 @@ void RegisterFarTravelRules(IdleRuleRegistry& r);
 void RegisterClassicUpkeepRules(IdleRuleRegistry& r);
 void RegisterRpgRules(IdleRuleRegistry& r);
 void RegisterRaidIdleRules(IdleRuleRegistry& r);   // Bot/Raid/RaidCombat.cpp
+void RegisterLaunchRules(IdleRuleRegistry& r);     // Bot/States/Rules/LaunchRules.cpp (launch simulation)
 // SurvivalRules registered at priority 880-900; dispatched from OnTick's
 // high-priority top-of-tick call (min_priority=700), so they fire above
 // the inline cascade. Two-stage dispatch shipped REFACTOR_3 pass 13.

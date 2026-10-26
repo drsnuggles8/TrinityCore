@@ -1752,6 +1752,26 @@ void DispatchInCombat(BotAI& ai,
         return;
     }
 
+    // Launch simulation: another party won the tag on our target. Under the first-tag rule the kill would pay us nothing,
+    // so a player stops hitting it and looks for another mob, unless the mob is beating on us (then we defend ourselves).
+    if (ai.launch().active && ai.launch().contest_tags && !snapshot.victim().IsEmpty())
+    {
+        ObjectGuid const target = snapshot.victim();
+        NearbyUnit const* tu = nullptr;
+        for (NearbyUnit const& u : snapshot.raw().combat.attackers)
+            if (u.guid == target) { tu = &u; break; }
+        if (!tu)
+            for (NearbyUnit const& u : snapshot.raw().combat.nearby_enemies)
+                if (u.guid == target) { tu = &u; break; }
+        if (tu && tu->tapped && !tu->tapped_by_us && tu->victim != snapshot.guid())
+        {
+            emit.stop_attack();
+            ai.note_engage(target, snapshot.published_at_ms(), /*shield_ms*/ 60u * 1000u);
+            ai.set_last_rule_fired("combat:launch_tag_lost");
+            return;
+        }
+    }
+
     // Dismount FIRST when in combat. Modern TC / WoW 12.x doesn't reliably
     // auto-dismount on damage for all mount types (ground mounts, some
     // legacy mounts, transmogged mounts). A mounted bot can't cast most

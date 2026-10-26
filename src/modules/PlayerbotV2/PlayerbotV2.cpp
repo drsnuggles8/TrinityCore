@@ -22,6 +22,7 @@
 #include "Fleet/BotCharacterFactory.h"
 #include "Fleet/BotNamePool.h"
 #include "Fleet/BotPopulationManager.h"
+#include "Fleet/LaunchSim.h"
 #include "Fleet/BotGuildMgr.h"
 #include "Fleet/BotCoordinationBus.h"
 #include "Fleet/CraftOrderBoard.h"
@@ -1985,6 +1986,8 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
         Services::Population().OnWorldTick(static_cast<uint32>(total.count()));
         t_population_ms = getMSTimeDiff(t0, getMSTime());
     }
+    // Launch simulation (`.playerbot launch`): roster creation, staggered arrivals, session ends, reset.
+    V2::Fleet::LaunchSim::Instance().OnWorldTick(GameTime::GetGameTimeMS());
 
     // 2.7. Pets that cannot walk to their bot owner are set down next to it.
     DrivePetSnap(getMSTime());
@@ -2525,6 +2528,8 @@ void Module::OnPlayerLogin(Player* p)
             sess && !sess->IsBot())
         {
             const uint32 owner_account = sess->GetAccountId();
+            // An armed launch simulation starts the moment a real player enters the world.
+            V2::Fleet::LaunchSim::Instance().OnRealPlayerLogin(p);
             // Bots bound to the whole account treat this character as their owner while it is online.
             Services::Owners().NoteOwnerCharacterOnline(owner_account, id);
             if (Services::Config().addon_hint_enabled())
@@ -2636,7 +2641,8 @@ void Module::OnPlayerLogin(Player* p)
     // the mask persists in the character taximask column, so a one-time learn on
     // login repairs the whole fleet. (Sub-10 bots stay same-map via the relocation
     // band gate regardless, so a full mask doesn't send them cross-continent.)
-    if (uint32 fp = ::Playerbot::V2::World::LearnAllFactionFlightpaths(p))
+    // A launch-simulation bot is a fresh character and discovers flight paths like a player (none at login).
+    if (uint32 fp = V2::Fleet::LaunchSim::Instance().IsLaunchBot(id) ? 0u : ::Playerbot::V2::World::LearnAllFactionFlightpaths(p))
         TC_LOG_INFO("playerbot.v2",
             "[FlightLearn] {} learned {} flight paths on login (taxi network now routable)",
             p->GetName(), fp);
@@ -2758,6 +2764,9 @@ void Module::OnPlayerLogin(Player* p)
                     "WHERE character_guid_low={}",
                     uint32(rolled.archetype_id), id);
         }
+
+        // Launch simulation: a roster bot gets its persona (pace, pauses, temperament, tag racing) before its first tick.
+        V2::Fleet::LaunchSim::Instance().OnBotLogin(p, ai);
     }
     // Bots taught by an earlier build can carry other classes' trainer spells (a rogue with Judgement): drop them at login.
     if (uint32 const removed = ::Playerbot::API(p).purge_foreign_class_spells())

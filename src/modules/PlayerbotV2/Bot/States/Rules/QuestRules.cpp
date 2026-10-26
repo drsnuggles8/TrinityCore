@@ -239,7 +239,10 @@ bool QuestAcceptGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
     uint32 ready_at = ai.pending_quest_accept_at_ms();
     if (ready_at == 0)
     {
-        const uint32 jitter = 1500u + (uint32(s.bot_id()) * 2654435761u) % 4500u;
+        uint32 jitter = 1500u + (uint32(s.bot_id()) * 2654435761u) % 4500u;
+        // Launch simulation: the bot's own reading time, drawn per quest (a speedrunner skips the text, a casual reads it all).
+        if (LaunchProfile const& lp = ai.launch(); lp.active && lp.read_max_ms > lp.read_min_ms)
+            jitter = lp.read_min_ms + ((uint32(s.bot_id()) ^ now_ms) * 2654435761u) % (lp.read_max_ms - lp.read_min_ms);
         ai.set_pending_quest_accept_at_ms(now_ms + jitter);
         return false;
     }
@@ -278,6 +281,9 @@ bool QuestAcceptFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
             continue;
         emit.face_target(off.giver);
         emit.accept_quest(off.giver, off.quest_id);
+        // A launch bot reads each quest of a multi-quest giver, not only the first.
+        if (ai.launch().active)
+            ai.set_pending_quest_accept_at_ms(0);
         // Hold follow-recall off while we work through a multi-quest hub —
         // grouped bots otherwise get yanked away between accepts.
         ai.grant_detour(s.published_at_ms());
@@ -962,6 +968,8 @@ bool QuestSiteShareGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView c
 {
     static uint32 const cap = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("Playerbot.World.QuestSiteCap", int32(V2::Fleet::kQuestSiteCapDefault))));
     if (cap == 0) return false;
+    // A launch run is meant to pile everyone onto the same camps: launch bots never spread out on their own.
+    if (ai.launch().active) return false;
     if (s.has_owner_character() || s.in_group() || s.is_in_instance() || s.is_in_dungeon() || s.in_battleground()) return false;
     auto const& poi = s.current_objective_poi();
     if (!poi.valid || poi.map_id != s.map_id() || ai.current_objective_blacklisted(s.published_at_ms())) return false;

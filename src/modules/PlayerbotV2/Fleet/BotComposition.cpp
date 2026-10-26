@@ -119,7 +119,8 @@ bool IsVanillaCombo(uint8 race, uint8 cls)
     switch (race)
     {
         case RACE_HUMAN:    mask = bit(CLASS_WARRIOR) | bit(CLASS_PALADIN) | bit(CLASS_ROGUE) | bit(CLASS_PRIEST) | bit(CLASS_MAGE) | bit(CLASS_WARLOCK); break;
-        case RACE_DWARF:    mask = bit(CLASS_WARRIOR) | bit(CLASS_PALADIN) | bit(CLASS_HUNTER) | bit(CLASS_ROGUE) | bit(CLASS_PRIEST); break;
+        // Dwarf Shaman is a Classic 1.60 (Forever) combination (sql/custom/world/2026_10_10_12_world_classic_dwarf_shaman_quests.sql).
+        case RACE_DWARF:    mask = bit(CLASS_WARRIOR) | bit(CLASS_PALADIN) | bit(CLASS_HUNTER) | bit(CLASS_ROGUE) | bit(CLASS_PRIEST) | bit(CLASS_SHAMAN); break;
         case RACE_NIGHTELF: mask = bit(CLASS_WARRIOR) | bit(CLASS_HUNTER) | bit(CLASS_ROGUE) | bit(CLASS_PRIEST) | bit(CLASS_DRUID); break;
         case RACE_GNOME:    mask = bit(CLASS_WARRIOR) | bit(CLASS_ROGUE) | bit(CLASS_MAGE) | bit(CLASS_WARLOCK); break;
         case RACE_ORC:      mask = bit(CLASS_WARRIOR) | bit(CLASS_HUNTER) | bit(CLASS_ROGUE) | bit(CLASS_SHAMAN) | bit(CLASS_WARLOCK); break;

@@ -314,6 +314,11 @@ struct NearbyUnit
     bool       stun_immune = false;
     Role       role = Role::Unknown;
     ObjectGuid victim;          // Who this unit is currently attacking (Empty if none).
+    // Creature tag (Creature::GetTapList): tapped = some player has tagged it; tapped_by_us = the tagger is the bot or a
+    // member of its group, so the kill pays the bot. Under the Classic first-tag rule a mob tapped but not by us is worth
+    // nothing to the bot. Hostile units (attackers + nearby_enemies).
+    bool       tapped = false;
+    bool       tapped_by_us = false;
     // For Creature units: lower 32 bits of UNIT_NPC_FLAG_* (vendor/repair/
     // banker/trainer/flightmaster/innkeeper/etc). Zero for player units.
     // Lets bot logic rules find capability-bearing NPCs without round-tripping

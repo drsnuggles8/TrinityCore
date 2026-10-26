@@ -203,6 +203,7 @@ void RegisterAllIdleRules(IdleRuleRegistry& r)
     RegisterClassicUpkeepRules(r);   // idle:classic_* @992
     RegisterRpgRules(r);             // idle:rpg_* @110-135 (world bots only)
     RegisterRaidIdleRules(r);        // idle:raid_prepull @991
+    RegisterLaunchRules(r);          // idle:launch_hold @995 (launch simulation bots only)
     // Future passes: RegisterTravelRules(r); RegisterDungeonRules(r);
     // RegisterBgRules(r); ...
 

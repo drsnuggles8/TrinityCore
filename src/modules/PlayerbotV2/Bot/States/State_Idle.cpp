@@ -86,6 +86,16 @@
 
 namespace Playerbot::States {
 
+// Whether a proactive target pick skips this mob as someone else's. Bots leave every mob that is already fighting alone.
+// A launch-simulation bot races for tags instead (LaunchProfile::contest_tags): it only skips a mob another party has
+// tagged, which pays it nothing under the first-tag rule; a mob that is merely attacking someone is still up for grabs.
+static bool SkipOthersMob(NearbyUnit const& u, BotAI const& ai)
+{
+    if (ai.launch().active && ai.launch().contest_tags)
+        return u.tapped && !u.tapped_by_us;
+    return u.victim != ObjectGuid::Empty;
+}
+
 // The Maintain* family below are declared in MaintainHelpers.h so per-
 // subsystem rule files (Bot/States/Rules/MaintainRules.cpp etc.) can
 // wrap them as registered IdleRules. Truly private helpers (ScoreItem,
@@ -16823,7 +16833,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                     if (!u.guid.IsCreature()) continue;
                     if (!entry_matches(u.entry)) continue;
                     if (u.hp <= 0) continue;
-                    if (u.victim != ObjectGuid::Empty) continue;
+                    if (SkipOthersMob(u, ai)) continue;
                     if (recent_active && u.guid == recent) continue;
                     const float dx = u.x - bx, dy = u.y - by, dz = u.z - bz;
                     const float distSq = dx*dx + dy*dy + dz*dz;
@@ -16875,7 +16885,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                 {
                     if (!u.guid.IsCreature()) continue;
                     if (u.hp <= 0) continue;
-                    if (u.victim != ObjectGuid::Empty) continue;
+                    if (SkipOthersMob(u, ai)) continue;
                     if (recent_active && u.guid == recent) continue;
                     // Dropper = creature_questitem row OR loot template
                     // (vanilla quest items have no questitem rows).
@@ -17029,7 +17039,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                 if (u.no_xp_kill || u.is_pacified || u.untargetable) continue;   // dummies/props/stalkers: immortal, can't fight back, or untargetable
                 if (u.level > maxLevel) continue;   // no lower bound: level scaling gives XP on lower-base mobs
                 if (u.hp_pct() < kMinHpPctToTag) continue;
-                if (u.victim != ObjectGuid::Empty) continue;
+                if (SkipOthersMob(u, ai)) continue;
                 if (recent_active && u.guid == recent) continue;
                 const float dx = u.x - bx;
                 const float dy = u.y - by;

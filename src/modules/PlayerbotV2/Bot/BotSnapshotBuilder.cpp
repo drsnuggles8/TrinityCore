@@ -100,6 +100,28 @@ namespace Playerbot {
 
 namespace {
 
+// The creature's tag as the bot sees it: tagged at all, and tagged by the bot or a member of its group (whose kill pays the
+// bot through the group reward). Players and non-creatures are never tagged.
+void FillTag(NearbyUnit& u, Unit const* unit, Player const* p)
+{
+    Creature const* c = unit->ToCreature();
+    if (!c || !c->hasLootRecipient())
+        return;
+    u.tapped = true;
+    if (c->isTappedBy(p))
+    {
+        u.tapped_by_us = true;
+        return;
+    }
+    if (Group const* g = p->GetGroup())
+        for (ObjectGuid const& tapper : c->GetTapList())
+            if (g->IsMember(tapper))
+            {
+                u.tapped_by_us = true;
+                return;
+            }
+}
+
 // Combat-duration tracking (combat_start_ms / combat_exit_ms) was a pair of
 // process-wide BotId-keyed maps here. It is now per-bot state on BotAI (see
 // BotAI::combat_start_ms / combat_exit_ms) so the parallel-by-Map* Build does
@@ -3980,6 +4002,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         }
         if (Unit const* v = a->GetVictim())
             u.victim = v->GetGUID();
+        FillTag(u, a, p);
         if (a->GetTypeId() == TYPEID_PLAYER)
             u.is_player = true;
         // Creature type for CC target-mask gating. PickOffTargetCC picks its
@@ -4599,6 +4622,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             }
             if (Unit const* v = t->GetVictim())
                 u.victim = v->GetGUID();
+            FillTag(u, t, p);
             // Dungeon-boss flag — drives idle:tank_pull_next priority
             // and the dungeon engagement / wipe-detection rules.
             if (Creature const* c = t->ToCreature())

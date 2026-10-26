@@ -48,6 +48,8 @@
 #include "Fleet/BotComposition.h"
 #include "Fleet/BotIdentityRegistry.h"
 #include "Fleet/BotPopulationManager.h"
+#include "Fleet/LaunchSim.h"
+#include "Config.h"
 #include "Fleet/InstanceGroupCap.h"
 #include "Fleet/BotSetupPipeline.h"
 #include "Fleet/OwnerRegistry.h"
@@ -557,6 +559,7 @@ public:
             { "summonall",     HandleSummonAll,     rbac::RBAC_PERM_COMMAND_GM, Console::Yes },
             { "levelall",      HandleLevelAll,      rbac::RBAC_PERM_COMMAND_GM, Console::Yes },
             { "delete",        HandleDelete,        rbac::RBAC_PERM_COMMAND_GM, Console::Yes },
+            { "launch",        HandleLaunch,        rbac::RBAC_PERM_COMMAND_GM, Console::Yes },
             { "level",         HandleLevel,         rbac::RBAC_PERM_COMMAND_GM, Console::Yes },
             { "reset",         HandleReset,         rbac::RBAC_PERM_COMMAND_GM, Console::Yes },
             { "money",         HandleMoney,         rbac::RBAC_PERM_COMMAND_GM, Console::Yes },
@@ -2332,6 +2335,33 @@ public:
 
     // .playerbot delete <name>
     //
+    // .playerbot launch prepare [bots] [late] | arm | start | stop | reset | status   (Fleet/LaunchSim.h)
+    static bool HandleLaunch(ChatHandler* handler, std::string const& sub, Optional<uint32> a, Optional<uint32> b)
+    {
+        if (!Playerbot::Services::Initialized())
+        {
+            handler->SendSysMessage("PlayerbotV2 not initialized.");
+            return false;
+        }
+        auto& sim = Playerbot::V2::Fleet::LaunchSim::Instance();
+        std::string out;
+        if (sub == "prepare")     out = sim.Prepare(a.value_or(sConfigMgr->GetIntDefault("Playerbot.Launch.Bots", 300, true)),
+                                                    b.value_or(sConfigMgr->GetIntDefault("Playerbot.Launch.LateBots", 100, true)));
+        else if (sub == "arm")    out = sim.Arm();
+        else if (sub == "start")  out = sim.Start();
+        else if (sub == "stop")   out = sim.Stop();
+        else if (sub == "reset")  out = sim.Reset();
+        else if (sub == "status") out = sim.Status();
+        else
+        {
+            handler->SendSysMessage("Usage: .playerbot launch prepare [bots] [late] | arm | start | stop | reset | status");
+            return false;
+        }
+        for (auto const& line : Trinity::Tokenize(out, '\n', true))
+            handler->SendSysMessage(std::string{ line });
+        return true;
+    }
+
     // Cleanup for test bots: refuses if the bot is in-world (use
     // `.playerbot logout` first), then unmarks, deletes the character row,
     // and removes the character cache entry. Hard-delete (deleteFinally
