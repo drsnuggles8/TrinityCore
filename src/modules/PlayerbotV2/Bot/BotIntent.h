@@ -358,7 +358,9 @@ struct TradeDeclineIntent    { bool accept = false; ObjectGuid owner; bool gift 
 // — same gating around faction/instance/level/social ignore. Used by the
 // idle:invite_to_group rule so solo bots gather pickup parties at dungeon
 // hubs / grindspots, and by the /invite whisper command.
-struct InviteToGroupIntent   { ObjectGuid target; };
+// ask = a launch bot asks the target for an invite instead ("inv?", Fleet/LaunchSim::OnAskInvite): a flag rather than a new
+// IntentBody alternative (the variant is at its size limit).
+struct InviteToGroupIntent   { ObjectGuid target; bool ask = false; };
 struct WhisperIntent         { std::string target; std::string text; };
 struct PartyChatIntent       { std::string text; };
 // A line in one of the bot's zone chat channels (ike3 SayToGeneral / SayToTrade). `channel_id` is the

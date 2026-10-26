@@ -12,6 +12,7 @@
 #include "../Fleet/BotGuildMgr.h"
 #include "../Fleet/CraftOrderBoard.h"
 #include "../Fleet/JunkQuestResolver.h"
+#include "../Fleet/LaunchSim.h"
 #include "../Threading/IntentQueue.h"
 #include "../PlayerbotV2.h"
 #include "../Diagnostics/PerfCounters.h"
@@ -262,7 +263,12 @@ struct IntentVisitor
     Result operator()(AcceptRezIntent const&)          { return api.accept_rez(); }
     Result operator()(GroupAcceptIntent const&)        { return api.accept_group_invite(); }
     Result operator()(GroupDeclineIntent const&)       { return api.decline_group_invite(); }
-    Result operator()(InviteToGroupIntent const& i)    { return api.invite_to_group(i.target); }
+    Result operator()(InviteToGroupIntent const& i)
+    {
+        if (i.ask)
+            return V2::Fleet::LaunchSim::Instance().OnAskInvite(api.player(), i.target) ? Result::Ok : Result::InvalidTarget;
+        return api.invite_to_group(i.target);
+    }
     Result operator()(GroupReadyResponseIntent const& i){ return api.group_ready_response(i.ready); }
     Result operator()(GroupLeaveIntent const&)         { return api.leave_group(); }
     Result operator()(GroupPromoteToLeaderIntent const& i) { return api.promote_to_leader(i.new_leader_guid); }

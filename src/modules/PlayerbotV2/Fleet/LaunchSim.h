@@ -16,6 +16,7 @@
 #pragma once
 
 #include "Define.h"
+#include "ObjectGuid.h"
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -47,6 +48,10 @@ public:
     // A bot logged in: when it is a launch bot, give its BotAI the persona's LaunchProfile. True for a launch bot.
     bool OnBotLogin(Player* p, BotAI* ai);
     bool IsLaunchBot(uint64 guid_low) const;
+    // `asker` (a launch bot) whispers `target` for an invite (idle:launch_ask_invite). A launch bot that is asked answers a
+    // few seconds later by its temperament: friendly ones invite, greedy ones and loners do not, the others sometimes, with a
+    // short whisper now and then. A real player only gets the whisper. False when the target is gone.
+    bool OnAskInvite(Player* asker, ObjectGuid target);
 
 private:
     enum class Phase : uint8 { Empty, Creating, Ready, Armed, Running, Stopping, Deleting };
@@ -66,7 +71,17 @@ private:
         uint32      login_sent_ms = 0;
     };
 
+    // An answer to an "inv?" whisper, sent by `from` (a launch bot) once due: an invite, or a whisper back.
+    struct Reply
+    {
+        ObjectGuid  from, to;
+        uint32      due_ms = 0;
+        bool        invite = false;
+        std::string text;
+    };
+
     LaunchSim() = default;
+    void SendReplies(uint32 now_ms);
     void LoadRoster();
     void Roll(Entry& e, bool keep_identity, bool late);
     bool CreateOne(Entry& e);
@@ -83,6 +98,8 @@ private:
     uint32             late_count_ = 0;   // the last late_count_ roster entries arrive after the first hour
     bool               recreate_after_delete_ = false;
     uint32             resize_bots_ = 0, resize_late_ = 0;
+    std::vector<Reply> replies_;
+    uint32             asks_ = 0, grants_ = 0;   // this run, for the report
 };
 
 } // namespace Playerbot::V2::Fleet

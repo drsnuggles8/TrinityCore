@@ -67,4 +67,12 @@ struct LaunchProfile
     uint32 seed = 0;                // per-bot randomness for the pause schedule
 };
 
+// What a launch bot remembers about groups (Bot/States/Rules/LaunchRules.cpp). Worker thread only, unlike the profile.
+struct LaunchSocial
+{
+    uint32 last_ask_ms = 0;         // the last "inv?" whisper (one every 40 s at most)
+    uint64 asked_low = 0;           // the player it asked: an invite from them is taken without thinking twice
+    uint32 group_since_ms = 0;      // first tick seen in the current group (0 = not in one)
+};
+
 } // namespace Playerbot

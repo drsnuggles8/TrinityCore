@@ -189,6 +189,17 @@ bool GroupInviteAcceptFire(BotSnapshotView const& s, BotAI& ai,
             return true;
         }
     }
+    // A launch bot answers by its temperament: a loner turns almost everyone down, a friendly one nobody.
+    if (ai.launch().active && !LaunchAcceptsInvite(s, ai))
+    {
+        TC_LOG_INFO("playerbot.v2", "[group_invite] {} (launch) declines {}", s.name(), s.group_invite_leader_name());
+        if (s.bot_id() % 3u == 0u && !s.group_invite_leader_name().empty())
+            emit.whisper(s.group_invite_leader_name(), "no thx");
+        emit.group_decline();
+        ai.set_invite_acked(true);
+        ai.set_last_rule_fired("idle:group_invite_decline");
+        return true;
+    }
     TC_LOG_INFO("playerbot.v2", "[group_invite] {} accepts the invite from {}", s.name(), s.group_invite_leader_name());
     emit.group_accept();
     ai.set_invite_acked(true);

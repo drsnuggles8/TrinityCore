@@ -6,10 +6,13 @@
 #include "BotIdentityRegistry.h"
 #include "LaunchRoutes.h"
 #include "Bot/BotAI.h"
+#include "Bot/BotIntent.h"
+#include "Bot/BotIntentEmitter.h"
 #include "Bot/BotRegistry.h"
 #include "Bot/LaunchProfile.h"
 #include "Services.h"
 #include "Session/BotSessionMgr.h"
+#include "Threading/IntentQueue.h"
 #include "Threading/SnapshotPublisher.h"
 #include "Threading/TickScheduler.h"
 #include "CharacterCache.h"
@@ -88,6 +91,19 @@ uint32 Mix(uint32 a, uint32 b)
 }
 
 float Unit01(uint32 seed, uint32 k) { return float(Mix(seed, k) % 100000u) / 100000.0f; }
+
+// Queues an intent for a bot from the world thread (as the whisper commands do, Bot/BotCommandParser.cpp Push).
+template <class T>
+bool PushIntent(Player const* bot, T body)
+{
+    BotId const id = bot->GetGUID().GetCounter();
+    IntentQueue* q = Services::Registry().intents(id);
+    IntentId* next = Services::Registry().next_intent_id(id);
+    if (!q || !next)
+        return false;
+    BotIntentEmitter emit(q, id, /*source*/ 0, next);
+    return emit.emit(WrapForIntentBody(std::move(body)));
+}
 float Lerp(float lo, float hi, float t) { return lo + (hi - lo) * t; }
 
 template <typename Weights>
@@ -314,6 +330,8 @@ std::string LaunchSim::Start()
     if (phase_ != Phase::Ready && phase_ != Phase::Armed)
         return std::string("Cannot start: the run is ") + PhaseName(int(phase_)) + " (needs ready or armed).";
     t0_ms_ = GameTime::GetGameTimeMS();
+    asks_ = grants_ = 0;
+    replies_.clear();
     phase_ = Phase::Running;
     TC_LOG_INFO("playerbot.v2", "[launch] T0: {} bots arrive over the next hours", roster_.size());
     return "Launch started: " + std::to_string(roster_.size()) + " bots arrive from now on.";
@@ -381,7 +399,7 @@ std::string LaunchSim::Report() const
 {
     // What the online launch bots are doing: XP progress, quests turned in, dead ones, and the rule each fired last
     // (the busiest ten), so a run can be judged from the log without watching it.
-    uint32 online = 0, dead = 0, quests = 0;
+    uint32 online = 0, dead = 0, quests = 0, grouped = 0;
     uint64 xp_levels_x100 = 0;
     std::map<std::string, uint32> rules;
     for (Entry const& e : roster_)
@@ -393,6 +411,7 @@ std::string LaunchSim::Report() const
             continue;
         ++online;
         dead += p->isDead() ? 1u : 0u;
+        grouped += p->GetGroup() ? 1u : 0u;
         quests += uint32(p->GetRewardedQuestCount());
         uint32 const need = p->GetXPForNextLevel();
         xp_levels_x100 += uint64(p->GetLevel()) * 100u + (need ? uint64(p->GetXP()) * 100u / need : 0u);
@@ -403,7 +422,7 @@ std::string LaunchSim::Report() const
     std::ostringstream o;
     o << "T0+" << (phase_ == Phase::Running ? (GameTime::GetGameTimeMS() - t0_ms_) / 60000u : 0u) << "min online=" << online
       << " avg_level=" << (online ? double(xp_levels_x100) / 100.0 / online : 0.0) << " quests=" << quests << " dead=" << dead
-      << " rules:";
+      << " grouped=" << grouped << " inv_asked=" << asks_ << " inv_granted=" << grants_ << " rules:";
     std::vector<std::pair<uint32, std::string>> top;
     for (auto const& [r, n] : rules)
         top.emplace_back(n, r);
@@ -413,8 +432,67 @@ std::string LaunchSim::Report() const
     return o.str();
 }
 
+bool LaunchSim::OnAskInvite(Player* asker, ObjectGuid target)
+{
+    Player* t = ObjectAccessor::FindConnectedPlayer(target);
+    if (!asker || !t || t == asker)
+        return false;
+    uint32 const now = GameTime::GetGameTimeMS();
+    uint32 const h = Mix(uint32(asker->GetGUID().GetCounter()), uint32(target.GetCounter()) ^ (now / 1000u));
+    static constexpr std::array<char const*, 8> kAsk = {"inv", "inv?", "inv pls", "invite?", "can i get an inv", "inv for the kill?",
+                                                        "group?", "inv plz"};
+    PushIntent(asker, WhisperIntent{t->GetName(), kAsk[h % kAsk.size()]});
+    ++asks_;
+    BotAI* tai = IsLaunchBot(target.GetCounter()) ? Services::Registry().ai(target.GetCounter()) : nullptr;
+    if (!tai || !tai->launch().active)
+        return true;   // a real player (or a bot outside the run) answers for themselves
+
+    // Odds per temperament (Neutral, Friendly, Greedy, Loner, Griefer) that the target invites, and, when it does not, that it
+    // says no instead of ignoring the whisper.
+    static constexpr std::array<uint8, 5> kGrant = {45, 95, 5, 0, 10};
+    static constexpr std::array<uint8, 5> kSayNo = {40, 100, 25, 0, 50};
+    static constexpr std::array<char const*, 6> kNo = {"sry", "no", "nah", "solo", "doing it solo sry", "no ty"};
+    uint8 const tt = std::min<uint8>(uint8(tai->launch().temperament), 4);
+    Reply r{target, asker->GetGUID(), now + 1500u + (h >> 16) % 4500u, false, {}};
+    if ((h >> 8) % 100u < kGrant[tt])
+    {
+        r.invite = true;
+        ++grants_;
+    }
+    else if ((h >> 4) % 100u < kSayNo[tt])
+        r.text = kNo[(h >> 12) % kNo.size()];
+    else
+        return true;
+    replies_.push_back(std::move(r));
+    return true;
+}
+
+void LaunchSim::SendReplies(uint32 now_ms)
+{
+    for (auto it = replies_.begin(); it != replies_.end();)
+    {
+        if (int32(now_ms - it->due_ms) < 0)
+        {
+            ++it;
+            continue;
+        }
+        Player* from = ObjectAccessor::FindConnectedPlayer(it->from);
+        Player* to = ObjectAccessor::FindConnectedPlayer(it->to);
+        if (from && to)
+        {
+            if (it->invite)
+                PushIntent(from, InviteToGroupIntent{it->to});
+            else
+                PushIntent(from, WhisperIntent{to->GetName(), it->text});
+        }
+        it = replies_.erase(it);
+    }
+}
+
 void LaunchSim::OnWorldTick(uint32 now_ms)
 {
+    if (!replies_.empty())
+        SendReplies(now_ms);
     if (phase_ == Phase::Running && now_ms - last_report_ms_ >= 60000u)
     {
         last_report_ms_ = now_ms;

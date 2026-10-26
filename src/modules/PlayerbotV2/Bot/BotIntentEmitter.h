@@ -169,6 +169,8 @@ public:
     bool group_decline() { return emit(GroupDeclineIntent{}); }
     bool invite_to_group(ObjectGuid target)
     { return emit(InviteToGroupIntent{target}); }
+    bool ask_for_invite(ObjectGuid target)
+    { return emit(InviteToGroupIntent{target, true}); }
     bool guild_chat(std::string text)
     { return emit(ChatIntent{GuildChatIntent{std::move(text)}}); }
     bool group_leave()   { return emit(GroupLeaveIntent{}); }

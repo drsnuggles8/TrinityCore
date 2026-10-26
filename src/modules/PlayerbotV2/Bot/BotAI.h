@@ -69,6 +69,7 @@ public:
     // read-only afterwards; inactive for every bot outside a launch run.
     LaunchProfile const& launch() const { return launch_; }
     void                 set_launch(LaunchProfile const& p) { launch_ = p; }
+    LaunchSocial&        launch_social() { return launch_social_; }
     BotRng const&       rng()         const { return rng_; }
     BotRng&             rng()               { return rng_; }
     Ms                  state_age(Ms now) const { return now - state_entered_; }
@@ -3215,6 +3216,7 @@ private:
     // path sets it from the persisted/rolled value (see set_archetype).
     BotArchetype   archetype_{};
     LaunchProfile  launch_{};
+    LaunchSocial   launch_social_{};
     BotRng         rng_;
     BotState       state_         = BotState::LoggingIn;
     BotState       prev_state_    = BotState::LoggingIn;
