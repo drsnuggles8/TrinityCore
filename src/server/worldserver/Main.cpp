@@ -79,6 +79,14 @@ namespace fs = boost::filesystem;
     #define _TRINITY_CORE_CONFIG_DIR "worldserver.conf.d"
 #endif
 
+#if TRINITY_PLATFORM == TRINITY_PLATFORM_UNIX
+// jemalloc (dep/jemalloc, the allocator on Linux) reads its options from this weak symbol before the first allocation; the
+// build does not read MALLOC_CONF. Hand freed pages back within seconds (background purging) and keep 8 arenas instead of 4
+// per CPU, so the resident memory follows what the server uses (bot crowds come and go) instead of its high-water mark.
+extern "C" char const* malloc_conf;
+char const* malloc_conf = "background_thread:true,dirty_decay_ms:2000,muzzy_decay_ms:0,narenas:8";
+#endif
+
 #if TRINITY_PLATFORM == TRINITY_PLATFORM_WINDOWS
 #include "ServiceWin32.h"
 #include <tchar.h>
