@@ -97,14 +97,13 @@ bool MayWalk(BotSnapshotView const& s, BotAI& ai)
 }
 
 // ---------- idle:companion_quest_turnin ----------
-bool TurnInGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32)
+bool TurnInGate(BotSnapshotView const& s, BotAI&, GroupSnapshotView const& g, uint32)
 {
     auto const& cq = s.raw().companion_quest;
+    // The pause slot is shared with idle:quest_accept / idle:quest_turnin (same priorities, evaluated after these): clearing it here on every
+    // tick without a companion quest reset their reading pause each tick, so no bot ever accepted or handed in a quest.
     if (cq.turn_in.empty())
-    {
-        if (ai.pending_quest_turnin_at_ms() != 0) ai.set_pending_quest_turnin_at_ms(0);
         return false;
-    }
     return CommonGate(s, g);
 }
 
@@ -148,14 +147,13 @@ bool TurnInFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, B
 }
 
 // ---------- idle:companion_quest_accept ----------
-bool AcceptGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32)
+bool AcceptGate(BotSnapshotView const& s, BotAI&, GroupSnapshotView const& g, uint32)
 {
     auto const& cq = s.raw().companion_quest;
+    // The pause slot is shared with idle:quest_accept / idle:quest_turnin (same priorities, evaluated after these): clearing it here on every
+    // tick without a companion quest reset their reading pause each tick, so no bot ever accepted or handed in a quest.
     if (cq.accept.empty())
-    {
-        if (ai.pending_quest_accept_at_ms() != 0) ai.set_pending_quest_accept_at_ms(0);
         return false;
-    }
     // Full bags: a quest that hands out an item fails on accept and would re-pin the bot; free space first.
     if (s.bag_free_slots() == 0) return false;
     return CommonGate(s, g);
