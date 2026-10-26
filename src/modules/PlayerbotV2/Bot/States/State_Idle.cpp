@@ -20523,7 +20523,9 @@ void DispatchIdle(BotAI& ai,
             || Classic::IsEating(s) || Classic::IsDrinking(s)   // a meal or a mana drink is a reason to stand
             || (ai.last_rule_fired() && (std::strcmp(ai.last_rule_fired(), "idle:inn_rest") == 0            // resting at the inn is a reason to stand
                                          || std::strcmp(ai.last_rule_fired(), "idle:mailbox") == 0        // and standing at a mailbox
-                                         || std::strcmp(ai.last_rule_fired(), "idle:res_sick_wait") == 0)); // so is waiting out Resurrection Sickness
+                                         || std::strcmp(ai.last_rule_fired(), "idle:res_sick_wait") == 0))  // so is waiting out Resurrection Sickness
+            // A launch bot setting up its UI, away from the keyboard or reading a trainer's list stands on purpose (idle:launch_hold).
+            || (ai.launch().active && ai.last_rule_fired() && std::strncmp(ai.last_rule_fired(), "idle:launch_", 12) == 0);
         // The watch's own forced walk overwrites the last rule; keep the one before it, which is what held the bot.
         if (char const* lr = ai.last_rule_fired(); lr && std::strcmp(lr, "idle:watch_walk") != 0)
             w.prev_rule = lr;
