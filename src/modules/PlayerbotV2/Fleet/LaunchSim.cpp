@@ -4,6 +4,7 @@
 #include "BotComposition.h"
 #include "BotAccountMgr.h"
 #include "BotIdentityRegistry.h"
+#include "LaunchRoutes.h"
 #include "Bot/BotAI.h"
 #include "Bot/BotRegistry.h"
 #include "Bot/LaunchProfile.h"
@@ -108,6 +109,28 @@ char const* PhaseName(int p)
 {
     static char const* const kNames[] = { "empty", "creating", "ready", "armed", "running", "stopping", "deleting" };
     return kNames[p];
+}
+
+// The guide a GuideRoute bot follows: racers their own fast route (Olo's, when imported), everyone else RestedXP mostly
+// and the other imported guides (not Olo's) for the rest. Fixed by the bot's seed.
+uint8 PickRoute(Persona const& p, uint32 seed)
+{
+    LaunchRoutes const& routes = LaunchRoutes::Instance();
+    if (p.strategy != LaunchStrategy::GuideRoute || routes.Empty())
+        return LaunchRoutes::kNoRoute;
+    uint8 const olo = routes.Find("olo");
+    uint8 const rxp = routes.Find("rxp");
+    if (std::string_view(p.key) == "racer" && olo != LaunchRoutes::kNoRoute)
+        return olo;
+    std::vector<uint8> others;
+    for (size_t i = 0; i < routes.Names().size(); ++i)
+        if (uint8(i) != olo && uint8(i) != rxp)
+            others.push_back(uint8(i));
+    if (rxp != LaunchRoutes::kNoRoute && (others.empty() || Mix(seed, 11) % 100 < 75))
+        return rxp;
+    if (!others.empty())
+        return others[Mix(seed, 12) % others.size()];
+    return olo;   // only Olo's route is imported
 }
 
 } // anonymous namespace
@@ -233,6 +256,7 @@ void LaunchSim::LoadRoster()
     if (loaded_)
         return;
     loaded_ = true;
+    LaunchRoutes::Instance().Load();
     QueryResult r = CharacterDatabase.Query(
         "SELECT character_guid_low, name, race, class, gender, persona, arrival_s, session_s, seed FROM playerbot_launch_bot");
     if (!r)
@@ -265,6 +289,7 @@ std::string LaunchSim::Prepare(uint32 bots, uint32 late)
         return "A roster exists already (" + std::to_string(roster_.size()) + " bots): use `.playerbot launch reset` for a fresh one.";
     if (bots == 0 || bots + late > 2000)
         return "Bots must be 1-2000 in total.";
+    LaunchRoutes::Instance().Load();   // pick up routes imported since the server started
     roster_.resize(bots + late);
     for (size_t i = 0; i < roster_.size(); ++i)
         Roll(roster_[i], /*keep_identity*/ false, /*late*/ i >= bots);
@@ -546,10 +571,12 @@ bool LaunchSim::OnBotLogin(Player* p, BotAI* ai)
     }
     lp.session_ms = e.session_s * 1000u;
     lp.seed = e.seed;
+    lp.route = PickRoute(pr, e.seed);
     ai->set_launch(lp);
-    TC_LOG_INFO("playerbot.v2", "[launch] {} L{} {} {} arrives: persona {} pace {:.2f} temperament {} setup {}s session {}",
+    TC_LOG_INFO("playerbot.v2", "[launch] {} L{} {} {} arrives: persona {} pace {:.2f} temperament {} setup {}s session {} route {}",
         p->GetName(), uint32(p->GetLevel()), uint32(p->GetRace()), uint32(p->GetClass()), pr.key, lp.pace,
-        uint32(lp.temperament), lp.setup_ms / 1000u, e.session_s ? std::to_string(e.session_s / 60u) + " min" : std::string("open"));
+        uint32(lp.temperament), lp.setup_ms / 1000u, e.session_s ? std::to_string(e.session_s / 60u) + " min" : std::string("open"),
+        lp.route == LaunchRoutes::kNoRoute ? std::string("-") : LaunchRoutes::Instance().Names()[lp.route]);
     return true;
 }
 

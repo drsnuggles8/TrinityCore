@@ -56,6 +56,7 @@
 #include "Battleground.h"
 #include "CharacterCache.h"   // sCharacterCache for owner_name lookup
 #include "Fleet/OwnerRegistry.h"   // owner→character resolution for mat-share mail
+#include "Fleet/LaunchRoutes.h"   // launch simulation: guide routes
 #include "Guild.h"           // Guild::Member, GetMember / GetRankId for Phase B
 #include "GuildMgr.h"        // sGuildMgr lookup of bot's guild for snapshot fields
 #include "GameObject.h"
@@ -1698,6 +1699,14 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     snap->bot_id     = p->GetGUID().GetCounter();
     snap->world_tick = tick;
     snap->published_at_ms = GameTime::GetGameTimeMS();
+
+    // Launch simulation: a bot that follows a guide works its route's current step only (Fleet/LaunchRoutes.h). The quest
+    // picker keeps to the step's quest, offers are cut to the quest the step accepts, and a giver out of sight is walked to.
+    V2::Fleet::RouteStep const* launch_step = nullptr;
+    if (bot_ai && bot_ai->launch().active && bot_ai->launch().route != V2::Fleet::LaunchRoutes::kNoRoute)
+        launch_step = V2::Fleet::LaunchRoutes::Instance().CurrentStep(p, bot_ai->launch().route);
+    uint32 const launch_quest = launch_step ? launch_step->quest : 0u;
+    bool const launch_accept = launch_step && launch_step->action == V2::Fleet::RouteAction::Accept;
 
     snap->guid    = p->GetGUID();
     snap->identity.name    = p->GetName();
@@ -5433,6 +5442,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         float  best_breadcrumb_sm_dist = std::numeric_limits<float>::max();
         for (auto const& q : snap->quest_log.quests)
         {
+            // A guide-following launch bot works the quest of its route step and nothing else (an accept step: nothing).
+            if (launch_step && q.quest_id != launch_quest)
+                continue;
             // PROFESSION-SKILL GATE. A quest gated on a profession skill the
             // bot does not actually know can never be progressed OR turned in,
             // yet its objectives still surface as picker candidates. The
@@ -7516,6 +7528,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     }
                     continue;
                 }
+                // A guide-following launch bot takes the quest its route step accepts, no other.
+                if (launch_step && (!launch_accept || qid != launch_quest))
+                    continue;
                 BotSnapshot::QuestTurnIn off{};
                 off.giver = guid;
                 off.quest_id = qid;
@@ -9605,6 +9620,25 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     // groups — neither should be scattered to a far hub. A solo autonomous bot
     // (owner offline → ungrouped) still relocates. Manual /goto travel is handled
     // separately below and is intentionally exempt.
+    // ---- Launch route: walk to the giver of the quest the route accepts next ----
+    // The step's quest is not offered by anyone in scan: head for its giver's spawn (the offer scan picks it up on arrival).
+    if (launch_accept)
+    {
+        bool offered = false;
+        for (auto const& off : snap->quest_discovery.quest_offers)
+            offered |= off.quest_id == launch_quest;
+        if (!offered)
+            if (V2::Fleet::RouteGiver const* gv = V2::Fleet::LaunchRoutes::Instance().Giver(launch_quest))
+                if (gv->map == p->GetMapId() && std::hypot(gv->x - p->GetPositionX(), gv->y - p->GetPositionY()) > 8.0f)
+                {
+                    auto& cp = snap->quest_log.current_objective_poi;
+                    cp.map_id = gv->map;
+                    cp.x = gv->x;
+                    cp.y = gv->y;
+                    cp.z = gv->z;
+                    cp.valid = true;
+                }
+    }
     // ---- Manual travel goal (owner /goto <map> <x> <y>) ----
     // Overrides quest/hub goal selection entirely while set: the owner
     // asked for this destination, so the bot travels there via the full

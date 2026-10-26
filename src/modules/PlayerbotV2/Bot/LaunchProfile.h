@@ -51,6 +51,8 @@ struct LaunchProfile
     float  pace = 1.0f;
     // Contest tags: go for any mob not yet tagged by another party (instead of skipping every mob that is already fighting).
     bool   contest_tags = true;
+    // The guide a GuideRoute bot follows (index into Fleet::LaunchRoutes; 0xFF = none, the bot quests on its own).
+    uint8  route = 0xFF;
 
     // Pauses, in the snapshot clock (BotSnapshotView::published_at_ms, the world's game-time ms).
     uint32 login_ms = 0;            // when the bot entered the world
