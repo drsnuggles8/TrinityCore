@@ -423,7 +423,16 @@ void WorldSession::HandleStandStateChangeOpcode(WorldPackets::Misc::StandStateCh
         if (!_player->HasAura(SPELL_CAMPFIRE_REST))
             if (GameObject* fire = _player->FindNearestGameObjectOfType(GAMEOBJECT_TYPE_SPELL_FOCUS, 15.0f))
                 if (fire->GetGOInfo()->spellFocus.spellFocusType == 4)
+                {
                     _player->CastSpell(_player, SPELL_CAMPFIRE_REST, true);
+
+                    // The camping quests ("The Great Outdoors", "Sit near the campfire") complete their first objective through the
+                    // criteria tree "DoEmote 86 (/sit)" (client CriteriaTree 225069 and its record copies 225212/227678/227683/227693/...).
+                    // The client only sends CMSG_TEXT_EMOTE when /sit is typed, so sitting with the sit key left the objective at 0/1
+                    // even though the campfire rest (and with it Boosted Rest) did start. Sitting is that emote - credit it here.
+                    static constexpr uint32 EMOTES_TEXT_SIT = 86;   // EmotesText.db2 86 "SIT" (emote 13, EMOTE_STATE_SIT)
+                    _player->UpdateCriteria(CriteriaType::DoEmote, EMOTES_TEXT_SIT);
+                }
     }
     else
         _player->RemoveAurasDueToSpell(SPELL_CAMPFIRE_REST);
