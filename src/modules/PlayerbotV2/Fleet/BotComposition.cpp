@@ -4,10 +4,13 @@
 #include "SkyborneIsle.h"
 #include "../Bot/ClassTables.h"   // IsVanillaRealm
 #include "CharacterCache.h"
+#include "Config.h"
 #include "Log.h"
 #include "ObjectMgr.h"
 #include "RaceMask.h"
 #include "SharedDefines.h"
+#include "StringConvert.h"
+#include "Util.h"   // Trinity::Tokenize
 
 #include <algorithm>
 #include <array>
@@ -197,6 +200,18 @@ uint8 PickRace(Faction f)
     else
         v.assign(kHordeRaces.begin(), kHordeRaces.end());
     std::erase_if(v, [](RaceWeight const& rw) { return !IsRaceOnRealm(rw.race); });
+
+    // Playerbot.World.Races: comma-separated race ids new bots may have (e.g. "3,7" = dwarves and gnomes, whose start is
+    // Coldridge Valley); empty = every race. A faction with none of the listed races yields 0, and Roll() rolls again.
+    std::string const only = sConfigMgr->GetStringDefault("Playerbot.World.Races", "", true);
+    if (!only.empty())
+    {
+        std::vector<uint8> allowed;
+        for (std::string_view tok : Trinity::Tokenize(only, ',', false))
+            if (Optional<uint8> race = Trinity::StringTo<uint8>(tok))
+                allowed.push_back(*race);
+        std::erase_if(v, [&allowed](RaceWeight const& rw) { return std::ranges::find(allowed, rw.race) == allowed.end(); });
+    }
     return PickFromRaceWeights(v);
 }
 
