@@ -23,9 +23,10 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_USER: trinity
       MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    # ",z" on bind mounts: lets the containers read them on SELinux hosts (Fedora, RHEL, Rocky); elsewhere it is ignored.
     volumes:
       - db:/var/lib/mysql
-      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro,z
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 5s
@@ -108,7 +109,7 @@ services:
       TC_ACCOUNT_INSTANCES_PER_HOUR: "5"
       TC_PLAYER_SAVE_STATS_MIN_LEVEL: "1"
     volumes:
-      - ${DATA_DIR:-./data}:/opt/trinitycore/data:ro
+      - ${DATA_DIR:-./data}:/opt/trinitycore/data:ro,z
       - tdb:/opt/trinitycore/tdb:ro
       - logs:/opt/trinitycore/logs
     ports:
@@ -163,8 +164,8 @@ services:
     extra_hosts:
       - "trinity.actual.battle.net:${PUBLIC_IP}"
     volumes:
-      - ./certs/server.chain.pem:/opt/trinitycore/certs/server.chain.pem:ro
-      - ./certs/server.key.pem:/opt/trinitycore/certs/server.key.pem:ro
+      - ./certs/server.chain.pem:/opt/trinitycore/certs/server.chain.pem:ro,z
+      - ./certs/server.key.pem:/opt/trinitycore/certs/server.key.pem:ro,z
       - logs:/opt/trinitycore/logs
     ports:
       - "${PUBLISH_IP:-127.0.0.1}:1119:1119"
@@ -186,7 +187,9 @@ services:
       - type: bind
         source: ${WOW_DIR:-./wow}
         target: /wow
-      - ${DATA_DIR:-./data}:/opt/trinitycore/data
+        bind:
+          selinux: z
+      - ${DATA_DIR:-./data}:/opt/trinitycore/data:z
     command:
       - sh
       - -euxc
