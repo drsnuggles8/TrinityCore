@@ -9,6 +9,7 @@ x-trinitycore: &trinitycore
     dockerfile: contrib/docker-compose/Dockerfile
     args:
       BUILD_JOBS: ${BUILD_JOBS:-}
+      BUILD_PLAYERBOT_V2: ${BUILD_PLAYERBOT_V2:-0}
   init: true
   restart: unless-stopped
 
@@ -77,6 +78,11 @@ services:
     stdin_open: true
     tty: true
     stop_grace_period: 1m
+    # Optional local settings as TC_* variables (any worldserver or bot key, e.g. Playerbot.World.MaxBots =
+    # TC_PLAYERBOT_WORLD_MAX_BOTS); see worldserver.env.example. Git-ignored.
+    env_file:
+      - path: worldserver.env
+        required: false
     environment:
       TC_LOGIN_DATABASE_INFO: &login_db "db;3306;trinity;${DB_PASSWORD};auth"
       TC_WORLD_DATABASE_INFO: "db;3306;trinity;${DB_PASSWORD};world"
@@ -96,7 +102,7 @@ services:
       TC_UPDATES_ENABLE_DATABASES: "15"
       TC_UPDATES_AUTO_SETUP: "1"
       # The extractor service makes no mmaps (mmaps_generator takes hours); without them path finding is off.
-      TC_MMAP_ENABLE_PATH_FINDING: "0"
+      TC_MMAP_ENABLE_PATH_FINDING: "${MMAP_PATHFINDING:-0}"
       # Roughly a million harmless warnings on every start (retail rows the Classic data lacks): file only.
       TC_LOGGER_SQL_SQL: "5,DBErrors"
       TC_RA_ENABLE: "0"

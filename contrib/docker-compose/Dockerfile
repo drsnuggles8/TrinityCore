@@ -21,6 +21,8 @@ COPY . /src
 # for the largest files.
 ARG BUILD_JOBS=
 ARG BUILD_TYPE=Release
+# 1 builds the WoW Forever Bots module (src/modules/PlayerbotV2, INSTALL-BOTS.md)
+ARG BUILD_PLAYERBOT_V2=0
 # The build directory lives in a BuildKit cache, so a rebuild after git pull only recompiles what changed.
 RUN --mount=type=cache,id=trinitycore-build,target=/build,sharing=locked <<EOF
 set -eu
@@ -43,7 +45,8 @@ cmake -S /src -B /build -G Ninja \
   -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
   -DCMAKE_INSTALL_PREFIX=/opt/trinitycore \
   -DSERVERS=1 -DTOOLS=1 -DSCRIPTS=static \
-  -DWITHOUT_GIT=1 -DBUILD_TESTING=0
+  -DWITHOUT_GIT=1 -DBUILD_TESTING=0 \
+  -DBUILD_PLAYERBOT_V2="${BUILD_PLAYERBOT_V2}"
 cmake --build /build --parallel "$jobs"
 cmake --install /build
 cp /tmp/sources.sha1 /build/sources.sha1

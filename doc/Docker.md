@@ -68,3 +68,33 @@ For players on other machines:
   `docker compose exec db sh -c 'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --databases auth characters' > backup.sql`
 - `docker compose down` stops everything. With `-v` it also **deletes the databases**.
 
+
+## Pathfinding
+
+Without navigation meshes (mmaps) creatures walk straight lines, through walls and up cliffs, and the bots cannot move. Generate
+them once from the extracted data (hours; `--threads` as your machine allows), then set `MMAP_PATHFINDING=1` in `.env` and run
+`docker compose up -d`:
+
+```
+docker compose run --rm --user root --entrypoint sh extractor -c 'mkdir -p mmaps && for m in 0 1 2991; do mmaps_generator $m --threads 8 --silent; done'
+```
+
+Maps 0 (Eastern Kingdoms), 1 (Kalimdor) and 2991 (Zephras Isle) cover the open world; `mmaps_generator --threads 8 --silent`
+without a map number builds every map, dungeons included. Build the meshes with the same image the server runs: the bots build
+changes the generator (roads, off-mesh bridges).
+
+## Bots
+
+The WoW Forever Bots module (`INSTALL-BOTS.md`, `src/modules/PlayerbotV2`): bots that quest and fight around real players,
+party companions (`.bot add`), dungeon and battleground bots, an auction house bot.
+
+1. `BUILD_PLAYERBOT_V2=1` in `.env`, then build the image again.
+2. The shared bot database, once (the `playerbot` grant is in `mysql-init`; an older db volume needs it by hand):
+   ```
+   docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"' < ../../sql/playerbot_shared/playerbot_shared_schema.sql
+   docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" playerbot' < ../../sql/playerbot_shared/playerbot_shared_data.sql
+   ```
+3. Pathfinding (above): bots need the mmaps.
+4. `cp worldserver.env.example worldserver.env` and adjust, then `docker compose up -d`. The image's
+   `etc/worldserver.conf.d/zz-forever-bots.conf` holds the defaults; `worldserver.env` overrides them.
+5. GM accounts get the `.bot` commands; the in-game window is the `ForeverBots` addon from `src/modules/PlayerbotV2/Addon`.
