@@ -57,6 +57,7 @@
 #include "CharacterCache.h"   // sCharacterCache for owner_name lookup
 #include "Fleet/OwnerRegistry.h"   // owner→character resolution for mat-share mail
 #include "Fleet/LaunchRoutes.h"   // launch simulation: guide routes
+#include "Bot/LaunchPlaces.h"     // launch simulation: places of the starter areas
 #include "Guild.h"           // Guild::Member, GetMember / GetRankId for Phase B
 #include "GuildMgr.h"        // sGuildMgr lookup of bot's guild for snapshot fields
 #include "GameObject.h"
@@ -1707,6 +1708,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         launch_step = V2::Fleet::LaunchRoutes::Instance().CurrentStep(p, bot_ai->launch().route);
     uint32 const launch_quest = launch_step ? launch_step->quest : 0u;
     bool const launch_accept = launch_step && launch_step->action == V2::Fleet::RouteAction::Accept;
+    // A troll-camp grinder takes no quests before level 4: it grinds the whelps (the destination is set late in the build).
+    bool const launch_no_quests = bot_ai && bot_ai->launch().active && bot_ai->launch().strategy == LaunchStrategy::TrollGrinder &&
+                                  p->GetLevel() < 4;
 
     snap->guid    = p->GetGUID();
     snap->identity.name    = p->GetName();
@@ -5443,7 +5447,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         for (auto const& q : snap->quest_log.quests)
         {
             // A guide-following launch bot works the quest of its route step and nothing else (an accept step: nothing).
-            if (launch_step && q.quest_id != launch_quest)
+            if ((launch_step && q.quest_id != launch_quest) || launch_no_quests)
                 continue;
             // PROFESSION-SKILL GATE. A quest gated on a profession skill the
             // bot does not actually know can never be progressed OR turned in,
@@ -7529,7 +7533,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     continue;
                 }
                 // A guide-following launch bot takes the quest its route step accepts, no other.
-                if (launch_step && (!launch_accept || qid != launch_quest))
+                if ((launch_step && (!launch_accept || qid != launch_quest)) || launch_no_quests)
                     continue;
                 BotSnapshot::QuestTurnIn off{};
                 off.giver = guid;
@@ -9638,6 +9642,47 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     cp.z = gv->z;
                     cp.valid = true;
                 }
+    }
+    // ---- Launch strategies that steer by place (Bot/LaunchPlaces.h) ----
+    if (bot_ai && bot_ai->launch().active && p->GetMapId() == 0)
+    {
+        namespace LP = ::Playerbot::LaunchPlaces;
+        LaunchStrategy const strat = bot_ai->launch().strategy;
+        uint8 const lvl = p->GetLevel();
+        float const px = p->GetPositionX(), py = p->GetPositionY();
+        bool const in_coldridge = LP::Dist2d(LP::kColdridge, px, py) < LP::kColdridgeRadius * LP::kColdridgeRadius;
+        LP::Spot const* go = nullptr;
+        float arrive = 40.f;
+        if (strat == LaunchStrategy::TrollGrinder && lvl < 4)
+            go = &LP::kTrollCamp;   // grind the whelps; idle:engage_nearby_mob takes over within 50 y
+        else if (in_coldridge && ((strat == LaunchStrategy::TrollGrinder && lvl >= 4) || (strat == LaunchStrategy::Skipper && lvl >= 3)))
+            go = &LP::kKharanos, arrive = 60.f;   // out of the starter valley early
+        else if (strat == LaunchStrategy::Leaver && lvl >= 8 && LP::Dist2d(LP::kThelsamar, px, py) > 600.f * 600.f)
+            go = &LP::kThelsamar, arrive = 60.f;   // on to Loch Modan
+        if (go && LP::Dist2d(*go, px, py) > arrive * arrive)
+        {
+            auto& cp = snap->quest_log.current_objective_poi;
+            cp.map_id = 0;
+            cp.x = go->x;
+            cp.y = go->y;
+            cp.z = go->z;
+            cp.valid = true;
+        }
+        // A crowd grinder gives up a quest spot with more than six other players on it and grinds what is free instead.
+        else if (strat == LaunchStrategy::CrowdGrinder && snap->quest_log.current_objective_poi.valid)
+        {
+            auto const& cp = snap->quest_log.current_objective_poi;
+            uint32 crowd = 0;
+            for (NearbyUnit const& u : snap->combat.nearby_friends)
+                if (u.is_player && (u.x - cp.x) * (u.x - cp.x) + (u.y - cp.y) * (u.y - cp.y) < 40.f * 40.f)
+                    ++crowd;
+            if (crowd > 6)
+            {
+                snap->quest_log.current_objective_poi = QuestObjectivePoi{};
+                snap->quest_log.current_objective = QuestObjectiveEntry{};
+                snap->quest_log.current_quest_id = 0;
+            }
+        }
     }
     // ---- Manual travel goal (owner /goto <map> <x> <y>) ----
     // Overrides quest/hub goal selection entirely while set: the owner
