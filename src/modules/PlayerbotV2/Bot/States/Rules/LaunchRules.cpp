@@ -17,6 +17,8 @@
 //
 // idle:launch_party_build @849 - a party builder (LaunchStrategy::PartyBuilder) working a kill objective invites solo
 //   players of about its level close by, up to a group of three, with a "LF group" line the first time.
+// idle:launch_chatter @420 - now and then a line in General (or /say) of the kind a launch crowd writes: the camp is
+//   crowded, where is the cave, LFG, first time in Classic. Casuals and friendly bots talk most, loners and racers least.
 // idle:launch_train @740 - after each even level from 4 a launch bot walks to its class trainer (the builder names it in
 //   the snapshot) and buys what it can afford, then reads the list a few seconds (idle:launch_hold). Above the quest and
 //   vendor errands, below the social rules.
@@ -26,6 +28,7 @@
 #include "Bot/BotAI.h"
 #include "Bot/BotSnapshotView.h"
 #include "Bot/BotIntentEmitter.h"
+#include "Bot/BotIntent.h"
 #include "Bot/LaunchProfile.h"
 #include "QuestDef.h"
 #include <algorithm>
@@ -245,6 +248,52 @@ bool LaunchPartyBuildFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView
     return true;
 }
 
+// Minutes between two lines, by temperament (Neutral, Friendly, Greedy, Loner, Griefer); scaled by pace, so a casual talks
+// more than a racer. 0 = never.
+constexpr std::array<uint16, 5> kChatEveryMin = {25, 15, 40, 0, 20};
+
+bool LaunchChatterGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
+{
+    LaunchProfile const& lp = ai.launch();
+    if (!lp.active || kChatEveryMin[Temper(lp)] == 0 || s.in_combat() || !s.is_alive())
+        return false;
+    uint32 const now = s.published_at_ms();
+    LaunchSocial& soc = ai.launch_social();
+    if (soc.next_chat_ms == 0)
+    {
+        // First line somewhere in the first interval after login, so the crowd does not all talk at once.
+        uint32 const every = uint32(float(kChatEveryMin[Temper(lp)]) * 60000.0f / std::max(lp.pace, 1.0f) * 1.5f);
+        soc.next_chat_ms = now + Mix(lp.seed, 11) % std::max(every, 60000u);
+        return false;
+    }
+    return int32(now - soc.next_chat_ms) >= 0;
+}
+
+bool LaunchChatterFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32)
+{
+    LaunchProfile const& lp = ai.launch();
+    uint32 const now = s.published_at_ms();
+    uint32 const h = Mix(lp.seed, now / 1000u);
+    static constexpr std::array<char const*, 28> kLines = {
+        "so many people lol", "wolves are camped to death", "this is insane", "anyone know where the troll cave is?",
+        "LFG Grik'nir", "where do i find the wolf meat", "first time playing classic!", "layer pls",
+        "can't find a single boar", "lol 20 people on one wolf", "inv for wolves?", "who is the frost mage stealing tags",
+        "this server is packed", "rip mobs", "is the cave to the west?", "where is Talin?", "need a group for the trolls",
+        "tag stealers everywhere", "how do you even quest here", "omg the respawns", "brb food", "back",
+        "anyone selling linen? jk", "Grik'nir group forming, /w me", "go go go", "nice layer", "gl everyone", "hi all"};
+    std::string const line = kLines[h % kLines.size()];
+    // Mostly General (channel 1), sometimes /say to whoever is around.
+    if ((h >> 8) % 100u < 70u)
+        emit.emit(ChatIntent{ ChannelChatIntent{ uint8(1), line } });
+    else
+        emit.say_world(line);
+    uint32 const every = uint32(float(kChatEveryMin[Temper(lp)]) * 60000.0f / std::max(lp.pace, 1.0f));
+    // Next line in half to one and a half intervals.
+    ai.launch_social().next_chat_ms = now + every / 2u + (h >> 4) % std::max(every, 1u);
+    ai.set_last_rule_fired("idle:launch_chatter");
+    return true;
+}
+
 bool LaunchTrainGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
 {
     return ai.launch().active && !s.raw().launch_trainer.IsEmpty() && s.is_alive() && !s.in_combat();
@@ -313,6 +362,14 @@ void RegisterLaunchRules(IdleRuleRegistry& r)
         rule.priority = 740;   // above the vendor (735) and quest errands, below the social rules
         rule.gate     = &LaunchTrainGate;
         rule.fire     = &LaunchTrainFire;
+        r.register_rule(std::move(rule));
+    }
+    {
+        IdleRule rule;
+        rule.name     = "idle:launch_chatter";
+        rule.priority = 420;   // low: only when nothing more pressing fires
+        rule.gate     = &LaunchChatterGate;
+        rule.fire     = &LaunchChatterFire;
         r.register_rule(std::move(rule));
     }
     {
