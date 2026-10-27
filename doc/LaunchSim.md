@@ -3,15 +3,24 @@
 <!-- SUMMARY: keep this block current. -->
 ## Summary
 
-_Status: work in progress (26-27 Oct 2026). Numbers below are measured on the home server (Rocky 10, rootless Podman,
-32 GB host, but the user slice is capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
+_State 27 Oct 2026, early morning. Measured on the home server (Rocky 10, rootless Podman, 32 GB host; the user slice is
+capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
 
 - **What works:** a roster of fresh level-1 dwarves and gnomes in Coldridge Valley with 15 personas (strategy x temperament x
   pace), random arrival after T0, guide routes (RestedXP and Olo's route, imported locally), troll grinders, skippers,
-  leavers, crowd grinders, AFK and setup pauses, quest reading pauses, first-tag only (no shared tagging), "inv?" requests
-  and temperament-based invites, class trainer visits instead of free spells, a minute report in the log.
-- **Measured:** see [Capacity and performance](#capacity-and-performance).
-- **Next:** see [Open items](#open-items).
+  leavers, crowd grinders, party builders, rerollers (delete and come back at level 1), AFK / UI-setup / quest-reading
+  pauses, first tag only (no shared tagging), "inv?" requests to taggers and temperament-based answers, short group stays,
+  class trainer visits instead of free spells, no flights below level 10, a minute report in the log
+  (`[launch] report`: online, average level, quests, deaths, grouped, invites asked/granted, rerolls, top rules).
+- **Capacity:** 500 bots (370 online at once) at 1.85-1.89 GB RSS, 26-28% CPU and 3.6 ms of bot-module work per world
+  tick; the 4 GB cap is far away. Idle server 1.7 GB (was 2.33 GB) with `Load.Locales = 0` and `CacheDataQueries = 0`;
+  CPU at 300 bots went from ~30% to ~17% with the slower world loop and no update packets for bots.
+- **Behaviour:** 300 bots, 250 online after 40 minutes, ~500 quests turned in, ~320 invite requests (~190 granted). The
+  first runs levelled too slowly (nobody past 4 at 40 min); three causes fixed late in the night (death hotspots, route
+  steps without a giver, 60-minute quest blacklists) - see the table below for the last measured run.
+- **Upstream bot-module bugs** fixed on the way (no bot ever took a quest; quest POIs pointing to another zone; the idle
+  watch breaking holds): [Module bugs](#module-bugs-found-on-the-way-affect-world-bots-too).
+- **Next:** [Open items](#open-items).
 
 ## Using it
 
