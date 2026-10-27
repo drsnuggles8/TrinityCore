@@ -3023,10 +3023,14 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
     // shots. Modern hunters have no minimum range and never melee outside
     // Survival; meleeAttack=false still sets the victim/combat state while
     // Auto Shot (ensureAutoShot below) carries the white damage.
+    // Classic (Forever) is not modern here: Auto Shot has a minimum range (the dead zone), so a hunter the mob has reached
+    // swings its melee weapon, as low-level hunters do. Without it a hunter that chased into melee range neither shot nor
+    // swung and only Raptor Strike landed (a level-1 hunter at level 1 after 30 minutes, 12 shots fired).
+    const bool hunter_dead_zone = ::Playerbot::IsVanillaRealm() && p_->IsWithinMeleeRange(tu);
     const bool ranged_hunter_engage =
         p_->GetClass() == CLASS_HUNTER &&
         ::Playerbot::Classic::EffectiveSpecId(p_) != uint32(ChrSpecialization::HunterSurvival) &&
-        p_->GetWeaponForAttack(RANGED_ATTACK, true) != nullptr;
+        p_->GetWeaponForAttack(RANGED_ATTACK, true) != nullptr && !hunter_dead_zone;
     const bool melee_swing = !ranged_hunter_engage && !physical_avoided;
 
     if (p_->GetVictim() == tu)
