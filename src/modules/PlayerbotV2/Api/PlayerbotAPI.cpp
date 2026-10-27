@@ -2984,10 +2984,20 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
         constexpr uint32 AUTO_SHOT = 75;
         if (physical_avoided) return;
         if (p_->GetClass() != CLASS_HUNTER) return;
-        if (p_->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)) return;
-        if (!p_->HasSpell(AUTO_SHOT)) return;
-        if (!p_->GetWeaponForAttack(RANGED_ATTACK, true)) return;
-        SpellCastResult const res = p_->CastSpell(victim, AUTO_SHOT, false);
+        // A running Auto Shot only waits while its target is out of range: it fires nothing and moves no one (a level-1 hunter
+        // in racers6 stood until the opener gave up, 46 times, with no refusal logged). Out of range, it takes the refusal's cue.
+        Spell const* const running = p_->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL);
+        if (running)
+        {
+            if (running->GetSpellInfo()->Id != AUTO_SHOT || running->m_targets.GetUnitTargetGUID() != victim->GetGUID())
+                return;
+            float const d = p_->GetDistance(victim);   // between the bounding radii, as the range check measures
+            if (d >= running->GetSpellInfo()->GetMinRange(false) && d <= running->GetSpellInfo()->GetMaxRange(false, p_))
+                return;
+        }
+        else if (!p_->HasSpell(AUTO_SHOT) || !p_->GetWeaponForAttack(RANGED_ATTACK, true))
+            return;
+        SpellCastResult const res = running ? SPELL_FAILED_OUT_OF_RANGE : p_->CastSpell(victim, AUTO_SHOT, false);
         // A refused Auto Shot is the hunter's cue, as it is a player's. A level-1 hunter has nothing else at range, so nothing
         // else moved it, and the opener gave up after 10 s ([auto_shot] 2026-10-27: OUT_OF_RANGE at 38-47 y and at 0.5-10 y,
         // UNIT_NOT_INFRONT at 10-30 y; ~95 give-ups per hunter in 45 minutes).
@@ -3011,8 +3021,8 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
             else if (p_->GetMotionMaster()->GetCurrentMovementGeneratorType() != CHASE_MOTION_TYPE)
                 p_->GetMotionMaster()->MoveChase(victim, ChaseRange(0.0f, 28.0f));
         }
-        // [auto_shot] why a hunter's Auto Shot did not start (launch-sim hunters stayed level 1: few shots, many give-ups).
-        // Once per bot per 30 s.
+        // [auto_shot] why a hunter's Auto Shot did not start or does not fire (launch-sim hunters stayed level 1: few shots,
+        // many give-ups). Once per bot per 30 s.
         if (res != SPELL_CAST_OK)
         {
             static std::mutex s_mtx;
@@ -3023,8 +3033,9 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
             if (!last || now - last >= 30000u)
             {
                 last = now ? now : 1u;
-                TC_LOG_INFO("playerbot.v2", "[auto_shot] {} Auto Shot at {} refused: {} (dist {:.1f}, moving {}, ammo {})", p_->GetName(),
-                    victim->GetName(), uint32(res), p_->GetExactDist(victim), p_->isMoving() ? 1 : 0, p_->GetAmmoId());
+                TC_LOG_INFO("playerbot.v2", "[auto_shot] {} Auto Shot at {} {}: {} (dist {:.1f}, moving {}, ammo {})", p_->GetName(),
+                    victim->GetName(), running ? "waits out of range" : "refused", uint32(res), p_->GetExactDist(victim),
+                    p_->isMoving() ? 1 : 0, p_->GetAmmoId());
             }
         }
     };
