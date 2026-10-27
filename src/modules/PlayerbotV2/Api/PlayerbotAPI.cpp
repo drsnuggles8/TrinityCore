@@ -515,8 +515,12 @@ void API::set_cast_speed_multiplier(float mult)
 static uint32 HighestKnownRank(Player const* p, uint32 spell_id)
 {
     SpellInfo const* base = sSpellMgr->GetSpellInfo(spell_id, DIFFICULTY_NONE);
-    uint32 pick = spell_id;
-    uint32 pick_level = base ? base->BaseLevel : 0;
+    // The search starts from the requested spell only when the bot knows it: seeded with an unknown spell, a known rank of the
+    // same or a lower base level never replaced it (a level-1 paladin asked for Seal of Righteousness 21084, knew another rank
+    // of it, and got API_NOT_KNOWN every 10 s; the snapshot's knows_spell, which takes any known rank, said yes).
+    bool const known = p->HasSpell(spell_id);
+    uint32 pick = known ? spell_id : 0;
+    uint32 pick_level = known && base ? base->BaseLevel : 0;
     auto better = [&](uint32 id, uint32 level)
     {
         if (level > pick_level || (level == pick_level && id > pick))
@@ -552,7 +556,7 @@ static uint32 HighestKnownRank(Player const* p, uint32 spell_id)
                 better(id, si->BaseLevel);
             }
     }
-    return pick;
+    return pick ? pick : spell_id;
 }
 
 // Turn a standing bot toward the unit it is about to cast at / attack, the
