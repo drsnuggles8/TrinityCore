@@ -1751,7 +1751,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     snap->guid    = p->GetGUID();
     snap->identity.name    = p->GetName();
     snap->identity.level   = p->GetLevel();
-    snap->identity.launch_area_hubs = bot_ai && bot_ai->launch().active && p->GetLevel() < 20;
+    snap->identity.launch_area_hubs = bot_ai && bot_ai->launch().active && p->GetLevel() < 10;
     snap->identity.xp            = p->GetXP();
     snap->identity.xp_for_level  = p->GetXPForNextLevel();
     snap->identity.rest_bonus_xp = static_cast<uint32>(p->GetRestMgr().GetRestBonus(REST_TYPE_XP));

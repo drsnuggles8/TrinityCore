@@ -10,7 +10,7 @@ capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
   pace), random arrival after T0, guide routes (RestedXP and Olo's route, imported locally), troll grinders, skippers,
   leavers, crowd grinders, party builders, rerollers (delete and come back at level 1), AFK / UI-setup / quest-reading
   pauses, first tag only (no shared tagging), "inv?" requests to taggers and temperament-based answers, short group stays,
-  class trainer visits instead of free spells, no flights below level 10, a minute report in the log
+  class trainer visits instead of free spells, no flights below level 10, no quest hubs outside Dun Morogh, Ironforge and Loch Modan below level 10 (from 10 the routes fan out: tram to Elwynn and Westfall, boat to Auberdine), a minute report in the log
   (`[launch] report`: online, average level, quests, deaths, grouped, invites asked/granted, rerolls, top rules).
 - **Capacity:** 500 bots (370 online at once) at 1.85-1.89 GB RSS, 26-28% CPU and 3.6 ms of bot-module work per world
   tick; the 4 GB cap is far away. Idle server 1.7 GB (was 2.33 GB) with `Load.Locales = 0` and `CacheDataQueries = 0`;
