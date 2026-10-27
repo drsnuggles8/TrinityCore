@@ -2984,6 +2984,29 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
         if (!p_->HasSpell(AUTO_SHOT)) return;
         if (!p_->GetWeaponForAttack(RANGED_ATTACK, true)) return;
         SpellCastResult const res = p_->CastSpell(victim, AUTO_SHOT, false);
+        // A refused Auto Shot is the hunter's cue, as it is a player's. A level-1 hunter has nothing else at range, so nothing
+        // else moved it, and the opener gave up after 10 s ([auto_shot] 2026-10-27: OUT_OF_RANGE at 38-47 y and at 0.5-10 y,
+        // UNIT_NOT_INFRONT at 10-30 y; ~95 give-ups per hunter in 45 minutes).
+        //   - not in front: turn to the mob;
+        //   - too close (the dead zone, Classic's Auto Shot minimum range reaches past melee range): swing the melee weapon
+        //     and close in, as low-level hunters do after their first shot or two;
+        //   - too far: chase back into range (the chase can have been replaced by another move since the engage).
+        if (res == SPELL_FAILED_UNIT_NOT_INFRONT)
+            FaceUnitForCast(p_, victim);
+        else if (res == SPELL_FAILED_OUT_OF_RANGE)
+        {
+            if (p_->GetExactDist(victim) < 12.0f)
+            {
+                if (!p_->HasUnitState(UNIT_STATE_MELEE_ATTACKING))
+                {
+                    p_->Attack(victim, /*meleeAttack*/ true);
+                    p_->SetSheath(SHEATH_STATE_MELEE);
+                    p_->GetMotionMaster()->MoveChase(victim);
+                }
+            }
+            else if (p_->GetMotionMaster()->GetCurrentMovementGeneratorType() != CHASE_MOTION_TYPE)
+                p_->GetMotionMaster()->MoveChase(victim, ChaseRange(0.0f, 28.0f));
+        }
         // [auto_shot] why a hunter's Auto Shot did not start (launch-sim hunters stayed level 1: few shots, many give-ups).
         // Once per bot per 30 s.
         if (res != SPELL_CAST_OK)

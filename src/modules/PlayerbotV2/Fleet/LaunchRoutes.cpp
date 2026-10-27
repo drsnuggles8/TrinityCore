@@ -207,7 +207,7 @@ ExploreSpec const kExploreSpecs[] = {
 // Stormwind, Westfall, Loch Modan, the Wetlands, Redridge (map 0); Teldrassil and Darkshore (map 1).
 struct Box { uint32 map; float x0, x1, y0, y1; };
 constexpr Box kRegions[] = {
-    { 0, -6800.f, -4400.f, -1600.f, 1100.f }, { 0, -9900.f, -8000.f, -1500.f, 1600.f }, { 0, -11500.f, -9800.f, 300.f, 2300.f },
+    { 0, -6800.f, -4400.f, -2000.f, 1100.f }, { 0, -10100.f, -8000.f, -1500.f, 1700.f }, { 0, -11500.f, -9600.f, 300.f, 2300.f },
     { 0, -6100.f, -4500.f, -4700.f, -1600.f }, { 0, -4500.f, -2300.f, -3600.f, -400.f }, { 0, -9900.f, -8800.f, -3300.f, -1500.f },
     { 1, 8500.f, 11200.f, -500.f, 2600.f }, { 1, 4000.f, 8000.f, -1500.f, 1500.f },
 };
@@ -226,10 +226,12 @@ void LaunchRoutes::LoadExploreRoutes()
 {
     explore_.assign(std::size(kExploreSpecs), {});
     // Subzone names of the routes -> AreaTable ids (Eastern Kingdoms and Kalimdor).
+    // Keyed without a leading "The ": the AreaTable says "The Maclure Vineyards" where the route sheets say "Maclure Vineyards".
+    auto const name_key = [](std::string_view n) { return std::string(n.starts_with("The ") ? n.substr(4) : n); };
     std::unordered_map<std::string, std::vector<uint32>> ids_by_name;
     for (AreaTableEntry const* at : sAreaTableStore)
         if (at && (at->ContinentID == 0 || at->ContinentID == 1) && at->AreaName[LOCALE_enUS] && *at->AreaName[LOCALE_enUS])
-            ids_by_name[at->AreaName[LOCALE_enUS]].push_back(at->ID);
+            ids_by_name[name_key(at->AreaName[LOCALE_enUS])].push_back(at->ID);
     // Spawns of the regions by subzone (creatures, for a point on the ground), with the flight masters and innkeepers.
     struct Spot { float x, y, z; };
     std::unordered_map<uint32, std::vector<Spot>> by_area;
@@ -299,10 +301,10 @@ void LaunchRoutes::LoadExploreRoutes()
                 explore_[r].push_back(st);
                 continue;
             }
-            auto const it = ids_by_name.find(d.name);
+            auto const it = ids_by_name.find(name_key(d.name));
             if (it == ids_by_name.end())
             {
-                missing.push_back(d.name);
+                missing.push_back(std::string(d.name) + " (no such area)");
                 continue;
             }
             bool found = false;
