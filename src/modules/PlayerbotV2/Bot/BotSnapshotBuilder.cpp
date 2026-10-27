@@ -9745,7 +9745,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                         done = here_area == st->area || in_named_area(st->name) || d2 < 25.f * 25.f;
                         break;
                     case V2::Fleet::ExploreAction::Flight:
-                        if (d2 < 6.f * 6.f)
+                        if (d2 < 15.f * 15.f)   // flight masters and innkeepers stand in buildings: paths end a few yards short
                         {
                             done = true;
                             if (uint32 node = sObjectMgr->GetNearestTaxiNode(st->x, st->y, st->z, 0, p->GetTeam()))
@@ -9754,7 +9754,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                         }
                         break;
                     case V2::Fleet::ExploreAction::Bind:
-                        if (d2 < 6.f * 6.f)
+                        if (d2 < 15.f * 15.f)
                         {
                             done = true;
                             p->SetHomebind(WorldLocation(p->GetMapId(), p->GetPositionX(), p->GetPositionY(), p->GetPositionZ()), here_area);

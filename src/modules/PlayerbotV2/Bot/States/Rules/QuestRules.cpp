@@ -927,8 +927,12 @@ bool QuestPursueGoalFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
                                                                        35.0f;
     const float scale = std::min(kStep, dist) / dist;
     const float tx = bx + dx * scale, ty = by + dy * scale;   // near waypoint, threat sweep only
-    // Threat look-ahead, same as the other approach walks.
-    if (NearbyUnit const* threat = s.path_threat(tx, ty, std::min(kStep, 35.0f), 10.0f))
+    // Threat look-ahead, same as the other approach walks. Not for a launch explorer: it runs past the mobs on its way, as
+    // the "explore to 5" routes do (explore33: a level-1 explorer pulled owls and nightsabers on its way out of Shadowglen,
+    // died three times and never reached Dolanaar); it still fights back what attacks it.
+    NearbyUnit const* threat = ai.launch().active && ai.launch().strategy == LaunchStrategy::Explorer ? nullptr
+        : s.path_threat(tx, ty, std::min(kStep, 35.0f), 10.0f);
+    if (threat)
     {
         // Not a mob the opener just gave up on (combat:opener_give_up shields it): re-pulling it every second looped.
         if (!ai.engage_shielded(threat->guid, now_ms) && emit.start_attack(threat->guid))
