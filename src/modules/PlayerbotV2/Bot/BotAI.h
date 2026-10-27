@@ -80,6 +80,9 @@ public:
     // An explorer launch bot's next stop on its tour (LaunchRoutes::ExploreStop; the snapshot builder advances it).
     uint16               launch_explore_stop() const { return launch_explore_stop_.load(std::memory_order_relaxed); }
     void                 set_launch_explore_stop(uint16 i) { launch_explore_stop_.store(i, std::memory_order_relaxed); }
+    // When the explorer started on its current stop (the builder skips a stop it has not reached in 5 minutes).
+    uint32               launch_explore_since_ms() const { return launch_explore_since_ms_.load(std::memory_order_relaxed); }
+    void                 set_launch_explore_since_ms(uint32 ms) { launch_explore_since_ms_.store(ms, std::memory_order_relaxed); }
     // The explorer route reached a hearth stop (the builder sets it, idle:launch_hearth uses the stone and clears it).
     bool                 launch_hearth_wanted() const { return launch_hearth_wanted_.load(std::memory_order_relaxed); }
     void                 set_launch_hearth_wanted(bool w) { launch_hearth_wanted_.store(w, std::memory_order_relaxed); }
@@ -3240,6 +3243,7 @@ private:
     std::atomic<uint8> launch_trained_level_{0};
     std::atomic<bool>  launch_ironforge_seen_{false};
     std::atomic<uint16> launch_explore_stop_{0};
+    std::atomic<uint32> launch_explore_since_ms_{0};
     std::atomic<bool>  launch_hearth_wanted_{false};
     std::atomic<uint8> launch_tram_to_{0};
     BotRng         rng_;

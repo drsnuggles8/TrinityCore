@@ -9709,7 +9709,32 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             auto const& routes = V2::Fleet::LaunchRoutes::Instance();
             uint8 const er = routes.ExploreRoute(zid, bot_ai->launch().seed);   // the zone's routes by share (kExploreSpecs)
             uint32 const here_area = p->GetAreaId();
-            uint16 i = bot_ai->launch_explore_stop();
+            // Standing anywhere in the named subzone counts, in an area inside it too (a town's buildings are subzones of their
+            // own), as the client's discovery does: the stop's point is only where the bot heads for, and it can be out of
+            // reach (a sampled point in water or on a slope: explorers stalled for half an hour in mix27).
+            auto const in_named_area = [here_area](char const* name)
+            {
+                std::string_view want(name);
+                if (want.starts_with("The "))
+                    want.remove_prefix(4);
+                uint32 a = here_area;
+                for (int guard = 0; a && guard < 8; ++guard)
+                {
+                    AreaTableEntry const* at = sAreaTableStore.LookupEntry(a);
+                    if (!at || !at->AreaName[LOCALE_enUS])
+                        break;
+                    std::string_view n(at->AreaName[LOCALE_enUS]);
+                    if (n.starts_with("The "))
+                        n.remove_prefix(4);
+                    if (n == want)
+                        return true;
+                    a = at->ParentAreaID;
+                }
+                return false;
+            };
+            uint32 const explore_now = GameTime::GetGameTimeMS();
+            uint16 const explore_was = bot_ai->launch_explore_stop();
+            uint16 i = explore_was;
             while (V2::Fleet::ExploreStop const* st = routes.ExploreStopAt(er, i))
             {
                 bool done = false;
@@ -9717,7 +9742,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 switch (st->action)
                 {
                     case V2::Fleet::ExploreAction::Discover:
-                        done = here_area == st->area || d2 < 25.f * 25.f;
+                        done = here_area == st->area || in_named_area(st->name) || d2 < 25.f * 25.f;
                         break;
                     case V2::Fleet::ExploreAction::Flight:
                         if (d2 < 6.f * 6.f)
@@ -9740,7 +9765,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                         bot_ai->set_launch_hearth_wanted(true);
                         break;
                     case V2::Fleet::ExploreAction::Tram:
-                        if (d2 < 6.f * 6.f)
+                        if (d2 < 25.f * 25.f)   // near the portal is enough: idle:launch_tram stands for the ride and moves the bot
                         {
                             done = true;
                             bot_ai->set_launch_tram_to(LP::Dist2d(LP::kTramIronforge, px, py) < LP::Dist2d(LP::kTramStormwind, px, py) ? 1 : 2);
@@ -9754,6 +9779,19 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     (GameTime::GetGameTimeMS() - bot_ai->launch().login_ms) / 60000u);
                 ++i;
             }
+            // A stop not reached in 5 minutes is given up, as a player gives up on a spot they cannot get to.
+            constexpr uint32 kExploreStopGiveUpMs = 5u * 60u * 1000u;
+            if (i != explore_was || !bot_ai->launch_explore_since_ms())
+                bot_ai->set_launch_explore_since_ms(explore_now ? explore_now : 1u);
+            else if (explore_now - bot_ai->launch_explore_since_ms() > kExploreStopGiveUpMs)
+                if (V2::Fleet::ExploreStop const* st = routes.ExploreStopAt(er, i))
+                {
+                    TC_LOG_INFO("playerbot.v2", "[launch] {} (explorer) stop {}/{} skipped: {} {} at ({:.0f},{:.0f},{:.0f}) not reached in "
+                        "5 min, the bot at ({:.0f},{:.0f},{:.0f})", p->GetName(), i + 1, routes.ExploreStops(er), uint32(st->action), st->name,
+                        st->x, st->y, st->z, px, py, p->GetPositionZ());
+                    ++i;
+                    bot_ai->set_launch_explore_since_ms(explore_now ? explore_now : 1u);
+                }
             bot_ai->set_launch_explore_stop(i);
             if (V2::Fleet::ExploreStop const* st = routes.ExploreStopAt(er, i))
             {
