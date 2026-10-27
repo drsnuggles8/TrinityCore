@@ -72,12 +72,12 @@ Forever beta and stress test). Pace 1.0 = an uncrowded speedrun (Coldridge left 
 | friends | 14 | Quester | 1.2-1.6 | neutral / friendly |
 | grinder | 6 | CrowdGrinder: drops crowded quest spots | 1.2-1.6 | neutral / loner |
 | hunter | 5 | Quester (hunters) | 1.2-1.5 | mixed |
-| gatherer | 6 | Gatherer | 2.0-2.6 | neutral / friendly |
-| casual | 15 | Casual: reads everything, slow | 3.0-4.0 | friendly |
+| gatherer | 6 | Gatherer: Mining (with a pick) or Herbalism from login, detours to nodes | 2.0-2.6 | neutral / friendly |
+| casual | 15 | Casual: reads everything, slow, one trip to Ironforge from level 6 | 3.0-4.0 | friendly |
 | partylead | 3 | PartyBuilder | 1.3-1.7 | friendly |
 | idle | 6 | Idle: AFK a lot, logs out early | 4.0 | neutral |
 | reroller | 4 | Reroller | 1.5-2.5 | neutral |
-| ninja | 2 | KillStealer | 1.1-1.4 | griefer |
+| ninja | 2 | KillStealer: tags untagged mobs other players stand next to | 1.1-1.4 | griefer |
 | leaver | 2 | Leaver: Loch Modan at 8 | 1.1-1.3 | neutral |
 
 Arrival after T0 is the same for every persona (the login queue does not care who is a racer): 35% in the first 3 minutes,

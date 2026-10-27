@@ -703,6 +703,24 @@ bool LaunchSim::OnBotLogin(Player* p, BotAI* ai)
     lp.seed = e.seed;
     lp.route = PickRoute(pr, e.seed);
     ai->set_launch(lp);
+    // A gatherer picks up its gathering profession right away (a shortcut for the trip to the trainer in Kharanos or
+    // Ironforge): dwarves mostly Mining, with a pick, gnomes mostly Herbalism. Its gather rule (idle:gather) then detours to
+    // the veins and herbs it passes. Only on the first login of a fresh character (no skill yet).
+    if (pr.strategy == LaunchStrategy::Gatherer && !p->HasSkill(SKILL_MINING) && !p->HasSkill(SKILL_HERBALISM))
+    {
+        bool const mining = p->GetRace() == RACE_DWARF ? Unit01(e.seed, 21) < 0.75f : Unit01(e.seed, 21) < 0.35f;
+        if (mining)
+        {
+            p->LearnSpell(2575, false);   // Mining (Apprentice)
+            p->LearnSpell(2580, false);   // Find Minerals
+            p->StoreNewItemInBestSlots(2901, 1, ItemContext::NONE);   // Mining Pick
+        }
+        else
+        {
+            p->LearnSpell(2366, false);   // Herbalism (Apprentice)
+            p->LearnSpell(2383, false);   // Find Herbs
+        }
+    }
     TC_LOG_INFO("playerbot.v2", "[launch] {} L{} {} {} arrives: persona {} pace {:.2f} temperament {} setup {}s session {} route {}",
         p->GetName(), uint32(p->GetLevel()), uint32(p->GetRace()), uint32(p->GetClass()), pr.key, lp.pace,
         uint32(lp.temperament), lp.setup_ms / 1000u, e.session_s ? std::to_string(e.session_s / 60u) + " min" : std::string("open"),

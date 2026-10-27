@@ -19,6 +19,8 @@
 //   players of about its level close by, up to a group of three, with a "LF group" line the first time.
 // idle:launch_chatter @420 - now and then a line in General (or /say) of the kind a launch crowd writes: the camp is
 //   crowded, where is the cave, LFG, first time in Classic. Casuals and friendly bots talk most, loners and racers least.
+// idle:launch_snipe @860 - a kill stealer (LaunchStrategy::KillStealer) goes for untagged mobs another player stands next
+//   to (about to pull, or walking up to), within 35 y and its level band: it tags first and the other player loses the mob.
 // idle:launch_train @740 - after each even level from 4 a launch bot walks to its class trainer (the builder names it in
 //   the snapshot) and buys what it can afford, then reads the list a few seconds (idle:launch_hold). Above the quest and
 //   vendor errands, below the social rules.
@@ -294,6 +296,50 @@ bool LaunchChatterFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView co
     return true;
 }
 
+ObjectGuid SnipeTarget(BotSnapshotView const& s, BotAI& ai)
+{
+    float bx, by, bz;
+    s.position(bx, by, bz);
+    for (NearbyUnit const& u : s.raw().combat.nearby_enemies)
+    {
+        if (u.tapped || u.hp <= 0 || !u.victim.IsEmpty() || int32(u.level) > int32(s.level()) + 2)
+            continue;
+        float const dx = u.x - bx, dy = u.y - by;
+        if (dx * dx + dy * dy > 35.0f * 35.0f)
+            continue;
+        if (ai.action_recently_tried(BotAI::ActionKind::PveTargetSwitch, u.guid.GetCounter(), s.published_at_ms()))
+            continue;
+        for (NearbyUnit const& f : s.raw().combat.nearby_friends)
+        {
+            if (!f.is_player || f.guid == s.raw().guid)
+                continue;
+            float const fx = f.x - u.x, fy = f.y - u.y;
+            if (fx * fx + fy * fy <= 12.0f * 12.0f)
+                return u.guid;
+        }
+    }
+    return ObjectGuid::Empty;
+}
+
+bool LaunchSnipeGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
+{
+    LaunchProfile const& lp = ai.launch();
+    if (!lp.active || lp.strategy != LaunchStrategy::KillStealer || s.in_combat() || !s.is_alive() || s.hp_pct() < 60)
+        return false;
+    return !SnipeTarget(s, ai).IsEmpty();
+}
+
+bool LaunchSnipeFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32)
+{
+    ObjectGuid const mob = SnipeTarget(s, ai);
+    if (mob.IsEmpty())
+        return false;
+    ai.note_action_retry(BotAI::ActionKind::PveTargetSwitch, mob.GetCounter(), s.published_at_ms());
+    emit.start_attack(mob);
+    ai.set_last_rule_fired("idle:launch_snipe");
+    return true;
+}
+
 bool LaunchTrainGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
 {
     return ai.launch().active && !s.raw().launch_trainer.IsEmpty() && s.is_alive() && !s.in_combat();
@@ -362,6 +408,14 @@ void RegisterLaunchRules(IdleRuleRegistry& r)
         rule.priority = 740;   // above the vendor (735) and quest errands, below the social rules
         rule.gate     = &LaunchTrainGate;
         rule.fire     = &LaunchTrainFire;
+        r.register_rule(std::move(rule));
+    }
+    {
+        IdleRule rule;
+        rule.name     = "idle:launch_snipe";
+        rule.priority = 860;   // above the quest and social rules: the point of a kill stealer
+        rule.gate     = &LaunchSnipeGate;
+        rule.fire     = &LaunchSnipeFire;
         r.register_rule(std::move(rule));
     }
     {

@@ -9672,6 +9672,13 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             go = &LP::kKharanos, arrive = 60.f;   // out of the starter valley early
         else if (strat == LaunchStrategy::Leaver && lvl >= 8 && LP::Dist2d(LP::kThelsamar, px, py) > 600.f * 600.f)
             go = &LP::kThelsamar, arrive = 60.f;   // on to Loch Modan
+        else if (strat == LaunchStrategy::Casual && lvl >= 6 && !bot_ai->launch_ironforge_seen())
+        {
+            if (LP::Dist2d(LP::kIronforge, px, py) < 60.f * 60.f)
+                bot_ai->set_launch_ironforge_seen();   // seen it: back to questing
+            else
+                go = &LP::kIronforge, arrive = 60.f;   // sightseeing, once
+        }
         if (go && LP::Dist2d(*go, px, py) > arrive * arrive)
         {
             auto& cp = snap->quest_log.current_objective_poi;
