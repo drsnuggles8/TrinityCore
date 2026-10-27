@@ -930,7 +930,8 @@ bool QuestPursueGoalFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
     // Threat look-ahead, same as the other approach walks.
     if (NearbyUnit const* threat = s.path_threat(tx, ty, std::min(kStep, 35.0f), 10.0f))
     {
-        if (emit.start_attack(threat->guid))
+        // Not a mob the opener just gave up on (combat:opener_give_up shields it): re-pulling it every second looped.
+        if (!ai.engage_shielded(threat->guid, now_ms) && emit.start_attack(threat->guid))
         {
             ai.set_last_rule_fired("idle:pursue_quest_pull_threat");
             return true;

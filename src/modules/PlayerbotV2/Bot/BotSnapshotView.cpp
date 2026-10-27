@@ -670,6 +670,10 @@ NearbyUnit const* BotSnapshotView::path_threat(float tx, float ty,
         // is the robust catch for dummies that lack the NO_XP flag in data.
         if (u.no_xp_kill || u.is_pacified)           continue;
         if (!exclude_guid.IsEmpty() && u.guid == exclude_guid) continue;
+        // A mob someone else tagged or is fighting is busy with them: not in the bot's way, and under the first-tag rule
+        // killing it pays nothing.
+        if (u.tapped && !u.tapped_by_us)               continue;
+        if (!u.victim.IsEmpty() && u.victim != s_->guid) continue;
         // Grey-con mobs don't aggro and don't threaten — ignore.
         // TC's aggro line: a creature with level + 5 < attacker.level
         // won't initiate aggro at any range (see Creature::CanAggro).
