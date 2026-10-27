@@ -9773,7 +9773,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                         bot_ai->set_launch_hearth_wanted(true);
                         break;
                     case V2::Fleet::ExploreAction::Tram:
-                        if (d2 < 25.f * 25.f)   // near the portal is enough: idle:launch_tram stands for the ride and moves the bot
+                        // near the portal is enough: idle:launch_tram stands for the ride and moves the bot. 70 y: Ironforge's paths
+                        // end ~60 y short of its portal point (explore36: three explorers stood there until the 5-minute skip)
+                        if (d2 < 70.f * 70.f)
                         {
                             done = true;
                             bot_ai->set_launch_tram_to(LP::Dist2d(LP::kTramIronforge, px, py) < LP::Dist2d(LP::kTramStormwind, px, py) ? 1 : 2);

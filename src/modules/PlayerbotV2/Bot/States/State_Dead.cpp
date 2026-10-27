@@ -47,8 +47,13 @@ constexpr float kSpiritHealerDistanceThreshold = 600.0f;
 // drift. Below this, we stop walking and reclaim.
 constexpr float kCorpseApproachRadius = 30.0f;
 
-bool ShouldUseSpiritHealer(BotSnapshotView const& s)
+bool ShouldUseSpiritHealer(BotSnapshotView const& s, BotAI const& ai)
 {
+    // A launch explorer takes the spirit healer at once (no sickness up to level 10): it is after the subzones, not the
+    // corpse, and the "explore to 5" routes use deaths as travel. Corpse runs ate its stop windows (explore36: a level-1
+    // explorer died 8 times among Elwynn's wolves in 30 minutes).
+    if (ai.launch().active && ai.launch().strategy == LaunchStrategy::Explorer && s.level() <= 10 && s.has_corpse())
+        return true;
     // L1-10: no sickness regardless, so corpse-run is strictly cheaper.
     if (s.level() <= 10) return false;
     // No corpse yet (haven't released, or self-rezzed) — irrelevant decision.
@@ -648,7 +653,7 @@ void DispatchDead(BotAI& ai,
     // corpse_to_graveyard_dist is cross-realm-meaningless, and the
     // server-side walk-through-portal auto-rez (below) is the cheaper, no-
     // sickness recovery. The cross-map block runs first and returns.
-    if (ShouldUseSpiritHealer(snapshot) || death_spiralling)
+    if (ShouldUseSpiritHealer(snapshot, ai) || death_spiralling)
     {
         const uint32 cmap_chk = snapshot.raw().death.corpse_map_id;
         const uint32 cinst_chk = snapshot.raw().death.corpse_instance_id;
