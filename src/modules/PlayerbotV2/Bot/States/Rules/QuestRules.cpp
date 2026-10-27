@@ -27,6 +27,7 @@
 #include "Log.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -848,6 +849,13 @@ bool QuestPursueGoalGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
         if (giver_inscan) return false;   // accept/close-approach owns this
     }
     if (!s.raw().quest_discovery.quest_turnins.empty()) return false;  // turn-in owns this
+    // A loot walk under way finishes first (its own 40 s clock bounds it). This rule owns only the band beyond 80 y of the
+    // goal, so a corpse on the near side flipped the bot between the two walks at the 80 y line until the loot clock ran out
+    // (racer45, build41: 49 loot walks given up, the move orders alternating every 2 s).
+    if (char const* lr = ai.last_rule_fired();
+        lr && (std::strcmp(lr, "idle:move_to_corpse") == 0 || std::strcmp(lr, "idle:loot_corpse") == 0) &&
+        Services::Registry().peek_loot_size(s.bot_id()) > 0)
+        return false;
     auto const& poi = s.current_objective_poi();
     if (!poi.valid || poi.map_id != s.map_id()) return false;          // cross-map = autoact travel cascade
     float bx, by, bz; s.position(bx, by, bz);
