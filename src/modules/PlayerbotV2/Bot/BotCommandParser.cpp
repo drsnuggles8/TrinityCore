@@ -17,6 +17,7 @@
 #include "PlayerbotMovement.h"   // SehSafeCalculatePath (tile-race guard)
 #include "dtQueryFilterTC.h"     // /roadstats reads RoadStats counters
 #include "../Fleet/OwnerRegistry.h"
+#include "../Fleet/LaunchSim.h"
 #include "../Fleet/PlayerCraftOrders.h"
 #include "BotAddressResolver.h"
 #include "../Diagnostics/BotInspector.h"
@@ -1879,6 +1880,19 @@ bool BotCommandParser::DispatchSingle(Player* sender, Player* bot, std::string c
     // left), so an ignored order is visible in the log. Unrecognised / refused text is throttled
     // per bot (whispered chatter reaches here too). Chat handlers can run on map-update threads.
     bool const authorized = IsAuthorized(sender, bot);
+    // A real player whispering a launch bot for an invite ("inv", "invite?", "group?") gets the answer a launch bot would
+    // give another launch bot: by the bot's temperament, a few seconds later (Fleet/LaunchSim::OnAskInvite).
+    if (direct && !authorized && !(sender->GetSession() && sender->GetSession()->IsBot()) &&
+        V2::Fleet::LaunchSim::Instance().IsLaunchBot(bot->GetGUID().GetCounter()))
+    {
+        std::string const n = Normalize(msg);
+        if (n.find("inv") != std::string::npos || n.find("group") != std::string::npos || n == "grp" || n == "grp?")
+        {
+            TC_LOG_INFO("playerbot.v2", "[launch] {} asks {} for an invite: \"{}\"", sender->GetName(), bot->GetName(), msg);
+            V2::Fleet::LaunchSim::Instance().OnAskInvite(sender, bot->GetGUID());
+            return true;
+        }
+    }
     bool const handled = authorized && DispatchSingleImpl(sender, bot, msg);
     if (handled && direct && t_whisper_replies == 0)
         ConfirmWhisperOrder(sender, bot, Normalize(msg));

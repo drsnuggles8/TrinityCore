@@ -27,6 +27,7 @@
 #include "SharedDefines.h"
 #include "StringConvert.h"
 #include "Util.h"
+#include "WorldSession.h"
 #include <algorithm>
 #include <array>
 #include <map>
@@ -443,7 +444,9 @@ bool LaunchSim::OnAskInvite(Player* asker, ObjectGuid target)
     uint32 const h = Mix(uint32(asker->GetGUID().GetCounter()), uint32(target.GetCounter()) ^ (now / 1000u));
     static constexpr std::array<char const*, 8> kAsk = {"inv", "inv?", "inv pls", "invite?", "can i get an inv", "inv for the kill?",
                                                         "group?", "inv plz"};
-    PushIntent(asker, WhisperIntent{t->GetName(), kAsk[h % kAsk.size()]});
+    // A real player asking has whispered already; a bot's whisper goes out through its own intent queue.
+    if (asker->GetSession() && asker->GetSession()->IsBot())
+        PushIntent(asker, WhisperIntent{t->GetName(), kAsk[h % kAsk.size()]});
     ++asks_;
     BotAI* tai = IsLaunchBot(target.GetCounter()) ? Services::Registry().ai(target.GetCounter()) : nullptr;
     if (!tai || !tai->launch().active)
