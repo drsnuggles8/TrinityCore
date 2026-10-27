@@ -9868,16 +9868,19 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     }
     // ---- Launch: a visit to the class trainer after each even level from 4 (idle:launch_train) ----
     // Launch bots learn nothing for free on a level-up (Module::OnLevelUp); they walk to their class trainer when it is within
-    // 350 y, as players do between quests. A trainer farther away waits until the bot passes one.
+    // 350 y, as players do between quests. A trainer farther away waits until the bot passes one. A guide follower trains
+    // when its route passes the trainer (60 y): the guide plans those visits, and the 350 y walk took racers off the wolf
+    // field mid-quest (racer45: one mage spent six minutes walking to Anvilmar and back through the troggs).
     if (bot_ai && bot_ai->launch().active)
     {
         uint8 const lvl = p->GetLevel();
         uint8 const due = lvl >= 4 ? uint8(lvl & ~1u) : uint8(0);
+        float const reach = bot_ai->launch().route != V2::Fleet::LaunchRoutes::kNoRoute ? 60.f : 350.f;
         if (due > bot_ai->launch_trained_level())
             if (V2::Fleet::ClassTrainer const* t = V2::Fleet::LaunchRoutes::Instance().NearestTrainer(p->GetMapId(), p->GetClass(), p->GetPositionX(), p->GetPositionY()))
             {
                 float const dx = t->x - p->GetPositionX(), dy = t->y - p->GetPositionY();
-                if (dx * dx + dy * dy < 350.f * 350.f)
+                if (dx * dx + dy * dy < reach * reach)
                     if (Creature const* c = p->GetMap()->GetCreatureBySpawnId(t->spawn_id); c && c->IsAlive())
                     {
                         snap->launch_trainer = c->GetGUID();

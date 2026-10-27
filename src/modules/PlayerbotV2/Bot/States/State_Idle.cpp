@@ -20543,7 +20543,9 @@ void DispatchIdle(BotAI& ai,
             }
             float tx = 0.f, ty = 0.f, tz = pz;
             char const* what = "wander";
-            if (w.strikes >= 2)
+            // A launch bot under level 6 is in its starting valley: it looks around the camp (a short wander step), it does not walk
+            // to the next zone's hub. The hub walk took racers 90 s toward Kharanos at level 3 (racer45: 32 watch strikes).
+            if (w.strikes >= 2 && !(ai.launch().active && s.level() < 6))
             {
                 std::vector<::Playerbot::V2::Travel::QuestHub const*> near;
                 for (::Playerbot::V2::Travel::QuestHub const* h : ::Playerbot::Services::Hubs().GetQuestHubsForBot(s.raw(), 24))
