@@ -119,6 +119,17 @@ and logs any name it cannot find.
   Thelsamar flight path, Dun Algaz, Dun Modr, Menethil flight path. The guides' deliberate death into the Wetlands (and the
   boat to Auberdine) is left out: the bot walks the pass.
 
+### Navigation
+
+The Coldridge navmesh reaches 217 of 235 quest-mob spawn points from Anvilmar directly (the other 18 are long paths cut
+at the 74-polygon probe limit, walked in chunks). A 15-yard grid probe (`mmap_probe --batch` from Anvilmar) found a few
+islands on the valley floor east of Anvilmar: patches below a ledge higher than the 2.7 y walkable climb, which a bot can
+step or slide onto but never path off (two racers stuck there). `contrib/launch-sim/offmesh.txt` links them to the main
+mesh; the home server's `0000_43_31.mmtile` is rebuilt with it (the shipped tile is kept in `~/forever/mmtest`). The
+generator's default slope limit (55 degrees for walkable and steep alike) was tested at 70 and 85: more steep ground, no
+islands connected, so it stays at 55 (bots would climb what players cannot). Note the tile naming: Coldridge is tile
+`43,31` (x = 32 - pos.x / 533.33 is the second number).
+
 ### Respawns
 
 The 2019 Classic launch used dynamic respawns in the starter zones (more players, faster respawns); whether Forever does is
