@@ -469,7 +469,7 @@ int main(int argc, char** argv)
     }
 
     dtNavMeshQuery* query = dtAllocNavMeshQuery();
-    if (!query || dtStatusFailed(query->init(navMesh, 8192)))
+    if (!query || dtStatusFailed(query->init(navMesh, 32768)))
     {
         std::fprintf(stderr, "ERROR: dtNavMeshQuery init failed\n");
         return 2;

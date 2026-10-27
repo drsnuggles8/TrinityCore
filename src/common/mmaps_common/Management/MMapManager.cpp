@@ -343,7 +343,10 @@ namespace MMAP
         // allocate mesh query
         // A* node pool raised 1024 -> 8192: long bot routes ran out of nodes and
         // came back incomplete. Costs more per hard path search in Map::Update.
-        if (dtStatusFailed(queryItr->second.init(&mmap->GetMeshData(meshMapId, instanceId).first->second.navMesh, 8192)))
+        // 8192 -> 32768 with the 512-polygon path cap: Kharanos -> Thelsamar (2400 y)
+        // still ran out of nodes (DT_OUT_OF_NODES, 1205 y short), so leavers never
+        // reached Loch Modan. About 1 MB more per query; only long searches use it.
+        if (dtStatusFailed(queryItr->second.init(&mmap->GetMeshData(meshMapId, instanceId).first->second.navMesh, 32768)))
         {
             TC_LOG_ERROR("maps", "MMAP:GetNavMeshQuery: Failed to initialize dtNavMeshQuery for mapId {:04} instanceId {}", instanceMapId, instanceId);
             return false;
