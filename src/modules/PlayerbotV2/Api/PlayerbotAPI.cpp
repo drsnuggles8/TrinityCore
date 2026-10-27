@@ -3259,6 +3259,9 @@ Result API::stop_attack(bool clear_ghost_combat)
 {
     if (!p_) return Result::Other;
     p_->AttackStop();
+    // /stopattack ends Auto Shot (and a wand's Shoot) too: a running auto-repeat kept the hunter's victim selected after the
+    // opener gave up on it, so the give-up fired again every tick.
+    p_->InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
     if (!p_->IsInCombat())
         p_->SetSheath(SHEATH_STATE_UNARMED);
     // Mirror a real client deselecting on disengage â keeps the published

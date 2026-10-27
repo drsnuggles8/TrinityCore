@@ -251,6 +251,17 @@ bool BotIntentEmitter::start_attack(ObjectGuid target)
         const uint32 now_ms = GameTime::GetGameTimeMS();
         if (ai_->start_attack_recently_refused(target.GetCounter(), now_ms))
             return false;
+        // A mob the opener gave up on (combat:opener_give_up, shielded for minutes) stays given up for every rule unless it
+        // attacks this bot. Only a few rules read the shield: the hub walk's path-threat pull re-engaged a level-1 hunter's
+        // unreachable Burly Rockjaw Trogg every 10 s, and the opener gave up on it again each second (racer45: 91 give-ups).
+        if (school_snap_ && ai_->last_engage_shield_ms() >= 60000u && ai_->engage_shielded(target, now_ms))
+        {
+            bool attacks_me = false;
+            for (NearbyUnit const& u : school_snap_->combat.nearby_enemies)
+                if (u.guid == target) { attacks_me = u.victim == school_snap_->guid; break; }
+            if (!attacks_me)
+                return false;
+        }
     }
     uint8 avoid = 0;
     if (school_snap_)
