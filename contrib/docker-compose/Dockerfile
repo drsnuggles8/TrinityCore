@@ -9,7 +9,7 @@ FROM ${BASE_IMAGE} AS build
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      g++ make cmake ninja-build \
+      g++ make cmake ninja-build mold \
       libboost-dev libboost-filesystem-dev libboost-locale-dev libboost-program-options-dev \
       libboost-regex-dev libboost-thread-dev \
       libmysqlclient-dev mysql-client libssl-dev libreadline-dev libncurses-dev libbz2-dev zlib1g-dev \
@@ -23,7 +23,8 @@ ARG BUILD_JOBS=
 ARG BUILD_TYPE=Release
 # 1 builds the WoW Forever Bots module (src/modules/PlayerbotV2, INSTALL-BOTS.md)
 ARG BUILD_PLAYERBOT_V2=0
-# The build directory lives in a BuildKit cache, so a rebuild after git pull only recompiles what changed.
+# The build directory lives in a BuildKit cache, so a rebuild after git pull only recompiles what changed. mold links: GNU
+# ld spends minutes on the static worldserver (core, scripts, bot module) after every change.
 RUN --mount=type=cache,id=trinitycore-build,target=/build,sharing=locked <<EOF
 set -eu
 jobs="${BUILD_JOBS}"
@@ -46,7 +47,8 @@ cmake -S /src -B /build -G Ninja \
   -DCMAKE_INSTALL_PREFIX=/opt/trinitycore \
   -DSERVERS=1 -DTOOLS=1 -DSCRIPTS=static \
   -DWITHOUT_GIT=1 -DBUILD_TESTING=0 \
-  -DBUILD_PLAYERBOT_V2="${BUILD_PLAYERBOT_V2}"
+  -DBUILD_PLAYERBOT_V2="${BUILD_PLAYERBOT_V2}" \
+  -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=mold" -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=mold"
 cmake --build /build --parallel "$jobs"
 cmake --install /build
 cp /tmp/sources.sha1 /build/sources.sha1
