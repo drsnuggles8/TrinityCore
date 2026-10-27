@@ -99,6 +99,8 @@ Measurements go here, each with the build, bot count and what changed.
 |---|---|---|---|---|---|---|---|
 | 26 Oct | build9 (98147d0c) | 100 (72 online at 25 min) | 2329 MB | 2200-2300 MB | 1-2 ms | 26-31% | defaults; no bot took a quest (companion rule bug, fixed in f660dfc9) |
 | 27 Oct | build10 (f660dfc9) | 100 (72 online at 29 min) | 1707 MB | 1745-1820 MB | 20 ms (the MinWorldUpdateTime floor) | 9.5-12% | locales/query cache off, tick 20/50 ms, no update blocks for bots; at 27 min L1=21 L2=29 L3=16 L4=5, 92 quests turned in, 46 "inv?" (24 granted) |
+| 27 Oct | build14 (bf5ca456) | 300 (254 online at 39 min) | 1675 MB | 1720-1850 MB | 20 ms floor | 16-26% | module tick 2.3-2.9 ms (snapshot build 1.4-1.8 ms) at 262 bots; 495 quests turned in, 323 "inv?" (193 granted), 8 rerolls; levels at 39 min L1=41 L2=98 L3=113 L4=2 (too slow: death hotspots, fixed in 0df87616) |
+| 27 Oct | build14 (bf5ca456) | 500 (370 online at 23 min) | | 1850-1890 MB | 20 ms floor | 26-28% | ~0.5 MB per online bot; 533 quests turned in at 23 min |
 
 The bots themselves are cheap; the worldserver's own data is what fills the memory. Startup profile (RSS sampled every
 0.2 s against the timestamped Server.log, `startup-mem.sh` on the home server), biggest steps with the defaults:
