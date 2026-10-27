@@ -21,6 +21,8 @@
 //   crowded, where is the cave, LFG, first time in Classic. Casuals and friendly bots talk most, loners and racers least.
 // idle:launch_snipe @860 - a kill stealer (LaunchStrategy::KillStealer) goes for untagged mobs another player stands next
 //   to (about to pull, or walking up to), within 35 y and its level band: it tags first and the other player loses the mob.
+// idle:launch_hearth @870 - an explorer whose route reached a hearth stop uses its hearthstone (and stands still for the
+//   cast, idle:launch_hold).
 // idle:launch_train @740 - after each even level from 4 a launch bot walks to its class trainer (the builder names it in
 //   the snapshot) and buys what it can afford, then reads the list a few seconds (idle:launch_hold). Above the quest and
 //   vendor errands, below the social rules.
@@ -340,6 +342,22 @@ bool LaunchSnipeFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
     return true;
 }
 
+bool LaunchHearthGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
+{
+    return ai.launch().active && ai.launch_hearth_wanted() && s.is_alive() && !s.in_combat();
+}
+
+bool LaunchHearthFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32)
+{
+    if (s.is_moving())
+        emit.stop_movement();
+    emit.hearth();
+    ai.set_launch_hearth_wanted(false);
+    ai.launch_social().busy_until_ms = s.published_at_ms() + 11000u;   // the 10 s cast
+    ai.set_last_rule_fired("idle:launch_hearth");
+    return true;
+}
+
 bool LaunchTrainGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
 {
     return ai.launch().active && !s.raw().launch_trainer.IsEmpty() && s.is_alive() && !s.in_combat();
@@ -408,6 +426,14 @@ void RegisterLaunchRules(IdleRuleRegistry& r)
         rule.priority = 740;   // above the vendor (735) and quest errands, below the social rules
         rule.gate     = &LaunchTrainGate;
         rule.fire     = &LaunchTrainFire;
+        r.register_rule(std::move(rule));
+    }
+    {
+        IdleRule rule;
+        rule.name     = "idle:launch_hearth";
+        rule.priority = 870;
+        rule.gate     = &LaunchHearthGate;
+        rule.fire     = &LaunchHearthFire;
         r.register_rule(std::move(rule));
     }
     {

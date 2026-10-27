@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Define.h"
+#include <array>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -30,12 +31,21 @@ struct RouteStep
 
 struct RouteGiver { uint32 map = 0; float x = 0.f, y = 0.f, z = 0.f; };
 
-// A stop on the explorer tour (LaunchStrategy::Explorer): a subzone that gives exploration XP, or a flight master.
+// A stop of an explorer route (LaunchStrategy::Explorer, routes from the launch-day exploration guides, doc/LaunchSim.md).
+enum class ExploreAction : uint8
+{
+    Discover = 0,   // enter the subzone (exploration XP is awarded on entering it)
+    Flight   = 1,   // talk to the flight master: learn the flight path
+    Bind     = 2,   // set the hearthstone at the innkeeper
+    Hearth   = 3,   // use the hearthstone (no place of its own)
+};
+
 struct ExploreStop
 {
+    ExploreAction action = ExploreAction::Discover;
+    uint32 area = 0;              // Discover: the subzone (AreaTable id)
     float  x = 0.f, y = 0.f, z = 0.f;
-    uint32 area = 0;              // the subzone (AreaTable id); 0 for a flight master
-    bool   flight_master = false;
+    char const* name = "";
 };
 
 // A class trainer of the launch area (Dun Morogh, Ironforge, Loch Modan) on map 0.
@@ -69,10 +79,13 @@ public:
     // Where a quest's giver stands (first spawn of a creature that starts it), nullptr when unknown.
     RouteGiver const* Giver(uint32 quest) const;
 
-    // The explorer tour: every exploration subzone of Dun Morogh, Ironforge and Loch Modan (a real spawn near its middle)
-    // and the flight masters there, as a nearest-neighbour walk from Coldridge Valley.
-    size_t ExploreStops() const { return explore_.size(); }
-    ExploreStop const* ExploreStopAt(size_t i) const { return i < explore_.size() ? &explore_[i] : nullptr; }
+    // The explorer routes, resolved against this server's area data (0 = the "south loop" through Elwynn and Westfall,
+    // 1 = the "north run" through Loch Modan to Menethil). A stop whose subzone, flight master or innkeeper is not found is
+    // left out (and logged at load).
+    static constexpr uint8 kExploreRoutes = 2;
+    size_t ExploreStops(uint8 route) const { return route < kExploreRoutes ? explore_[route].size() : 0; }
+    ExploreStop const* ExploreStopAt(uint8 route, size_t i) const
+    { return route < kExploreRoutes && i < explore_[route].size() ? &explore_[route][i] : nullptr; }
 
     // The class trainer for `cls` nearest to (x, y) on map 0, nullptr when there is none in the launch area.
     ClassTrainer const* NearestTrainer(uint8 cls, float x, float y) const;
@@ -87,7 +100,8 @@ private:
     std::vector<std::vector<RouteStep>>  routes_;
     std::unordered_map<uint32, RouteGiver> givers_;
     std::vector<ClassTrainer>            trainers_;
-    std::vector<ExploreStop>             explore_;
+    std::array<std::vector<ExploreStop>, 2> explore_;
+    void LoadExploreRoutes();
 };
 
 } // namespace Playerbot::V2::Fleet

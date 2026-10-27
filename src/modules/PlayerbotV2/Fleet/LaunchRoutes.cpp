@@ -13,6 +13,7 @@
 #include "Trainer.h"
 #include "UnitDefines.h"
 #include <algorithm>
+#include <span>
 #include <unordered_set>
 
 namespace Playerbot::V2::Fleet {
@@ -64,67 +65,7 @@ void LaunchRoutes::Load()
     }
     TC_LOG_INFO("playerbot.v2", "[launch] {} class trainers in the launch area", trainers_.size());
 
-    // Explorer tour: the creature spawns of Dun Morogh (zone 1), Ironforge (1537) and Loch Modan (38) grouped by subzone;
-    // per subzone that gives exploration XP the spawn nearest the group's centroid, plus the flight masters.
-    explore_.clear();
-    {
-        struct Acc { double sx = 0, sy = 0; uint32 n = 0; std::vector<Position> pts; };
-        std::unordered_map<uint32, Acc> by_area;
-        std::vector<ExploreStop> fms;
-        for (auto const& [spawn_id, data] : sObjectMgr->GetAllCreatureData())
-        {
-            if (data.mapId != 0)
-                continue;
-            float const x = data.spawnPoint.GetPositionX(), y = data.spawnPoint.GetPositionY();
-            if (x < -6800.f || x > -4000.f || y < -4800.f || y > 1100.f)
-                continue;
-            uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), 0, data.spawnPoint);
-            AreaTableEntry const* at = sAreaTableStore.LookupEntry(area);
-            if (!at)
-                continue;
-            uint32 const zone = at->ParentAreaID ? at->ParentAreaID : at->ID;
-            if (zone != 1 && zone != 1537 && zone != 38)
-                continue;
-            if (CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(data.id); ct && (ct->npcflag & UNIT_NPC_FLAG_FLIGHTMASTER))
-                fms.push_back({ x, y, data.spawnPoint.GetPositionZ(), 0, true });
-            if (at->AreaBit < 0 || at->ExplorationLevel <= 0)
-                continue;
-            Acc& a = by_area[area];
-            a.sx += x; a.sy += y; ++a.n;
-            a.pts.push_back(data.spawnPoint);
-        }
-        std::vector<ExploreStop> stops = fms;
-        for (auto const& [area, a] : by_area)
-        {
-            double const cx = a.sx / a.n, cy = a.sy / a.n;
-            Position const* best = nullptr;
-            double best_d = 0;
-            for (Position const& pt : a.pts)
-            {
-                double const d = (pt.GetPositionX() - cx) * (pt.GetPositionX() - cx) + (pt.GetPositionY() - cy) * (pt.GetPositionY() - cy);
-                if (!best || d < best_d)
-                    best = &pt, best_d = d;
-            }
-            stops.push_back({ best->GetPositionX(), best->GetPositionY(), best->GetPositionZ(), area, false });
-        }
-        // Nearest-neighbour walk from the middle of Coldridge Valley.
-        float cx = -6230.f, cy = 400.f;
-        while (!stops.empty())
-        {
-            size_t bi = 0;
-            float bd = 0.f;
-            for (size_t i = 0; i < stops.size(); ++i)
-            {
-                float const d = (stops[i].x - cx) * (stops[i].x - cx) + (stops[i].y - cy) * (stops[i].y - cy);
-                if (i == 0 || d < bd)
-                    bi = i, bd = d;
-            }
-            explore_.push_back(stops[bi]);
-            cx = stops[bi].x; cy = stops[bi].y;
-            stops.erase(stops.begin() + bi);
-        }
-    }
-    TC_LOG_INFO("playerbot.v2", "[launch] explorer tour: {} stops", explore_.size());
+    LoadExploreRoutes();
 
     QueryResult r = CharacterDatabase.Query("SELECT route, combos, action, quest, objective FROM playerbot_launch_route_step ORDER BY route, step");
     if (!r)
@@ -170,6 +111,166 @@ void LaunchRoutes::Load()
     size_t steps = 0;
     for (auto const& r2 : routes_) steps += r2.size();
     TC_LOG_INFO("playerbot.v2", "[launch] {} routes loaded ({} steps), {} quest givers placed", names_.size(), steps, givers_.size());
+}
+
+namespace {
+
+struct RouteDef { ExploreAction action; char const* name; };
+
+// From the launch-day exploration routes (Jay Ell's dwarf/gnome sheet and video, the Elysium and Blizzard forum
+// write-ups; doc/LaunchSim.md "Explorer"). Discover stops name a subzone; Flight and Bind name the zone or town whose flight
+// master / innkeeper is meant.
+constexpr RouteDef kSouthLoop[] = {
+    { ExploreAction::Discover, "Coldridge Pass" }, { ExploreAction::Discover, "Kharanos" }, { ExploreAction::Bind, "Kharanos" },
+    { ExploreAction::Flight, "Ironforge" }, { ExploreAction::Flight, "Stormwind City" },
+    { ExploreAction::Discover, "Goldshire" }, { ExploreAction::Discover, "Crystal Lake" },
+    { ExploreAction::Discover, "Brackwell Pumpkin Patch" }, { ExploreAction::Discover, "Eastvale Logging Camp" },
+    { ExploreAction::Discover, "Ridgepoint Tower" }, { ExploreAction::Discover, "Maclure Vineyards" },
+    { ExploreAction::Discover, "Fargodeep Mine" }, { ExploreAction::Discover, "Stonefield Farm" },
+    { ExploreAction::Discover, "Forest's Edge" }, { ExploreAction::Discover, "Westbrook Garrison" },
+    { ExploreAction::Discover, "Jansen Stead" }, { ExploreAction::Discover, "Saldean's Farm" },
+    { ExploreAction::Flight, "Sentinel Hill" }, { ExploreAction::Discover, "The Dead Acre" },
+    { ExploreAction::Hearth, "" },
+    { ExploreAction::Discover, "Shimmer Ridge" }, { ExploreAction::Discover, "Chill Breeze Valley" },
+    { ExploreAction::Discover, "Iceflow Lake" }, { ExploreAction::Discover, "Brewnall Village" },
+    { ExploreAction::Discover, "Frostmane Hold" }, { ExploreAction::Discover, "Gnomeregan" },
+    { ExploreAction::Discover, "Misty Pine Refuge" }, { ExploreAction::Discover, "Tundrid Hills" },
+    { ExploreAction::Discover, "Amberstill Ranch" }, { ExploreAction::Discover, "Gol'Bolar Quarry" },
+};
+constexpr RouteDef kNorthRun[] = {
+    { ExploreAction::Discover, "Coldridge Pass" }, { ExploreAction::Discover, "Kharanos" }, { ExploreAction::Bind, "Kharanos" },
+    { ExploreAction::Flight, "Ironforge" },
+    { ExploreAction::Discover, "Misty Pine Refuge" }, { ExploreAction::Discover, "Tundrid Hills" },
+    { ExploreAction::Discover, "Amberstill Ranch" }, { ExploreAction::Discover, "Gol'Bolar Quarry" },
+    { ExploreAction::Discover, "Shimmer Ridge" }, { ExploreAction::Discover, "Chill Breeze Valley" },
+    { ExploreAction::Discover, "Brewnall Village" }, { ExploreAction::Discover, "Frostmane Hold" },
+    { ExploreAction::Discover, "Gnomeregan" },
+    { ExploreAction::Discover, "North Gate Pass" }, { ExploreAction::Discover, "Algaz Station" },
+    { ExploreAction::Flight, "Thelsamar" }, { ExploreAction::Discover, "Dun Algaz" },
+    { ExploreAction::Discover, "Dun Modr" }, { ExploreAction::Flight, "Menethil Harbor" },
+};
+
+// Map 0 regions the routes cross: Dun Morogh and Ironforge, Elwynn and Stormwind, Westfall, Loch Modan, the Wetlands.
+struct Box { float x0, x1, y0, y1; };
+constexpr Box kRegions[] = {
+    { -6800.f, -4400.f, -1600.f, 1100.f }, { -9900.f, -8000.f, -1500.f, 1600.f }, { -11500.f, -9800.f, 300.f, 2300.f },
+    { -6100.f, -4500.f, -4700.f, -1600.f }, { -4500.f, -2300.f, -3600.f, -400.f },
+};
+
+bool InRegions(float x, float y)
+{
+    for (Box const& b : kRegions)
+        if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1)
+            return true;
+    return false;
+}
+
+} // anonymous namespace
+
+void LaunchRoutes::LoadExploreRoutes()
+{
+    for (auto& r : explore_)
+        r.clear();
+    // Subzone names of the routes -> AreaTable ids (continent 0).
+    std::unordered_map<std::string, std::vector<uint32>> ids_by_name;
+    for (AreaTableEntry const* at : sAreaTableStore)
+        if (at && at->ContinentID == 0 && at->AreaName[LOCALE_enUS] && *at->AreaName[LOCALE_enUS])
+            ids_by_name[at->AreaName[LOCALE_enUS]].push_back(at->ID);
+    // Spawns of the regions by subzone (creatures, for a point on the ground), with the flight masters and innkeepers.
+    struct Spot { float x, y, z; };
+    std::unordered_map<uint32, std::vector<Spot>> by_area;
+    std::vector<std::pair<Spot, uint32>> flight_masters, innkeepers;   // spot, subzone
+    for (auto const& [spawn_id, data] : sObjectMgr->GetAllCreatureData())
+    {
+        if (data.mapId != 0 || !InRegions(data.spawnPoint.GetPositionX(), data.spawnPoint.GetPositionY()))
+            continue;
+        uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), 0, data.spawnPoint);
+        Spot const sp{ data.spawnPoint.GetPositionX(), data.spawnPoint.GetPositionY(), data.spawnPoint.GetPositionZ() };
+        by_area[area].push_back(sp);
+        if (CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(data.id))
+        {
+            if (ct->npcflag & UNIT_NPC_FLAG_FLIGHTMASTER)
+                flight_masters.push_back({ sp, area });
+            if (ct->npcflag & UNIT_NPC_FLAG_INNKEEPER)
+                innkeepers.push_back({ sp, area });
+        }
+    }
+    // Is `area` the subzone `name`, or inside it (a town's buildings are subzones of their own)?
+    auto const in_named = [&](uint32 area, std::vector<uint32> const& named)
+    {
+        for (int guard = 0; area && guard < 4; ++guard)
+        {
+            if (std::find(named.begin(), named.end(), area) != named.end())
+                return true;
+            AreaTableEntry const* at = sAreaTableStore.LookupEntry(area);
+            area = at ? at->ParentAreaID : 0;
+        }
+        return false;
+    };
+    std::vector<std::string> missing;
+    for (uint8 r = 0; r < kExploreRoutes; ++r)
+    {
+        std::span<RouteDef const> const defs = r == 0 ? std::span<RouteDef const>(kSouthLoop) : std::span<RouteDef const>(kNorthRun);
+        for (RouteDef const& d : defs)
+        {
+            ExploreStop st;
+            st.action = d.action;
+            st.name = d.name;
+            if (d.action == ExploreAction::Hearth)
+            {
+                explore_[r].push_back(st);
+                continue;
+            }
+            auto const it = ids_by_name.find(d.name);
+            if (it == ids_by_name.end())
+            {
+                missing.push_back(d.name);
+                continue;
+            }
+            bool found = false;
+            if (d.action == ExploreAction::Discover)
+            {
+                // The subzone's spawn nearest the centroid of its spawns (on the ground, inside the subzone).
+                std::vector<Spot> pts;
+                for (uint32 id : it->second)
+                    if (auto const a = by_area.find(id); a != by_area.end())
+                        pts.insert(pts.end(), a->second.begin(), a->second.end());
+                if (!pts.empty())
+                {
+                    double cx = 0, cy = 0;
+                    for (Spot const& p : pts) { cx += p.x; cy += p.y; }
+                    cx /= pts.size(); cy /= pts.size();
+                    Spot const* best = &pts.front();
+                    for (Spot const& p : pts)
+                        if ((p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy) < (best->x - cx) * (best->x - cx) + (best->y - cy) * (best->y - cy))
+                            best = &p;
+                    st.area = it->second.front();
+                    st.x = best->x; st.y = best->y; st.z = best->z;
+                    found = true;
+                }
+            }
+            else
+            {
+                auto const& list = d.action == ExploreAction::Flight ? flight_masters : innkeepers;
+                for (auto const& [sp, area] : list)
+                    if (in_named(area, it->second))
+                    {
+                        st.x = sp.x; st.y = sp.y; st.z = sp.z;
+                        found = true;
+                        break;
+                    }
+            }
+            if (found)
+                explore_[r].push_back(st);
+            else
+                missing.push_back(d.name);
+        }
+    }
+    std::string miss;
+    for (std::string const& m : missing)
+        miss += (miss.empty() ? "" : ", ") + m;
+    TC_LOG_INFO("playerbot.v2", "[launch] explorer routes: south loop {} stops, north run {} stops{}{}", explore_[0].size(),
+        explore_[1].size(), missing.empty() ? "" : "; not found: ", miss);
 }
 
 ClassTrainer const* LaunchRoutes::NearestTrainer(uint8 cls, float x, float y) const

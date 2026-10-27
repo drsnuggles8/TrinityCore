@@ -1749,7 +1749,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         ((bot_ai->launch().strategy == LaunchStrategy::TrollGrinder && p->GetLevel() < 4) ||
          // An explorer on its tour takes no quests (it kills nothing); after the tour or at level 6 it quests like anyone.
          (bot_ai->launch().strategy == LaunchStrategy::Explorer && p->GetLevel() < 6 &&
-          bot_ai->launch_explore_stop() < V2::Fleet::LaunchRoutes::Instance().ExploreStops()));
+          bot_ai->launch_explore_stop() < V2::Fleet::LaunchRoutes::Instance().ExploreStops(uint8(bot_ai->launch().seed % 100u < 60u ? 0 : 1)))));
 
     snap->guid    = p->GetGUID();
     snap->identity.name    = p->GetName();
@@ -9695,27 +9695,54 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             go = &LP::kThelsamar, arrive = 60.f;   // on to Loch Modan
         else if (strat == LaunchStrategy::Explorer && lvl < 6)
         {
-            // The tour: arriving at a stop moves on to the next one; at a flight master the bot learns the node, as the
-            // gossip with it would.
-            auto const& tour = V2::Fleet::LaunchRoutes::Instance();
+            // The explorer's route (LaunchRoutes::ExploreStopAt): a subzone is done once the bot stands in it (that is when
+            // the exploration XP comes); at a flight master it learns the path and at the Kharanos innkeeper it binds, as
+            // their gossip would; a hearth stop asks idle:launch_hearth to use the stone.
+            auto const& routes = V2::Fleet::LaunchRoutes::Instance();
+            uint8 const er = uint8(bot_ai->launch().seed % 100u < 60u ? 0 : 1);   // south loop 60%, north run 40%
+            uint32 const here_area = p->GetAreaId();
             uint16 i = bot_ai->launch_explore_stop();
-            while (V2::Fleet::ExploreStop const* st = tour.ExploreStopAt(i))
+            while (V2::Fleet::ExploreStop const* st = routes.ExploreStopAt(er, i))
             {
-                float const reach = st->flight_master ? 6.f : 30.f;
-                if (LP::Dist2d(LP::Spot{ st->x, st->y, st->z }, px, py) > reach * reach)
+                bool done = false;
+                float const d2 = LP::Dist2d(LP::Spot{ st->x, st->y, st->z }, px, py);
+                switch (st->action)
+                {
+                    case V2::Fleet::ExploreAction::Discover:
+                        done = here_area == st->area || d2 < 25.f * 25.f;
+                        break;
+                    case V2::Fleet::ExploreAction::Flight:
+                        if (d2 < 6.f * 6.f)
+                        {
+                            done = true;
+                            if (uint32 node = sObjectMgr->GetNearestTaxiNode(st->x, st->y, st->z, 0, p->GetTeam()))
+                                if (p->m_taxi.SetTaximaskNode(node))
+                                    TC_LOG_INFO("playerbot.v2", "[launch] {} (explorer) learns the {} flight path", p->GetName(), st->name);
+                        }
+                        break;
+                    case V2::Fleet::ExploreAction::Bind:
+                        if (d2 < 6.f * 6.f)
+                        {
+                            done = true;
+                            p->SetHomebind(WorldLocation(p->GetMapId(), p->GetPositionX(), p->GetPositionY(), p->GetPositionZ()), here_area);
+                        }
+                        break;
+                    case V2::Fleet::ExploreAction::Hearth:
+                        done = true;
+                        bot_ai->set_launch_hearth_wanted(true);
+                        break;
+                }
+                if (!done)
                     break;
-                if (st->flight_master)
-                    if (uint32 node = sObjectMgr->GetNearestTaxiNode(st->x, st->y, st->z, 0, p->GetTeam()))
-                        if (const_cast<Player*>(p)->m_taxi.SetTaximaskNode(node))
-                            TC_LOG_INFO("playerbot.v2", "[launch] {} (explorer) learns flight path {}", p->GetName(), node);
                 ++i;
             }
             bot_ai->set_launch_explore_stop(i);
-            if (V2::Fleet::ExploreStop const* st = tour.ExploreStopAt(i))
+            if (V2::Fleet::ExploreStop const* st = routes.ExploreStopAt(er, i))
             {
                 thread_local LP::Spot t_stop;   // `go` points at it until the end of this build (builds of one thread run one at a time)
                 t_stop = LP::Spot{ st->x, st->y, st->z };
-                go = &t_stop, arrive = st->flight_master ? 4.f : 25.f;
+                go = &t_stop;
+                arrive = st->action == V2::Fleet::ExploreAction::Discover ? 20.f : 4.f;
             }
         }
         else if (strat == LaunchStrategy::Casual && lvl >= 6 && !bot_ai->launch_ironforge_seen())

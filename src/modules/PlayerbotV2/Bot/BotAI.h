@@ -80,6 +80,9 @@ public:
     // An explorer launch bot's next stop on its tour (LaunchRoutes::ExploreStop; the snapshot builder advances it).
     uint16               launch_explore_stop() const { return launch_explore_stop_.load(std::memory_order_relaxed); }
     void                 set_launch_explore_stop(uint16 i) { launch_explore_stop_.store(i, std::memory_order_relaxed); }
+    // The explorer route reached a hearth stop (the builder sets it, idle:launch_hearth uses the stone and clears it).
+    bool                 launch_hearth_wanted() const { return launch_hearth_wanted_.load(std::memory_order_relaxed); }
+    void                 set_launch_hearth_wanted(bool w) { launch_hearth_wanted_.store(w, std::memory_order_relaxed); }
     BotRng const&       rng()         const { return rng_; }
     BotRng&             rng()               { return rng_; }
     Ms                  state_age(Ms now) const { return now - state_entered_; }
@@ -3234,6 +3237,7 @@ private:
     std::atomic<uint8> launch_trained_level_{0};
     std::atomic<bool>  launch_ironforge_seen_{false};
     std::atomic<uint16> launch_explore_stop_{0};
+    std::atomic<bool>  launch_hearth_wanted_{false};
     BotRng         rng_;
     BotState       state_         = BotState::LoggingIn;
     BotState       prev_state_    = BotState::LoggingIn;

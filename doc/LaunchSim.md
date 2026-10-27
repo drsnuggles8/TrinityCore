@@ -79,7 +79,7 @@ Forever beta and stress test). Pace 1.0 = an uncrowded speedrun (Coldridge left 
 | reroller | 4 | Reroller | 1.5-2.5 | neutral |
 | ninja | 2 | KillStealer: tags untagged mobs other players stand next to | 1.1-1.4 | griefer |
 | leaver | 2 | Leaver: Loch Modan at 8 | 1.1-1.3 | neutral |
-| explorer | 2 | Explorer: tours every exploration subzone of Dun Morogh, Ironforge and Loch Modan and their flight masters (learns the paths), kills nothing until level 6 or the end of the tour, then quests | 1.0-1.2 | loner / neutral |
+| explorer | 2 | Explorer: one of two launch-day exploration routes (below), no kills until level 6 or the end of the route, then quests | 1.0-1.2 | loner / neutral |
 
 Arrival after T0 is the same for every persona (the login queue does not care who is a racer): 35% in the first 3 minutes,
 35% by 15 minutes, the rest by 60; late arrivals (the `late` count) spread over hours one to six.
@@ -101,6 +101,23 @@ Classes follow the Forever beta census (Alliance), restricted to what a dwarf or
 Route data never goes into git (the guides are CC BY-NC-SA, CC BY-NC-ND or private). `contrib/launch-sim/import_route.py`
 reads a guide file you have locally and writes SQL for `playerbot_launch_route_step`; load it into the characters database
 after the worldserver created the table (migration 0901).
+
+### Explorer routes
+
+From the launch-day exploration guides (Jay Ell's dwarf/gnome sheet and video, 2018-2019; the Elysium and Blizzard forum
+write-ups; summary of the research in the session notes). Real explorers mixed in talk-to quests and reached level 5 in about
+an hour; exploration XP is 55-85 per subzone at levels 1-5. `LaunchRoutes::LoadExploreRoutes` resolves the stops against this
+server's area table by name (the stop is a creature spawn near the subzone's middle; flight masters and innkeepers by zone)
+and logs any name it cannot find.
+
+- **South loop (60% of explorers):** Coldridge Pass, Kharanos (hearth), Ironforge flight path, tram, Stormwind flight path,
+  the Elwynn circle (Goldshire, Crystal Lake, Brackwell, Eastvale, Ridgepoint, Maclure, Fargodeep, Stonefield, Forest's
+  Edge, Westbrook), Westfall (Jansen Stead, Saldean's, Sentinel Hill flight path, Dead Acre), hearth to Kharanos, the
+  Kharanos loop (Shimmer Ridge, Chill Breeze, Iceflow Lake, Brewnall, Frostmane Hold, Gnomeregan), east Dun Morogh (Misty
+  Pine, Tundrid Hills, Amberstill, Gol'Bolar).
+- **North run (40%):** Kharanos (hearth), Ironforge flight path, east Dun Morogh, the Kharanos loop, North Gate Pass, Algaz,
+  Thelsamar flight path, Dun Algaz, Dun Modr, Menethil flight path. The guides' deliberate death into the Wetlands (and the
+  boat to Auberdine) is left out: the bot walks the pass.
 
 ### Respawns
 
