@@ -2369,18 +2369,13 @@ public:
     // reached (idle:loot_corpse was the #1 Watchdog hot-loop — one bot+corpse
     // pair repeated 12,465x in the 4-day run). After kLootCorpseDeadlineMs of
     // continuous attempts on a corpse, give up and pop it. Records first-seen
-    // per corpse; bounded + auto-clears.
+    // per corpse; bounded + auto-clears. Interruptions do not count (LootClockOverdue):
+    // a bot pulled into a fight at the corpse came back to a spent clock and left the
+    // quest item on it (racer45: 10 corpses with items left, Tough Wolf Meat among them).
     static constexpr uint32 kLootCorpseDeadlineMs = 12000;   // 12 s
     [[nodiscard]] bool loot_corpse_overdue(uint64 corpse_low, uint32 now_ms)
     {
-        auto it = loot_first_seen_.find(corpse_low);
-        if (it == loot_first_seen_.end())
-        {
-            if (loot_first_seen_.size() >= 32) loot_first_seen_.clear();
-            loot_first_seen_[corpse_low] = now_ms;
-            return false;
-        }
-        return (now_ms - it->second) >= kLootCorpseDeadlineMs;
+        return LootClockOverdue(loot_first_seen_, corpse_low, now_ms, kLootCorpseDeadlineMs);
     }
     void clear_loot_corpse_seen(uint64 corpse_low) { loot_first_seen_.erase(corpse_low); }
 
@@ -2397,18 +2392,7 @@ public:
     // slope, and quest drops with them).
     [[nodiscard]] bool loot_corpse_walk_overdue(uint64 corpse_low, uint32 now_ms)
     {
-        auto it = loot_walk_first_ms_.find(corpse_low);
-        if (it == loot_walk_first_ms_.end())
-        {
-            if (loot_walk_first_ms_.size() >= 32) loot_walk_first_ms_.clear();
-            loot_walk_first_ms_[corpse_low] = { now_ms, now_ms };
-            return false;
-        }
-        constexpr uint32 kWalkGapMs = 3000;
-        if (now_ms - it->second.last_ms > kWalkGapMs)
-            it->second.start_ms += now_ms - it->second.last_ms;   // the interruption does not count
-        it->second.last_ms = now_ms;
-        return (now_ms - it->second.start_ms) >= kCorpseWalkDeadlineMs;
+        return LootClockOverdue(loot_walk_first_ms_, corpse_low, now_ms, kCorpseWalkDeadlineMs);
     }
     void clear_loot_corpse_walk(uint64 corpse_low) { loot_walk_first_ms_.erase(corpse_low); }
 
@@ -4913,10 +4897,29 @@ private:
     // Per-hub blacklist for unproductive arrivals — see kHubTriedLockoutMs.
     std::unordered_map<uint32, uint32> tried_hub_until_ms_;
     // A4 per-corpse loot first-seen timestamp — see loot_corpse_overdue.
-    std::unordered_map<uint64, uint32> loot_first_seen_;
-    // Per-corpse WALK clock (start shifted past interruptions, last check) — see loot_corpse_walk_overdue.
-    struct LootWalkClock { uint32 start_ms = 0; uint32 last_ms = 0; };
-    std::unordered_map<uint64, LootWalkClock> loot_walk_first_ms_;
+    // Per-corpse clock: start shifted past interruptions, last check.
+    struct LootClock { uint32 start_ms = 0; uint32 last_ms = 0; };
+    std::unordered_map<uint64, LootClock> loot_first_seen_;
+    // Per-corpse WALK clock — see loot_corpse_walk_overdue.
+    std::unordered_map<uint64, LootClock> loot_walk_first_ms_;
+    // Has the corpse's clock run `deadline_ms`? Only the time the rule keeps checking counts: a check more than 3 s after
+    // the last one means the bot was busy elsewhere (a fight, a pull on the way), and the clock skips that gap.
+    [[nodiscard]] static bool LootClockOverdue(std::unordered_map<uint64, LootClock>& clocks, uint64 corpse_low,
+        uint32 now_ms, uint32 deadline_ms)
+    {
+        auto it = clocks.find(corpse_low);
+        if (it == clocks.end())
+        {
+            if (clocks.size() >= 32) clocks.clear();
+            clocks[corpse_low] = { now_ms, now_ms };
+            return false;
+        }
+        constexpr uint32 kGapMs = 3000;
+        if (now_ms - it->second.last_ms > kGapMs)
+            it->second.start_ms += now_ms - it->second.last_ms;   // the interruption does not count
+        it->second.last_ms = now_ms;
+        return (now_ms - it->second.start_ms) >= deadline_ms;
+    }
     // Per-target start_attack lockout — see kStartAttackLockoutMs.
     std::unordered_map<uint64, uint32> start_attack_until_ms_;
     // Raid damage-school rule bookkeeping (see RaidSchoolState).

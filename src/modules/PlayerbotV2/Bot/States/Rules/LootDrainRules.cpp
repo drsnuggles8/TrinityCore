@@ -408,13 +408,17 @@ bool LootDrainFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&
                         }
                     // An idle hostile mob beside the corpse (the rest of the pack, a patrol standing by it) is aggroed by the walk: the
                     // corpse waits in the queue until the mob is dealt with (playtest, Deadmines 2026-10-15: bots ran to loot and pulled more).
-                    for (NearbyUnit const& u : s.raw().combat.nearby_enemies)
-                    {
-                        if (u.hp <= 0 || u.unit_in_combat || !u.victim.IsEmpty() || u.is_pacified || u.untargetable || u.no_xp_kill) continue;
-                        const float ux = u.x - c->GetPositionX(), uy = u.y - c->GetPositionY();
-                        if (ux * ux + uy * uy <= kLootIdleMobClearYd * kLootIdleMobClearYd)
-                            return;
-                    }
+                    // In the open world only a hurt bot waits: a healthy one walks over and fights the mob, as players do. The wait counted
+                    // against the walk deadline, and in a camp there is nearly always another mob by the corpse (racer45: 32 corpses given
+                    // up, most 13-44 y away, among them the Tough Wolf Meat that kept Dwarven Outfitters open for 10-16 minutes).
+                    if (s.is_in_instance() || s.hp_pct() < 50)
+                        for (NearbyUnit const& u : s.raw().combat.nearby_enemies)
+                        {
+                            if (u.hp <= 0 || u.unit_in_combat || !u.victim.IsEmpty() || u.is_pacified || u.untargetable || u.no_xp_kill) continue;
+                            const float ux = u.x - c->GetPositionX(), uy = u.y - c->GetPositionY();
+                            if (ux * ux + uy * uy <= kLootIdleMobClearYd * kLootIdleMobClearYd)
+                                return;
+                        }
                     emit.move_to(c->GetPositionX(), c->GetPositionY(),
                                  c->GetPositionZ(), /*run*/ true);
                     // Lease a few seconds of follow-recall slack so a grouped
