@@ -16,7 +16,7 @@ capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
   tick; the 4 GB cap is far away. Idle server 1.7 GB (was 2.33 GB) with `Load.Locales = 0` and `CacheDataQueries = 0`;
   CPU at 300 bots went from ~30% to ~17% with the slower world loop and no update packets for bots.
 - **Behaviour (last run, build18, 300 bots, dynamic respawn on):** median level 2 at ~15 minutes, 4 at 45-60 minutes,
-  the first level 5 at ~36 minutes and 29 at 60 minutes; 667 quests turned in, 844 invite requests (440 granted), bots
+  the first level 5 at ~36 minutes and 29 at 60 minutes; 667 quests turned in, 844 invite requests (440 granted),
   groups form and break up, rerollers come back at level 1, trainers get visited at even levels. CPU 20-32%, RSS 1.8-1.9 GB.
   Slower than the goal's "5 by ~90 minutes" median only if that is read strictly; the crowd is the brake, as at launch.
 - **Upstream bot-module bugs** fixed on the way (no bot ever took a quest; quest POIs pointing to another zone; the idle
