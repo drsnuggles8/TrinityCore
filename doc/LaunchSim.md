@@ -100,6 +100,15 @@ Route data never goes into git (the guides are CC BY-NC-SA, CC BY-NC-ND or priva
 reads a guide file you have locally and writes SQL for `playerbot_launch_route_step`; load it into the characters database
 after the worldserver created the table (migration 0901).
 
+### Respawns
+
+The 2019 Classic launch used dynamic respawns in the starter zones (more players, faster respawns); whether Forever does is
+not known. `sql/custom/world/2026_10_27_00_world_launch_dynamic_respawn.sql` puts the hostile creatures of the launch area
+(1345 spawns) into spawn group 2 "Dynamic Scaling (Quest objectives)"; `Respawn.DynamicMode = 1` (`TC_RESPAWN_DYNAMIC_MODE=1`
+in the home server's worldserver.env) switches it on: with N players in Dun Morogh a respawn takes 10/N of its time, at
+least 10 s. Set it to 0 to practise against normal respawn timers. Without it 260 bots shared a few dozen wolves and boars
+and the average level after 45 minutes was 2.8.
+
 ## Capacity and performance
 
 Measurements go here, each with the build, bot count and what changed.
