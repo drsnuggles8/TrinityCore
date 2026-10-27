@@ -2983,7 +2983,23 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
         if (p_->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)) return;
         if (!p_->HasSpell(AUTO_SHOT)) return;
         if (!p_->GetWeaponForAttack(RANGED_ATTACK, true)) return;
-        p_->CastSpell(victim, AUTO_SHOT, false);
+        SpellCastResult const res = p_->CastSpell(victim, AUTO_SHOT, false);
+        // [auto_shot] why a hunter's Auto Shot did not start (launch-sim hunters stayed level 1: few shots, many give-ups).
+        // Once per bot per 30 s.
+        if (res != SPELL_CAST_OK)
+        {
+            static std::mutex s_mtx;
+            static std::unordered_map<uint64, uint32> s_last;
+            uint32 const now = GameTime::GetGameTimeMS();
+            std::lock_guard lk(s_mtx);
+            uint32& last = s_last[p_->GetGUID().GetCounter()];
+            if (!last || now - last >= 30000u)
+            {
+                last = now ? now : 1u;
+                TC_LOG_INFO("playerbot.v2", "[auto_shot] {} Auto Shot at {} refused: {} (dist {:.1f}, moving {}, ammo {})", p_->GetName(),
+                    victim->GetName(), uint32(res), p_->GetExactDist(victim), p_->isMoving() ? 1 : 0, p_->GetAmmoId());
+            }
+        }
     };
 
     // Idempotency fast-path: if we are already attacking this exact target,
