@@ -82,32 +82,43 @@ constexpr std::array<char const*, 13> kPersonaSurnames = { {
 } };
 static_assert(kPersonaSurnames.size() == kPersonas.size());
 
-// Race and class pairs of the Forever beta census (ClassicPlus.io addon census, 7 Oct 2026, 644,211 characters, published by
-// wowforeverguides.com/stats as census-combos.csv), Alliance, in hundreds of characters. Each starting zone draws from its
-// own races' pairs: a dwarf shaman is 54% of the dwarves, a human paladin 28% of the humans.
+// Race and class pairs of the Forever beta census at the end of the beta (ClassicPlus.io addon census, data of 24-26 Oct
+// 2026, 1,148,135 characters, as tabled by classicplus.world), Alliance, in hundreds of characters. Each starting zone draws
+// from its own races' pairs (a dwarf shaman is 54% of the dwarves, a human paladin 28% of the humans), and the zones' sizes
+// follow the same numbers (CensusShareOf).
 struct RaceClassShare { uint8 zone; uint8 race; uint8 cls; uint16 hundreds; };
 constexpr RaceClassShare kRaceClassShares[] = {
-    // Coldridge Valley: dwarves (57.7k) and gnomes (55.5k)
-    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_SHAMAN, 309 }, { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_PALADIN, 99 },
-    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_HUNTER, 85 },  { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_WARRIOR, 42 },
-    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_PRIEST, 27 },  { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_ROGUE, 15 },
-    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_WARLOCK, 140 }, { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_MAGE, 138 },
-    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_PRIEST, 137 }, { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_ROGUE, 83 },
-    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_WARRIOR, 57 },
-    // Northshire Valley: humans (113.9k)
-    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_PALADIN, 323 }, { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_WARRIOR, 183 },
-    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_HUNTER, 174 },  { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_WARLOCK, 149 },
-    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_ROGUE, 112 },   { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_PRIEST, 109 },
-    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_MAGE, 88 },
-    // Shadowglen: night elves (60.3k)
-    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_HUNTER, 187 }, { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_DRUID, 177 },
-    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_ROGUE, 82 },   { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_WARRIOR, 81 },
-    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_PRIEST, 77 },
-    // Zephras Isle: High Order Skyborne (race 95, 62.5k)
-    { LaunchPlaces::kZoneZephras, 95, CLASS_DRUID, 204 }, { LaunchPlaces::kZoneZephras, 95, CLASS_MAGE, 160 },
-    { LaunchPlaces::kZoneZephras, 95, CLASS_HUNTER, 134 }, { LaunchPlaces::kZoneZephras, 95, CLASS_WARRIOR, 64 },
-    { LaunchPlaces::kZoneZephras, 95, CLASS_ROGUE, 63 },
+    // Coldridge Valley: dwarves (98.7k) and gnomes (88.2k)
+    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_SHAMAN, 533 }, { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_PALADIN, 168 },
+    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_HUNTER, 146 }, { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_WARRIOR, 77 },
+    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_PRIEST, 42 }, { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_ROGUE, 21 },
+    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_WARLOCK, 236 }, { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_MAGE, 225 },
+    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_PRIEST, 206 }, { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_ROGUE, 127 },
+    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_WARRIOR, 88 },
+    // Northshire Valley: humans (173.8k)
+    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_PALADIN, 484 }, { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_WARRIOR, 295 },
+    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_HUNTER, 242 }, { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_WARLOCK, 242 },
+    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_PRIEST, 169 }, { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_ROGUE, 167 },
+    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_MAGE, 140 },
+    // Shadowglen: night elves (104.3k)
+    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_DRUID, 311 }, { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_HUNTER, 307 },
+    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_WARRIOR, 150 }, { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_ROGUE, 146 },
+    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_PRIEST, 128 },
+    // Zephras Isle: High Order Skyborne (race 95, 110.1k)
+    { LaunchPlaces::kZoneZephras, 95, CLASS_DRUID, 361 }, { LaunchPlaces::kZoneZephras, 95, CLASS_MAGE, 281 },
+    { LaunchPlaces::kZoneZephras, 95, CLASS_HUNTER, 226 }, { LaunchPlaces::kZoneZephras, 95, CLASS_WARRIOR, 123 },
+    { LaunchPlaces::kZoneZephras, 95, CLASS_ROGUE, 109 },
 };
+
+// Census characters (hundreds) of a starting zone's races.
+uint32 CensusShareOf(uint8 zone)
+{
+    uint32 n = 0;
+    for (RaceClassShare const& rc : kRaceClassShares)
+        if (rc.zone == zone)
+            n += rc.hundreds;
+    return n;
+}
 
 uint32 Mix(uint32 a, uint32 b)
 {
@@ -382,12 +393,22 @@ std::string LaunchSim::Prepare(uint32 bots, uint32 late)
     if (bots == 0 || bots + late > 2000)
         return "Bots must be 1-2000 in total.";
     LaunchRoutes::Instance().Load();   // pick up routes imported since the server started
-    // `bots` start in Coldridge Valley; the other Alliance starting zones get theirs from the config (0 = none):
-    // Playerbot.Launch.NorthshireBots (humans), .ShadowglenBots (night elves), .ZephrasBots (High Order Skyborne).
+    // `bots` start in Coldridge Valley; the other Alliance starting zones are sized from it by the census (Coldridge's dwarves
+    // and gnomes against the zone's race: 100 in Coldridge -> 93 humans, 56 night elves, 59 Skyborne). The config overrides a
+    // zone (Playerbot.Launch.NorthshireBots, .ShadowglenBots, .ZephrasBots; -1 = by the census, 0 = none).
     // Order: Coldridge, Northshire, Shadowglen, Zephras, then the late arrivals (Coldridge).
-    auto const cfg = [](char const* key) { return uint32(std::clamp(sConfigMgr->GetIntDefault(key, 0, true), 0, 1000)); };
-    std::array<uint32, LaunchPlaces::kZoneCount> per_zone = { bots, cfg("Playerbot.Launch.NorthshireBots"),
-        cfg("Playerbot.Launch.ShadowglenBots"), cfg("Playerbot.Launch.ZephrasBots") };
+    auto const zone_count = [bots](char const* key, uint8 zone)
+    {
+        int32 const set = sConfigMgr->GetIntDefault(key, -1, true);
+        if (set >= 0)
+            return uint32(std::min(set, 1000));
+        return uint32((uint64(bots) * CensusShareOf(zone) + CensusShareOf(LaunchPlaces::kZoneColdridge) / 2) /
+                      CensusShareOf(LaunchPlaces::kZoneColdridge));
+    };
+    std::array<uint32, LaunchPlaces::kZoneCount> per_zone = { bots,
+        zone_count("Playerbot.Launch.NorthshireBots", LaunchPlaces::kZoneNorthshire),
+        zone_count("Playerbot.Launch.ShadowglenBots", LaunchPlaces::kZoneShadowglen),
+        zone_count("Playerbot.Launch.ZephrasBots", LaunchPlaces::kZoneZephras) };
     uint32 total = late;
     for (uint32 n : per_zone) total += n;
     if (total > 2000)

@@ -85,15 +85,17 @@ for untagged mobs other players stand next to.
 Arrival after T0 is the same for every persona (the login queue does not care who is a racer): 35% in the first 3 minutes,
 35% by 15 minutes, the rest by 60; late arrivals (the `late` count) spread over hours one to six.
 
-Race and class come in pairs from the Forever beta census (ClassicPlus.io addon census of 7 Oct 2026, 644,211 characters,
-the census-combos table of wowforeverguides.com/stats), each starting zone from its own races:
+Race and class come in pairs from the Forever census at the end of the beta (ClassicPlus.io addon census, data of 24-26 Oct
+2026, 1,148,135 characters, as tabled by classicplus.world; it replaced the 7 Oct snapshot of 644k and the 20 Sep Reddit
+census of ~5000), each starting zone from its own races. The zones' sizes come from the same numbers: `bots` in Coldridge,
+and per 100 there 93 humans in Northshire, 56 night elves in Shadowglen and 59 Skyborne on Zephras Isle.
 
 | Zone | Census characters | Pairs |
 |---|---|---|
-| Coldridge | dwarf 57.7k, gnome 55.5k | dwarf shaman 27%, gnome warlock / mage / priest 12% each, dwarf paladin 9%, dwarf hunter 8%, gnome rogue 7%, gnome warrior 5%, dwarf warrior 4%, dwarf priest 2%, dwarf rogue 1% |
-| Northshire | human 113.9k | paladin 28%, warrior 16%, hunter 15%, warlock 13%, rogue 10%, priest 10%, mage 8% |
-| Shadowglen | night elf 60.3k | hunter 31%, druid 29%, rogue 14%, warrior 13%, priest 13% |
-| Zephras Isle | High Order Skyborne 62.5k | druid 33%, mage 26%, hunter 21%, warrior 10%, rogue 10% |
+| Coldridge | dwarf 98.7k, gnome 88.2k | dwarf shaman 29%, gnome warlock 13%, gnome mage 12%, gnome priest 11%, dwarf paladin 9%, dwarf hunter 8%, gnome rogue 7%, gnome warrior 5%, dwarf warrior 4%, dwarf priest 2%, dwarf rogue 1% |
+| Northshire | human 173.8k | paladin 28%, warrior 17%, hunter 14%, warlock 14%, priest 10%, rogue 10%, mage 8% |
+| Shadowglen | night elf 104.3k | druid 30%, hunter 29%, warrior 14%, rogue 14%, priest 12% |
+| Zephras Isle | High Order Skyborne 110.1k | druid 33%, mage 26%, hunter 21%, warrior 11%, rogue 10% |
 
 ### Temperaments
 
@@ -143,9 +145,9 @@ islands connected, so it stays at 55 (bots would climb what players cannot). Not
 
 Besides Coldridge Valley (the `prepare` / `reset` count, dwarves and gnomes, where Olo practises), the other Alliance starting
 zones get their own crowds from the config: `Playerbot.Launch.NorthshireBots` (humans, Northshire), `.ShadowglenBots` (night
-elves, Shadowglen), `.ZephrasBots` (High Order Skyborne, Zephras Isle); 0 = none. The home server runs 150 / 80 / 80
-(`TC_PLAYERBOT_LAUNCH_*_BOTS`): the census ratio of humans : night elves : Skyborne (114 : 60 : 63) at half Coldridge's
-density (dwarves and gnomes together are as many as the humans), to stay inside the server's CPU. Each zone (Bot/LaunchPlaces.h `kZones`) has its first town (Kharanos, Goldshire, Dolanaar), the
+elves, Shadowglen), `.ZephrasBots` (High Order Skyborne, Zephras Isle): -1 (the default) sizes the zone from Coldridge by the census, 0 = none,
+any other number is that many. The home server leaves them at the census: 200 in Coldridge gives 186 / 111 / 118, about
+615 bots, what it was measured at (2.1 GB, 75% CPU). Each zone (Bot/LaunchPlaces.h `kZones`) has its first town (Kharanos, Goldshire, Dolanaar), the
 place leavers move on to (Thelsamar, Sentinel Hill, Auberdine), the capital casuals visit (Ironforge, Stormwind, Darnassus) and
 the area its quest hubs stay in below level 10; Zephras Isle has none of these (an island). The troll grinder and the explorer
 are Coldridge personas; elsewhere those rolls are drawn again. Guide routes by zone: `rxp` / `olo` (dwarves and gnomes),
