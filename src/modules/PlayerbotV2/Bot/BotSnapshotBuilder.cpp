@@ -1729,11 +1729,19 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     snap->world_tick = tick;
     snap->published_at_ms = GameTime::GetGameTimeMS();
 
-    // Launch simulation: a bot that follows a guide works its route's current step only (Fleet/LaunchRoutes.h). The quest
-    // picker keeps to the step's quest, offers are cut to the quest the step accepts, and a giver out of sight is walked to.
+    // Launch simulation: a bot that follows a guide works the quests of its route's next steps (Fleet/LaunchRoutes.h): the
+    // quest picker and the offers keep to that window, in any order, and when there is nothing to do the giver of the next
+    // accept step is walked to. (One step at a time made the racers carry one or two quests and level at half speed.)
     V2::Fleet::RouteStep const* launch_step = nullptr;
+    std::vector<uint32> launch_window;
     if (bot_ai && bot_ai->launch().active && bot_ai->launch().route != V2::Fleet::LaunchRoutes::kNoRoute)
+    {
         launch_step = V2::Fleet::LaunchRoutes::Instance().CurrentStep(p, bot_ai->launch().route);
+        if (launch_step)
+            V2::Fleet::LaunchRoutes::Instance().Window(p, bot_ai->launch().route, 12, launch_window);
+    }
+    auto const in_launch_window = [&launch_window](uint32 quest)
+    { return std::find(launch_window.begin(), launch_window.end(), quest) != launch_window.end(); };
     uint32 const launch_quest = launch_step ? launch_step->quest : 0u;
     bool const launch_accept = launch_step && launch_step->action == V2::Fleet::RouteAction::Accept;
     // A troll-camp grinder takes no quests before level 4: it grinds the whelps (the destination is set late in the build).
@@ -5476,7 +5484,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         for (auto const& q : snap->quest_log.quests)
         {
             // A guide-following launch bot works the quest of its route step and nothing else (an accept step: nothing).
-            if ((launch_step && q.quest_id != launch_quest) || launch_no_quests)
+            if ((launch_step && !in_launch_window(q.quest_id)) || launch_no_quests)
                 continue;
             // PROFESSION-SKILL GATE. A quest gated on a profession skill the
             // bot does not actually know can never be progressed OR turned in,
@@ -7546,7 +7554,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     continue;
                 }
                 // A guide-following launch bot takes the quest its route step accepts, no other.
-                if ((launch_step && (!launch_accept || qid != launch_quest)) || launch_no_quests)
+                if ((launch_step && !in_launch_window(qid)) || launch_no_quests)
                     continue;
                 BotSnapshot::QuestTurnIn off{};
                 off.giver = guid;
@@ -9639,7 +9647,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     // separately below and is intentionally exempt.
     // ---- Launch route: walk to the giver of the quest the route accepts next ----
     // The step's quest is not offered by anyone in scan: head for its giver's spawn (the offer scan picks it up on arrival).
-    if (launch_accept)
+    if (launch_accept && snap->quest_log.current_quest_id == 0)
     {
         bool offered = false;
         for (auto const& off : snap->quest_discovery.quest_offers)

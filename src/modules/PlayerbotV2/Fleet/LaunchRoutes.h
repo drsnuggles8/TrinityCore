@@ -54,6 +54,10 @@ public:
 
     // The first step of `route` this player still has to do (nullptr: none left, or no such route).
     RouteStep const* CurrentStep(Player const* p, uint8 route) const;
+    // The quests of the next `steps` steps this player still has to do, in route order (duplicates removed): what a player
+    // with the guide open has picked up or is about to, and works on in parallel (wolves for one quest while the boars of
+    // another come along), not one step at a time.
+    void Window(Player const* p, uint8 route, uint32 steps, std::vector<uint32>& quests) const;
     // Where a quest's giver stands (first spawn of a creature that starts it), nullptr when unknown.
     RouteGiver const* Giver(uint32 quest) const;
 
@@ -63,6 +67,9 @@ public:
     static uint32 ComboBit(uint8 race, uint8 cls);
 
 private:
+    // The step is for this player's race and class and still to do (CurrentStep's test).
+    bool Pending(Player const* p, RouteStep const& s, uint32 me) const;
+
     std::vector<std::string>             names_;
     std::vector<std::vector<RouteStep>>  routes_;
     std::unordered_map<uint32, RouteGiver> givers_;

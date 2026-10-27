@@ -9,6 +9,7 @@
 #include "SharedDefines.h"
 #include "Trainer.h"
 #include "UnitDefines.h"
+#include <algorithm>
 #include <unordered_set>
 
 namespace Playerbot::V2::Fleet {
@@ -138,54 +139,71 @@ RouteGiver const* LaunchRoutes::Giver(uint32 quest) const
     return it == givers_.end() ? nullptr : &it->second;
 }
 
+bool LaunchRoutes::Pending(Player const* p, RouteStep const& s, uint32 me) const
+{
+    if (!(s.combos & me))
+        return false;
+    if (s.action != RouteAction::Accept && s.action != RouteAction::Complete && s.action != RouteAction::TurnIn)
+        return false;   // deathskip / hearth: not driven yet
+    Quest const* q = sObjectMgr->GetQuestTemplate(s.quest);
+    if (!q)
+        return false;
+    bool const rewarded = p->GetQuestRewardStatus(s.quest);
+    QuestStatus const st = p->GetQuestStatus(s.quest);
+    bool const in_log = st == QUEST_STATUS_INCOMPLETE || st == QUEST_STATUS_COMPLETE || st == QUEST_STATUS_FAILED;
+    switch (s.action)
+    {
+        case RouteAction::Accept:
+            if (rewarded || in_log)
+                return false;
+            if (!p->CanTakeQuest(q, false))
+                return false;   // not for this bot (yet): prerequisites, level, class; the guide moves on
+            if (!Giver(s.quest))
+                return false;   // started by an item or an object, or a giver without a spawn: the bot could not walk there
+            return true;
+        case RouteAction::Complete:
+        {
+            if (rewarded || !in_log || st == QUEST_STATUS_COMPLETE)
+                return false;
+            QuestObjectives const& objs = q->GetObjectives();
+            if (s.objective == 0 || s.objective > objs.size())
+                return false;
+            uint16 const slot = p->FindQuestSlot(s.quest);
+            return slot < MAX_QUEST_LOG_SIZE && !p->IsQuestObjectiveComplete(slot, q, objs[s.objective - 1]);
+        }
+        case RouteAction::TurnIn:
+            return !rewarded && in_log;
+        default:
+            return false;
+    }
+}
+
 RouteStep const* LaunchRoutes::CurrentStep(Player const* p, uint8 route) const
 {
     if (!p || route >= routes_.size())
         return nullptr;
     uint32 const me = ComboBit(p->GetRace(), p->GetClass());
     for (RouteStep const& s : routes_[route])
-    {
-        if (!(s.combos & me))
-            continue;
-        if (s.action != RouteAction::Accept && s.action != RouteAction::Complete && s.action != RouteAction::TurnIn)
-            continue;   // deathskip / hearth: not driven yet
-        Quest const* q = sObjectMgr->GetQuestTemplate(s.quest);
-        if (!q)
-            continue;
-        bool const rewarded = p->GetQuestRewardStatus(s.quest);
-        QuestStatus const st = p->GetQuestStatus(s.quest);
-        bool const in_log = st == QUEST_STATUS_INCOMPLETE || st == QUEST_STATUS_COMPLETE || st == QUEST_STATUS_FAILED;
-        switch (s.action)
-        {
-            case RouteAction::Accept:
-                if (rewarded || in_log)
-                    continue;
-                if (!p->CanTakeQuest(q, false))
-                    continue;   // not for this bot (yet): prerequisites, level, class; the guide moves on
-                if (!Giver(s.quest))
-                    continue;   // started by an item or an object, or a giver without a spawn: the bot could not walk there
-                return &s;
-            case RouteAction::Complete:
-            {
-                if (rewarded || !in_log || st == QUEST_STATUS_COMPLETE)
-                    continue;
-                QuestObjectives const& objs = q->GetObjectives();
-                if (s.objective == 0 || s.objective > objs.size())
-                    continue;
-                uint16 const slot = p->FindQuestSlot(s.quest);
-                if (slot >= MAX_QUEST_LOG_SIZE || p->IsQuestObjectiveComplete(slot, q, objs[s.objective - 1]))
-                    continue;
-                return &s;
-            }
-            case RouteAction::TurnIn:
-                if (rewarded || !in_log)
-                    continue;
-                return &s;
-            default:
-                continue;
-        }
-    }
+        if (Pending(p, s, me))
+            return &s;
     return nullptr;
+}
+
+void LaunchRoutes::Window(Player const* p, uint8 route, uint32 steps, std::vector<uint32>& quests) const
+{
+    quests.clear();
+    if (!p || route >= routes_.size())
+        return;
+    uint32 const me = ComboBit(p->GetRace(), p->GetClass());
+    for (RouteStep const& s : routes_[route])
+    {
+        if (!Pending(p, s, me))
+            continue;
+        if (std::find(quests.begin(), quests.end(), s.quest) == quests.end())
+            quests.push_back(s.quest);
+        if (--steps == 0)
+            break;
+    }
 }
 
 } // namespace Playerbot::V2::Fleet
