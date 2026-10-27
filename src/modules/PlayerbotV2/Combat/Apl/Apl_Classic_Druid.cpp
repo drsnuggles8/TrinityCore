@@ -770,7 +770,9 @@ void DoTranquility(ApPredicateContext const&, BotIntentEmitter& e) { e.cast(TRAN
 // the five-second rule).
 bool HealerMayDps(ApPredicateContext const& ctx)
 {
-    return HasLiveTarget(ctx) && ctx.bot.in_combat() && WoundedCount(ctx, 90) == 0 && LowestFriendOrSelf(ctx).hp_pct > 90
+    // A healer on its own also pulls with its damage spells: "only once in combat" left a solo Holy priest (the default spec
+    // of a fresh priest) unable to start any fight, at level 1 for a whole launch run.
+    return HasLiveTarget(ctx) && (ctx.bot.in_combat() || !ctx.bot.in_group()) && WoundedCount(ctx, 90) == 0 && LowestFriendOrSelf(ctx).hp_pct > 90
         && ClassicHeal::RaidHealerMayDamage(ctx.bot, ctx.group);
 }
 
