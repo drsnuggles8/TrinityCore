@@ -5595,6 +5595,35 @@ Result API::repair_all(ObjectGuid npc, bool from_guild_bank)
 // player's spellbook, and cast_spell rejects them with NotKnown. The item
 // path runs the spell with m_CastItem set, which is what the spell engine
 // expects for consumable effects.
+// Full bags: destroy the cheapest grey worth less than `count` x item `entry` (see JunkDrop.h), as a player does to take
+// loot or a quest's starting item. True when something was destroyed.
+static bool DropJunkFor(Player* p, uint32 entry, uint32 count, char const* why)
+{
+    ItemTemplate const* in_tmpl = sObjectMgr->GetItemTemplate(entry);
+    std::vector<JunkCandidate> cands;
+    std::vector<Item*> cand_items;
+    p->ForEachItem(ItemSearchLocation::Inventory, [&](Item* bi)
+    {
+        ItemTemplate const* bt = bi ? bi->GetTemplate() : nullptr;
+        if (bt && !bi->IsNotEmptyBag())
+        {
+            cands.push_back({ uint64(bt->GetSellPrice()) * bi->GetCount(), bt->GetQuality() == ITEM_QUALITY_POOR,
+                bt->GetClass() == ITEM_CLASS_QUEST });
+            cand_items.push_back(bi);
+        }
+        return ItemSearchCallbackResult::Continue;
+    });
+    std::size_t const v = PickJunkToDrop(cands, in_tmpl && in_tmpl->GetQuality() == ITEM_QUALITY_POOR,
+        in_tmpl ? uint64(in_tmpl->GetSellPrice()) * count : 0u);
+    if (v == kNoJunk)
+        return false;
+    Item* victim = cand_items[v];
+    TC_LOG_INFO("playerbot.v2", "[bag_drop] bot={} destroys item={} count={} (value {}) for {} item={} count={}",
+        p->GetGUID().GetCounter(), victim->GetEntry(), victim->GetCount(), cands[v].value, why, entry, count);
+    p->DestroyItem(victim->GetBagSlot(), victim->GetSlot(), true);
+    return true;
+}
+
 static Result UseItemImpl(Player* p, Item* item, ObjectGuid target)
 {
     if (!item) return Result::InvalidTarget;
@@ -5734,30 +5763,8 @@ Result API::loot_corpse(ObjectGuid corpse)
         {
             // A group in a dungeon never leaves to vendor, so full bags stay full. Do what a player does: destroy the cheapest
             // grey to take something worth more (see JunkDrop.h).
-            ItemTemplate const* in_tmpl = sObjectMgr->GetItemTemplate(it->itemid);
-            std::vector<JunkCandidate> cands;
-            std::vector<Item*> cand_items;
-            p_->ForEachItem(ItemSearchLocation::Inventory, [&](Item* bi)
-            {
-                ItemTemplate const* bt = bi ? bi->GetTemplate() : nullptr;
-                if (bt && !bi->IsNotEmptyBag())
-                {
-                    cands.push_back({ uint64(bt->GetSellPrice()) * bi->GetCount(), bt->GetQuality() == ITEM_QUALITY_POOR,
-                        bt->GetClass() == ITEM_CLASS_QUEST });
-                    cand_items.push_back(bi);
-                }
-                return ItemSearchCallbackResult::Continue;
-            });
-            std::size_t const v = PickJunkToDrop(cands, in_tmpl && in_tmpl->GetQuality() == ITEM_QUALITY_POOR,
-                in_tmpl ? uint64(in_tmpl->GetSellPrice()) * it->count : 0u);
-            if (v != kNoJunk)
-            {
-                Item* victim = cand_items[v];
-                TC_LOG_INFO("playerbot.v2", "[bag_drop] bot={} destroys item={} count={} (value {}) for loot item={} count={}",
-                    p_->GetGUID().GetCounter(), victim->GetEntry(), victim->GetCount(), cands[v].value, it->itemid, uint32(it->count));
-                p_->DestroyItem(victim->GetBagSlot(), victim->GetSlot(), true);
+            if (DropJunkFor(p_, it->itemid, it->count, "loot"))
                 ir = p_->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, it->itemid, it->count);
-            }
         }
         if (ir != EQUIP_ERR_OK) { ++dbg_nofit;
             TC_LOG_INFO("playerbot.v2", "[loot_skip] bot={} corpse={} item={} count={} reason=cant_store ir={}",
@@ -6307,6 +6314,10 @@ Result API::accept_quest(ObjectGuid quest_giver, uint32 quest_id)
     }
     if (!p_->CanTakeQuest(quest, true))                 { log_reject("cant_take_quest");      return Result::Locked; }
     if (!p_->SatisfyQuestLog(false))                    { log_reject("quest_log_full");       return Result::InventoryFull; }
+    // A starting item with full bags: drop the cheapest grey first, as a player does at the quest giver (racer45: a level-4
+    // mage stood six minutes with a full backpack unable to take the Mornbrew delivery).
+    if (!p_->CanAddQuest(quest, false) && quest->GetSrcItemId() != 0)
+        DropJunkFor(p_, quest->GetSrcItemId(), std::max<uint32>(1u, quest->GetSrcItemCount()), "quest");
     if (!p_->CanAddQuest(quest, true))                  { log_reject("src_item_no_bag_space"); return Result::InventoryFull; }
 
     p_->AddQuestAndCheckCompletion(quest, object);
