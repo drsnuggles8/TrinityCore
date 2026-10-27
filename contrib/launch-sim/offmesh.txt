@@ -1,8 +1,9 @@
 # Off-mesh links for mmaps_generator --offMeshInput (lines that do not parse are skipped, so these comments are safe).
 # Format: map tileX,tileY (from x y z) (to x y z) radius - tile as in the generator / mmtile file name (Coldridge = 43,31).
-# Navmesh islands of Coldridge Valley the 5-racer test found bots stuck on (doc/LaunchSim.md "Navigation"): small patches
+# Navmesh islands of Coldridge Valley (the 5-racer test found bots stuck on them) and one in Shadowglen (tile 12,30, map 1): (doc/LaunchSim.md "Navigation"): small patches
 # below a ledge the 2.7 y walkable climb does not connect. Each links the island to the nearest main-mesh point.
 # Rebuild one tile: mmaps_generator 0 --tile 43,31 --offMeshInput offmesh.txt --output <dir>
 0 43,31 (-6121.6 425.6 400.5) (-6131.5 431.2 404.9) 2.5
 0 43,31 (-6065.0 440.0 404.0) (-6076.0 432.2 415.1) 2.5
 0 43,31 (-6050.0 410.0 411.0) (-6051.0 396.5 399.8) 2.5
+1 12,30 (10425.0 800.0 1354.0) (10435.7 797.3 1346.9) 2.5
