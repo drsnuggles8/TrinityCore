@@ -6447,26 +6447,6 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             }
         }
         QuestPOIData const* poi = sObjectMgr->GetQuestPOIData(int32(snap->quest_log.current_quest_id));
-        {
-            // TEMP diagnostic (launch sim, Q179 POI): once per bot and quest, what the QuestPOI lookup saw.
-            static std::mutex s_poi_diag_mtx;
-            static std::unordered_set<uint64> s_poi_diag_seen;
-            uint64 const key = (uint64(p->GetGUID().GetCounter()) << 32) | snap->quest_log.current_quest_id;
-            bool first = false;
-            {
-                std::lock_guard lk(s_poi_diag_mtx);
-                first = s_poi_diag_seen.insert(key).second;
-            }
-            if (first)
-            {
-                auto const& o = snap->quest_log.current_objective;
-                QuestPOIBlobData const* m = poi ? MatchObjectivePoiBlob(poi, o, p->GetMapId(), p->GetPositionX(), p->GetPositionY()) : nullptr;
-                TC_LOG_INFO("playerbot.v2", "[poi_diag] {} Q{} obj id={} type={} object={} idx={} start_item={} poi={} blobs={} matched={} pts={} valid_before={}",
-                    p->GetName(), snap->quest_log.current_quest_id, o.id, uint32(o.type), o.object_id, int32(o.storage_index),
-                    o.use_start_item ? 1 : 0, poi ? 1 : 0, poi ? poi->Blobs.size() : 0, m ? m->BlobIndex : -1,
-                    m ? m->Points.size() : 0, snap->quest_log.current_objective_poi.valid ? 1 : 0);
-            }
-        }
         if (poi && !poi->Blobs.empty() && !snap->quest_log.current_objective.use_start_item)
         {
             auto const& obj = snap->quest_log.current_objective;
@@ -6721,12 +6701,12 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             auto adopt = [&](uint32 m, float ex, float ey, float ez)
             {
                 if (m != cp.map_id) return;
-                if (!trust)
-                {
-                    const float ddx = ex - cp.x, ddy = ey - cp.y;
-                    if (ddx*ddx + ddy*ddy > 150.0f*150.0f) return;  // same area only
-                    if (ez > cp.z - 12.0f) return;                  // only when clearly BELOW the POI
-                }
+                const float ddx = ex - cp.x, ddy = ey - cp.y;
+                // Trusted or not, the entity must be in the POI's area: the DB-first dropper of a common item is anywhere
+                // (Q179's Tough Wolf Meat: the first Timber Wolf spawn is in Elwynn, which replaced the Coldridge POI and sent
+                // every launch bot to Northshire). 300 y covers the relic chest ~180 y from its blob point.
+                if (ddx*ddx + ddy*ddy > (trust ? 300.0f*300.0f : 150.0f*150.0f)) return;
+                if (!trust && ez > cp.z - 12.0f) return;            // only when clearly BELOW the POI
                 cp.x = ex; cp.y = ey; cp.z = ez;
                 cp.radius = std::max(cp.radius, 12.0f);
             };
