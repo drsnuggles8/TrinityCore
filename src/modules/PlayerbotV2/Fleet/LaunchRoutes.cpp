@@ -162,6 +162,8 @@ RouteStep const* LaunchRoutes::CurrentStep(Player const* p, uint8 route) const
                     continue;
                 if (!p->CanTakeQuest(q, false))
                     continue;   // not for this bot (yet): prerequisites, level, class; the guide moves on
+                if (!Giver(s.quest))
+                    continue;   // started by an item or an object, or a giver without a spawn: the bot could not walk there
                 return &s;
             case RouteAction::Complete:
             {
