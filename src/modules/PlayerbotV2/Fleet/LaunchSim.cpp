@@ -402,6 +402,7 @@ std::string LaunchSim::Report() const
     // What the online launch bots are doing: XP progress, quests turned in, dead ones, and the rule each fired last
     // (the busiest ten), so a run can be judged from the log without watching it.
     uint32 online = 0, dead = 0, quests = 0, grouped = 0;
+    std::map<uint32, uint32> levels;
     uint64 xp_levels_x100 = 0;
     std::map<std::string, uint32> rules;
     for (Entry const& e : roster_)
@@ -414,6 +415,7 @@ std::string LaunchSim::Report() const
         ++online;
         dead += p->isDead() ? 1u : 0u;
         grouped += p->GetGroup() ? 1u : 0u;
+        ++levels[p->GetLevel()];
         quests += uint32(p->GetRewardedQuestCount());
         uint32 const need = p->GetXPForNextLevel();
         xp_levels_x100 += uint64(p->GetLevel()) * 100u + (need ? uint64(p->GetXP()) * 100u / need : 0u);
@@ -425,7 +427,10 @@ std::string LaunchSim::Report() const
     o << "T0+" << (phase_ == Phase::Running ? (GameTime::GetGameTimeMS() - t0_ms_) / 60000u : 0u) << "min online=" << online
       << " avg_level=" << (online ? double(xp_levels_x100) / 100.0 / online : 0.0) << " quests=" << quests << " dead=" << dead
       << " grouped=" << grouped << " inv_asked=" << asks_ << " inv_granted=" << grants_ << " rerolls=" << rerolls_
-      << " rules:";
+      << " levels:";
+    for (auto const& [lvl, n] : levels)
+        o << " L" << lvl << '=' << n;
+    o << " rules:";
     std::vector<std::pair<uint32, std::string>> top;
     for (auto const& [r, n] : rules)
         top.emplace_back(n, r);

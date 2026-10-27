@@ -104,10 +104,10 @@ bool QuestNeedsMob(BotSnapshotView const& s, uint32 entry)
 }
 
 // Per temperament (Neutral, Friendly, Greedy, Loner, Griefer).
-constexpr std::array<uint8, 5>  kAskPct    = {25, 15, 70, 0, 40};     // asks the tagger of a mob it wants
+constexpr std::array<uint8, 5>  kAskPct    = {12, 8, 35, 0, 20};      // asks the tagger of a mob it wants
 constexpr std::array<uint8, 5>  kAcceptPct = {65, 100, 70, 10, 50};   // takes an invite it did not ask for
 constexpr std::array<uint16, 5> kStayLoS   = {60, 150, 20, 10, 30};   // stays in a group this long (s), up to twice as long (it follows the leader meanwhile)
-constexpr uint32 kAskEveryMs = 40000;
+constexpr uint32 kAskEveryMs = 90000;   // 300 bots at 40 s asked ~24 times a minute
 
 uint8 Temper(LaunchProfile const& lp) { return std::min<uint8>(uint8(lp.temperament), 4); }
 

@@ -88,11 +88,11 @@ Classes follow the Forever beta census (Alliance), restricted to what a dwarf or
 
 | | asks the tagger for an invite | grants an "inv?" | takes an invite it did not ask for | stays in a group |
 |---|---|---|---|---|
-| Neutral | 25% of the mobs it wants | 45% (else "sry" 40%) | 65% | 60-120 s |
-| Friendly | 15% | 95% | always | 2.5-5 min |
-| Greedy | 70% | 5% | 70% | 20-40 s |
+| Neutral | 12% of the mobs it wants | 45% (else "sry" 40%) | 65% | 60-120 s |
+| Friendly | 8% | 95% | always | 2.5-5 min |
+| Greedy | 35% | 5% | 70% | 20-40 s |
 | Loner | never | never | 10% | 10-20 s |
-| Griefer | 40% | 10% | 50% | 30-60 s |
+| Griefer | 20% | 10% | 50% | 30-60 s |
 
 ### Guide routes
 
