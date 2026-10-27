@@ -77,6 +77,14 @@ constexpr std::array<Persona, 16> kPersonas = { {
     { "explorer",  2, LaunchStrategy::Explorer,     1.00f, 1.20f, { 40, 20,  0, 40,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
 } };
 
+// Classic 1.60 surnames ("Name Surname" over the head and in the target frame): each launch bot carries its persona, so a
+// player can tell the racer from the explorer at a glance. Same order as kPersonas.
+constexpr std::array<char const*, 16> kPersonaSurnames = { {
+    "Racer", "Guided", "Trollgrinder", "Skipper", "Questie", "Friendly", "Grinder", "Hunter",
+    "Gatherer", "Casual", "Partylead", "Idler", "Reroller", "Ninja", "Leaver", "Explorer",
+} };
+static_assert(kPersonaSurnames.size() == kPersonas.size());
+
 // Classes of the Forever beta census (Alliance, 20 Sep, ~5000 characters, in percent x10), restricted below to what a
 // dwarf or gnome can be. Dwarf 16% / Gnome 15% of the Alliance.
 constexpr std::array<std::pair<uint8, uint16>, 9> kClassShares = { {
@@ -278,6 +286,11 @@ bool LaunchSim::CreateOne(Entry& e)
             e.state = BotState::Offline;
             by_guid_[e.guid_low] = size_t(&e - roster_.data());
             SaveRow(e);
+            // The persona as surname. The character row's INSERT is queued before this UPDATE on the async worker; the cache
+            // (what the PlayerData update field reads) gets it at once.
+            std::string const surname = kPersonaSurnames[e.persona];
+            sCharacterCache->UpdateCharacterSurname(r.guid, surname);
+            CharacterDatabase.PExecute("UPDATE characters SET surname = '{}' WHERE guid = {}", surname, e.guid_low);
             return true;
         }
         TC_LOG_INFO("playerbot.v2", "[launch] create {} ({} {}) failed: {}", e.name, uint32(e.race), uint32(e.cls), r.reason);
@@ -342,6 +355,15 @@ void LaunchSim::LoadRoster()
     {
         by_guid_[roster_[i].guid_low] = i;
         if (roster_[i].arrival_s >= 3600) ++late_count_;
+        // A roster made before the persona surnames (or a row whose UPDATE lost the race with its INSERT) gets them here.
+        sCharacterCache->UpdateCharacterSurname(ObjectGuid::Create<HighGuid::Player>(roster_[i].guid_low), kPersonaSurnames[roster_[i].persona]);
+    }
+    {
+        std::string elt;
+        for (char const* s : kPersonaSurnames)
+            elt += std::string(", '") + s + "'";
+        CharacterDatabase.PExecute("UPDATE characters c JOIN playerbot_launch_bot b ON b.character_guid_low = c.guid "
+            "SET c.surname = ELT(b.persona + 1{}) WHERE b.persona < {}", elt, uint32(kPersonaSurnames.size()));
     }
     phase_ = Phase::Ready;
     TC_LOG_INFO("playerbot.v2", "[launch] roster loaded: {} bots", roster_.size());
