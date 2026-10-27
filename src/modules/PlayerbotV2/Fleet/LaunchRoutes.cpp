@@ -15,6 +15,7 @@
 #include "Trainer.h"
 #include "UnitDefines.h"
 #include <algorithm>
+#include <cmath>
 #include <span>
 #include <unordered_set>
 
@@ -235,6 +236,11 @@ void LaunchRoutes::LoadExploreRoutes()
     // Spawns of the regions by subzone (creatures, for a point on the ground), with the flight masters and innkeepers.
     struct Spot { float x, y, z; };
     std::unordered_map<uint32, std::vector<Spot>> by_area;
+    // Creatures standing on the open ground (within 3 y of the terrain height: no fish under a lake, no birds, nothing in a
+    // building or cave): a Discover stop heads for one of these, as a bot can walk there. The terrain samples below were
+    // the target before and put Shimmer Ridge on its ridge and Wellspring Lake in its water (mix31: NoPath, stalls).
+    std::unordered_map<uint32, std::vector<Spot>> ground_by_area;
+    std::unordered_map<uint32, std::shared_ptr<TerrainInfo>> spawn_terrain;
     std::vector<std::pair<Spot, uint32>> flight_masters, innkeepers;   // spot, subzone
     for (auto const& [spawn_id, data] : sObjectMgr->GetAllCreatureData())
     {
@@ -243,6 +249,15 @@ void LaunchRoutes::LoadExploreRoutes()
         uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), data.mapId, data.spawnPoint);
         Spot const sp{ data.spawnPoint.GetPositionX(), data.spawnPoint.GetPositionY(), data.spawnPoint.GetPositionZ() };
         by_area[area].push_back(sp);
+        std::shared_ptr<TerrainInfo>& terrain = spawn_terrain[data.mapId];
+        if (!terrain)
+            terrain = sTerrainMgr.LoadTerrain(data.mapId);
+        if (terrain)
+        {
+            float const gz = terrain->GetGridHeight(PhasingHandler::GetEmptyPhaseShift(), data.mapId, sp.x, sp.y);
+            if (gz > INVALID_HEIGHT && std::fabs(sp.z - gz) <= 3.f)
+                ground_by_area[area].push_back(sp);
+        }
         if (CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(data.id))
         {
             if (ct->npcflag & UNIT_NPC_FLAG_FLIGHTMASTER)
@@ -310,10 +325,15 @@ void LaunchRoutes::LoadExploreRoutes()
             bool found = false;
             // The points of the named subzone (and of areas inside it), and the one nearest their middle: a point on the
             // ground, inside the subzone.
+            // Ground creatures first; the terrain samples and other spawns only for a subzone without any.
             std::vector<Spot> pts;
-            for (auto const& [area, list] : by_area)
+            for (auto const& [area, list] : ground_by_area)
                 if (in_named(area, it->second))
                     pts.insert(pts.end(), list.begin(), list.end());
+            if (pts.empty())
+                for (auto const& [area, list] : by_area)
+                    if (in_named(area, it->second))
+                        pts.insert(pts.end(), list.begin(), list.end());
             Spot const* mid = nullptr;
             if (!pts.empty())
             {
@@ -371,6 +391,11 @@ void LaunchRoutes::LoadExploreRoutes()
     for (size_t r = 0; r < explore_.size(); ++r)
         counts += (r ? ", " : "") + std::string(kExploreSpecs[r].name) + " " + std::to_string(explore_[r].size());
     TC_LOG_INFO("playerbot.v2", "[launch] explorer routes: {} stops{}{}", counts, missing.empty() ? "" : "; not found: ", miss);
+    // Every stop's point, once: the points a path check (mmap_probe) can test.
+    for (size_t r = 0; r < explore_.size(); ++r)
+        for (size_t i = 0; i < explore_[r].size(); ++i)
+            TC_LOG_INFO("playerbot.v2", "[launch] explorer stop {} {}/{}: {} {} at ({:.1f},{:.1f},{:.1f})", kExploreSpecs[r].name, i + 1,
+                explore_[r].size(), uint32(explore_[r][i].action), explore_[r][i].name, explore_[r][i].x, explore_[r][i].y, explore_[r][i].z);
 }
 
 uint8 LaunchRoutes::ExploreRoute(uint8 zone, uint32 seed) const
