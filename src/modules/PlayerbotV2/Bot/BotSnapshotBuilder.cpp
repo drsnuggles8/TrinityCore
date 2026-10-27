@@ -9700,7 +9700,15 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                  ((strat == LaunchStrategy::TrollGrinder && lvl >= zone.grind_until) || (strat == LaunchStrategy::Skipper && lvl >= 3)))
             go = &zone.town, arrive = 60.f;   // out of the starter valley early
         else if (strat == LaunchStrategy::Leaver && lvl >= 8 && LP::Exists(zone.leave) && LP::Dist2d(zone.leave, px, py) > 600.f * 600.f)
+        {
             go = &zone.leave, arrive = 60.f;   // on to the next zone (Loch Modan, Westfall, Darkshore)
+            // Dun Morogh -> Thelsamar is 2400 y, more than one path search finds (32768 nodes: 307 y short); through North
+            // Gate Pass it is two complete legs (283 + 198 polygons, mmap_probe). Head for the pass until it is behind.
+            static constexpr LP::Spot kNorthGatePass{ -5319.0f, -2189.3f, 424.7f };
+            if (zid == LP::kZoneColdridge && std::sqrt(LP::Dist2d(zone.leave, px, py)) > std::sqrt(LP::Dist2d(zone.leave, kNorthGatePass.x, kNorthGatePass.y)) + 100.f &&
+                LP::Dist2d(kNorthGatePass, px, py) > 40.f * 40.f)
+                go = &kNorthGatePass, arrive = 30.f;
+        }
         else if (strat == LaunchStrategy::Explorer && lvl < 6)
         {
             // The explorer's route (LaunchRoutes::ExploreStopAt): a subzone is done once the bot stands in it (that is when
