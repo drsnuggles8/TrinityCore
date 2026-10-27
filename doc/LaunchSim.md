@@ -130,6 +130,20 @@ Code changes for capacity:
 - jemalloc options (`malloc_conf` in worldserver `Main.cpp`; the build ignores `MALLOC_CONF`): background purging, dirty
   pages back to the OS after 2 s, 8 arenas.
 
+## Module bugs found on the way (affect world bots too)
+
+Fixed in our fork; candidates for upstream (forever-bots) once Olo says so.
+
+- **No bot ever took or handed in a quest** (f660dfc9): `idle:companion_quest_accept` / `_turnin` cleared the pause slot
+  they share with `idle:quest_accept` / `_turnin` on every tick without a companion quest, so the reading pause restarted
+  each tick.
+- **Item objectives sent bots across the continent** (bf5ca456): the surface-over-cave correction adopted the DB-first
+  dropper of an ITEM objective unconditionally; for Q179 that is a Timber Wolf in Elwynn.
+- **Of several QuestPOI blobs, the first won** (614320cc): now the nearest to the bot.
+- **The idle watch broke deliberate holds** (8ed5a465): bots standing on purpose (launch setup / AFK) were given a forced
+  walk after 45 s.
+- **Bot sessions got full update packets built** (b7160216, core): see Capacity.
+
 ## Open items
 
 - Strategies still playing as Quester: Gatherer, Casual (Ironforge visit), PartyBuilder, Reroller (delete and recreate),
