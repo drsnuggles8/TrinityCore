@@ -1117,6 +1117,7 @@ struct QuestObjectivePoi
     float  z = 0.f;
     float  radius = 0.f;
     bool   valid = false;
+    bool   launch_place = false;   // a launch bot's walk to a place (explorer stop, grind camp, town), not a quest objective
 };
 
 // Resolved AreaTrigger waypoint for QUEST_OBJECTIVE_AREATRIGGER /
