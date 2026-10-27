@@ -38,6 +38,7 @@ enum class ExploreAction : uint8
     Flight   = 1,   // talk to the flight master: learn the flight path
     Bind     = 2,   // set the hearthstone at the innkeeper
     Hearth   = 3,   // use the hearthstone (no place of its own)
+    Tram     = 4,   // take the Deeprun Tram from this city's portal (name: "Ironforge" or "Stormwind City")
 };
 
 struct ExploreStop

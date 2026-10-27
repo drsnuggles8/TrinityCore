@@ -17,6 +17,12 @@ inline constexpr Spot  kThelsamar{ -5377.9f, -2973.9f, 323.3f };
 // Ironforge, the Great Forge: where a casual goes sightseeing once.
 inline constexpr Spot  kIronforge{ -4840.0f, -1033.0f, 502.0f };
 
+// The Deeprun Tram's portals (areatrigger_teleport 2166 / 2171 exits, world_safe_locs 1102166 / 1102171): standing at one
+// city's portal, a player comes out at the other's after the ride.
+inline constexpr Spot  kTramIronforge{ -4839.5f, -1317.7f, 501.9f };
+inline constexpr Spot  kTramStormwind{ -8354.2f, 524.1f, 91.8f };
+inline constexpr unsigned kTramRideMs = 70000;   // walk down, wait for the car, ride, walk up
+
 inline float Dist2d(Spot const& s, float x, float y) { float const dx = s.x - x, dy = s.y - y; return dx * dx + dy * dy; }
 
 // A planar box on one map: where a starting zone's quest hubs may be while its bots are below level 10.

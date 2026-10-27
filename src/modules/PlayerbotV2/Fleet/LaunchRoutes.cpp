@@ -128,7 +128,7 @@ struct RouteDef { ExploreAction action; char const* name; };
 // master / innkeeper is meant.
 constexpr RouteDef kSouthLoop[] = {
     { ExploreAction::Discover, "Coldridge Pass" }, { ExploreAction::Discover, "Kharanos" }, { ExploreAction::Bind, "Kharanos" },
-    { ExploreAction::Flight, "Ironforge" }, { ExploreAction::Flight, "Stormwind City" },
+    { ExploreAction::Flight, "Ironforge" }, { ExploreAction::Tram, "Ironforge" }, { ExploreAction::Flight, "Stormwind City" },
     { ExploreAction::Discover, "Goldshire" }, { ExploreAction::Discover, "Crystal Lake" },
     { ExploreAction::Discover, "Brackwell Pumpkin Patch" }, { ExploreAction::Discover, "Eastvale Logging Camp" },
     { ExploreAction::Discover, "Ridgepoint Tower" }, { ExploreAction::Discover, "Maclure Vineyards" },
@@ -172,7 +172,7 @@ constexpr RouteDef kHumanSheet[] = {
     { ExploreAction::Discover, "Saldean's Farm" }, { ExploreAction::Flight, "Sentinel Hill" },
     { ExploreAction::Discover, "The Dead Acre" }, { ExploreAction::Discover, "Stendel's Pond" },
     { ExploreAction::Discover, "Stormwind City" }, { ExploreAction::Flight, "Stormwind City" },
-    { ExploreAction::Flight, "Ironforge" },
+    { ExploreAction::Tram, "Stormwind City" }, { ExploreAction::Flight, "Ironforge" },
     { ExploreAction::Discover, "Misty Pine Refuge" }, { ExploreAction::Discover, "Tundrid Hills" },
     { ExploreAction::Discover, "Amberstill Ranch" }, { ExploreAction::Discover, "Gol'Bolar Quarry" },
     { ExploreAction::Discover, "Kharanos" }, { ExploreAction::Discover, "Shimmer Ridge" },
@@ -273,6 +273,15 @@ void LaunchRoutes::LoadExploreRoutes()
             st.name = d.name;
             if (d.action == ExploreAction::Hearth)
             {
+                explore_[r].push_back(st);
+                continue;
+            }
+            if (d.action == ExploreAction::Tram)
+            {
+                // The departure city's portal (the ride itself: idle:launch_tram).
+                ::Playerbot::LaunchPlaces::Spot const& port = std::string_view(d.name) == "Ironforge"
+                    ? ::Playerbot::LaunchPlaces::kTramIronforge : ::Playerbot::LaunchPlaces::kTramStormwind;
+                st.x = port.x; st.y = port.y; st.z = port.z;
                 explore_[r].push_back(st);
                 continue;
             }

@@ -83,6 +83,9 @@ public:
     // The explorer route reached a hearth stop (the builder sets it, idle:launch_hearth uses the stone and clears it).
     bool                 launch_hearth_wanted() const { return launch_hearth_wanted_.load(std::memory_order_relaxed); }
     void                 set_launch_hearth_wanted(bool w) { launch_hearth_wanted_.store(w, std::memory_order_relaxed); }
+    // The explorer stands at a Deeprun Tram portal: 1 = ride to Stormwind, 2 = to Ironforge (idle:launch_tram; builder sets).
+    uint8                launch_tram_to() const { return launch_tram_to_.load(std::memory_order_relaxed); }
+    void                 set_launch_tram_to(uint8 t) { launch_tram_to_.store(t, std::memory_order_relaxed); }
     BotRng const&       rng()         const { return rng_; }
     BotRng&             rng()               { return rng_; }
     Ms                  state_age(Ms now) const { return now - state_entered_; }
@@ -3238,6 +3241,7 @@ private:
     std::atomic<bool>  launch_ironforge_seen_{false};
     std::atomic<uint16> launch_explore_stop_{0};
     std::atomic<bool>  launch_hearth_wanted_{false};
+    std::atomic<uint8> launch_tram_to_{0};
     BotRng         rng_;
     BotState       state_         = BotState::LoggingIn;
     BotState       prev_state_    = BotState::LoggingIn;

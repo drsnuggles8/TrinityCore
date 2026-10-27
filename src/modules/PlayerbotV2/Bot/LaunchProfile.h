@@ -78,6 +78,7 @@ struct LaunchSocial
     uint32 busy_until_ms = 0;       // browsing a trainer's list: idle:launch_hold keeps it still until then
     uint32 train_move_ms = 0;       // the last move order towards the trainer
     uint32 next_chat_ms = 0;        // idle:launch_chatter: the next General line (0 = not scheduled yet)
+    uint32 tram_since_ms = 0;       // idle:launch_tram: boarded the Deeprun Tram at (0 = not riding)
 };
 
 } // namespace Playerbot
