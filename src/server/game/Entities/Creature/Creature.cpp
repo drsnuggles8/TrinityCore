@@ -17,6 +17,7 @@
 
 #include "Creature.h"
 #include "BattlegroundMgr.h"
+#include "BotGroupRules.h"
 #include "CellImpl.h"
 #include "CharmInfo.h"
 #include "CombatPackets.h"
@@ -52,6 +53,7 @@
 #include "TemporarySummon.h"
 #include "Vehicle.h"
 #include "World.h"
+#include "WorldSession.h"
 #include "ZoneScript.h"
 #include <G3D/g3dmath.h>
 #include <sstream>
@@ -1414,10 +1416,17 @@ void Creature::SetTappedBy(Unit const* unit, bool withGroup)
 
     m_tapList.insert(player->GetGUID());
     if (withGroup)
+    {
         if (Group const* group = player->GetGroup())
+        {
+            // with bots in the group its players share every tap, whatever subgroup tagged first (BotGroupRules::SharesTap)
+            bool const groupHasBot = group->HasBotMember();
             for (GroupReference const& itr : group->GetMembers())
-                if (GetMap()->IsRaid() || group->SameSubGroup(player, itr.GetSource()))
+                if (BotGroupRules::SharesTap(GetMap()->IsRaid(), group->SameSubGroup(player, itr.GetSource()), groupHasBot,
+                    itr.GetSource()->GetSession()->IsBot()))
                     m_tapList.insert(itr.GetSource()->GetGUID());
+        }
+    }
 
     // Classic: the first tag greys the creature for everyone outside the tap list (the viewer-dependent DynamicFlags clear
     // the flag for the tappers themselves); retail shared tagging greys it only at the soft cap.
