@@ -6,12 +6,12 @@
 _State 27 Oct 2026, 07:15. The server runs build18 with a fresh 300-bot roster, armed: the crowd starts when the next real player logs in. Measured on the home server (Rocky 10, rootless Podman, 32 GB host; the user slice is
 capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
 
-- **What works:** a roster of fresh level-1 dwarves and gnomes in Coldridge Valley with 15 personas (strategy x temperament x
+- **What works:** a roster of fresh level-1 dwarves and gnomes in Coldridge Valley with 13 personas (strategy x temperament x
   pace), random arrival after T0, guide routes (RestedXP and Olo's route, imported locally), troll grinders, skippers,
-  leavers, crowd grinders, party builders, rerollers (delete and come back at level 1), AFK / UI-setup / quest-reading
+  leavers, crowd grinders, party builders, explorers, AFK / UI-setup / quest-reading
   pauses, first tag only (no shared tagging), "inv?" requests to taggers and temperament-based answers, short group stays,
   class trainer visits instead of free spells, no flights below level 10, no quest hubs outside Dun Morogh, Ironforge and Loch Modan below level 10 (from 10 the routes fan out: tram to Elwynn and Westfall, boat to Auberdine), a minute report in the log
-  (`[launch] report`: online, average level, quests, deaths, grouped, invites asked/granted, rerolls, top rules).
+  (`[launch] report`: online, average level, quests, deaths, grouped, invites asked/granted, top rules).
 - **Capacity:** 500 bots (370 online at once) at 1.85-1.89 GB RSS, 26-28% CPU and 3.6 ms of bot-module work per world
   tick; the 4 GB cap is far away. Idle server 1.7 GB (was 2.33 GB) with `Load.Locales = 0` and `CacheDataQueries = 0`;
   CPU at 300 bots went from ~30% to ~17% with the slower world loop and no update packets for bots.
@@ -60,7 +60,11 @@ session rhythm leave them alone.
 
 Shares and paces come from the launch research (2019 Classic launch, Season of Mastery, Hardcore, Season of Discovery, the
 Forever beta and stress test). Pace 1.0 = an uncrowded speedrun (Coldridge left at ~35 min). Weights can be overridden with
-`Playerbot.Launch.PersonaWeights = "racer:5,rxp:12,..."`.
+`Playerbot.Launch.PersonaWeights = "racer:5,rxp:12,..."`. Each bot's surname is its persona ("Name Racer", "Name
+Explorer"; Racer, Guided, Trollgrinder, Skipper, Questie, Friendly, Grinder, Gatherer, Casual, Partylead, Idler, Leaver,
+Explorer). The hunter, reroller and ninja personas were dropped on 27 Oct: the class shares already give 16% hunters, rerolls
+barely touch a launch's first hours, and kill stealing is the griefer temperament (some grinders and questers), which goes
+for untagged mobs other players stand next to.
 
 | Persona | Weight | Strategy | Pace | Mostly |
 |---|---|---|---|---|
@@ -68,16 +72,13 @@ Forever beta and stress test). Pace 1.0 = an uncrowded speedrun (Coldridge left 
 | rxp | 12 | GuideRoute (RestedXP, other guides) | 1.0-1.3 | neutral / greedy |
 | trolls | 3 | TrollGrinder: whelps to 4, leaves Coldridge at 4 | 1.0-1.2 | greedy / loner |
 | skipper | 2 | Skipper: out of Coldridge at 3 | 1.0-1.2 | neutral / greedy |
-| questie | 25 | Quester (nearest objective) | 1.6-2.4 | neutral / friendly |
+| questie | 25 | Quester (nearest objective) | 1.6-2.4 | neutral / friendly, 3% griefer |
 | friends | 14 | Quester | 1.2-1.6 | neutral / friendly |
-| grinder | 6 | CrowdGrinder: drops crowded quest spots | 1.2-1.6 | neutral / loner |
-| hunter | 5 | Quester (hunters) | 1.2-1.5 | mixed |
+| grinder | 6 | CrowdGrinder: drops crowded quest spots | 1.2-1.6 | neutral / loner, 10% griefer |
 | gatherer | 6 | Gatherer: Mining (with a pick) or Herbalism from login, detours to nodes | 2.0-2.6 | neutral / friendly |
 | casual | 15 | Casual: reads everything, slow, one trip to Ironforge from level 6 | 3.0-4.0 | friendly |
 | partylead | 3 | PartyBuilder | 1.3-1.7 | friendly |
 | idle | 6 | Idle: AFK a lot, logs out early | 4.0 | neutral |
-| reroller | 4 | Reroller | 1.5-2.5 | neutral |
-| ninja | 2 | KillStealer: tags untagged mobs other players stand next to | 1.1-1.4 | griefer |
 | leaver | 2 | Leaver: Loch Modan at 8 | 1.1-1.3 | neutral |
 | explorer | 2 | Explorer: one of two launch-day exploration routes (below), no kills until level 6 or the end of the route, then quests | 1.0-1.2 | loner / neutral |
 
@@ -210,7 +211,7 @@ Fixed in our fork; candidates for upstream (forever-bots) once Olo says so.
 
 ## Open items
 
-- Strategies still playing as Quester: Gatherer, Casual (Ironforge visit), PartyBuilder, Reroller (delete and recreate),
-  KillStealer; zone progression after Dun Morogh; deathskip.
+- Strategies still playing as Quester: Gatherer, Casual (Ironforge visit), PartyBuilder; zone progression after Dun
+  Morogh; deathskip.
 - Chat lines beyond invites; reactions to a real player's whispers.
 - Camping spawn points, instant/ranged openers per class.

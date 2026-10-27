@@ -58,30 +58,27 @@ struct Persona
 };
 
 //                                                                     N   F   G   L   Gr
-constexpr std::array<Persona, 16> kPersonas = { {
+constexpr std::array<Persona, 13> kPersonas = { {
     { "racer",     5, LaunchStrategy::GuideRoute,   0.95f, 1.10f, { 25,  5, 60, 10,  0 },   0,  30, 0.0f,  0.5f,   0,   0,   0,   0,   0, 0 },
     { "rxp",      12, LaunchStrategy::GuideRoute,   1.00f, 1.30f, { 45, 10, 35, 10,  0 },  10, 120, 0.3f,  1.5f,  90,  60, 180,   0,   0,   0 },
     { "trolls",    3, LaunchStrategy::TrollGrinder, 1.00f, 1.20f, { 20,  0, 50, 30,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
     { "skipper",   2, LaunchStrategy::Skipper,      1.00f, 1.20f, { 40,  0, 40, 20,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
-    { "questie",  25, LaunchStrategy::Quester,      1.60f, 2.40f, { 55, 30, 10,  5,  0 },  60, 300, 2.0f,  8.0f,  45,  60, 300, 120, 600,   0 },
+    { "questie",  25, LaunchStrategy::Quester,      1.60f, 2.40f, { 53, 30, 10,  4,  3 },  60, 300, 2.0f,  8.0f,  45,  60, 300, 120, 600,   0 },
     { "friends",  14, LaunchStrategy::Quester,      1.20f, 1.60f, { 50, 50,  0,  0,  0 },  30, 180, 1.0f,  5.0f,  60,  60, 240,   0,   0,   0 },
-    { "grinder",   6, LaunchStrategy::CrowdGrinder, 1.20f, 1.60f, { 50,  0, 20, 30,  0 },  30, 120, 0.5f,  3.0f,  60,  60, 180,   0,   0,   0 },
-    { "hunter",    5, LaunchStrategy::Quester,      1.20f, 1.50f, { 50,  0, 25, 25,  0 },  30, 150, 0.5f,  3.0f,  60,  60, 180,   0,   0,   CLASS_HUNTER },
+    { "grinder",   6, LaunchStrategy::CrowdGrinder, 1.20f, 1.60f, { 45,  0, 20, 25, 10 },  30, 120, 0.5f,  3.0f,  60,  60, 180,   0,   0,   0 },
     { "gatherer",  6, LaunchStrategy::Gatherer,     2.00f, 2.60f, { 50, 50,  0,  0,  0 },  60, 300, 2.0f,  8.0f,  45,  60, 300, 120, 480,   0 },
     { "casual",   15, LaunchStrategy::Casual,       3.00f, 4.00f, { 40, 50,  0, 10,  0 }, 120, 600, 8.0f, 40.0f,  20, 120, 600,  30, 180,   0 },
     { "partylead", 3, LaunchStrategy::PartyBuilder, 1.30f, 1.70f, { 40, 60,  0,  0,  0 },  30, 120, 1.0f,  4.0f,  60,  60, 180,   0,   0,   0 },
     { "idle",      6, LaunchStrategy::Idle,         4.00f, 4.00f, { 50, 20,  0, 30,  0 }, 300,1500,10.0f, 60.0f,  10, 180, 900,   5,  30,   0 },
-    { "reroller",  4, LaunchStrategy::Reroller,     1.50f, 2.50f, { 50, 30, 10, 10,  0 },  60, 300, 1.0f,  6.0f,  30,  60, 240,  10,  40,   0 },
-    { "ninja",     2, LaunchStrategy::KillStealer,  1.10f, 1.40f, {  0,  0, 30,  0, 70 },  10,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
     { "leaver",    2, LaunchStrategy::Leaver,       1.10f, 1.30f, { 50, 20, 20, 10,  0 },  10,  90, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
     { "explorer",  2, LaunchStrategy::Explorer,     1.00f, 1.20f, { 40, 20,  0, 40,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
 } };
 
 // Classic 1.60 surnames ("Name Surname" over the head and in the target frame): each launch bot carries its persona, so a
 // player can tell the racer from the explorer at a glance. Same order as kPersonas.
-constexpr std::array<char const*, 16> kPersonaSurnames = { {
-    "Racer", "Guided", "Trollgrinder", "Skipper", "Questie", "Friendly", "Grinder", "Hunter",
-    "Gatherer", "Casual", "Partylead", "Idler", "Reroller", "Ninja", "Leaver", "Explorer",
+constexpr std::array<char const*, 13> kPersonaSurnames = { {
+    "Racer", "Guided", "Trollgrinder", "Skipper", "Questie", "Friendly", "Grinder",
+    "Gatherer", "Casual", "Partylead", "Idler", "Leaver", "Explorer",
 } };
 static_assert(kPersonaSurnames.size() == kPersonas.size());
 
@@ -416,7 +413,7 @@ std::string LaunchSim::Start()
     if (phase_ != Phase::Ready && phase_ != Phase::Armed)
         return std::string("Cannot start: the run is ") + PhaseName(int(phase_)) + " (needs ready or armed).";
     t0_ms_ = GameTime::GetGameTimeMS();
-    asks_ = grants_ = rerolls_ = 0;
+    asks_ = grants_ = 0;
     replies_.clear();
     phase_ = Phase::Running;
     TC_LOG_INFO("playerbot.v2", "[launch] T0: {} bots arrive over the next hours", roster_.size());
@@ -453,7 +450,7 @@ std::string LaunchSim::Reset(uint32 bots, uint32 late)
 std::string LaunchSim::Status()
 {
     LoadRoster();
-    std::array<uint32, 6> by_state{};
+    std::array<uint32, 5> by_state{};
     std::vector<uint32> online_by_persona(kPersonas.size(), 0);
     std::map<uint32, uint32> levels;
     for (Entry const& e : roster_)
@@ -469,7 +466,7 @@ std::string LaunchSim::Status()
     std::ostringstream o;
     o << "Launch " << PhaseName(int(phase_)) << ": " << roster_.size() << " bots (" << late_count_ << " late); to create "
       << by_state[0] << ", offline " << by_state[1] << ", logging in " << by_state[2] << ", online " << by_state[3]
-      << ", done " << by_state[4] << ", rerolling " << by_state[5];
+      << ", done " << by_state[4];
     if (phase_ == Phase::Running)
         o << "; T0 + " << (GameTime::GetGameTimeMS() - t0_ms_) / 60000u << " min";
     o << "\nOnline by zone:";
@@ -521,7 +518,7 @@ std::string LaunchSim::Report() const
     std::ostringstream o;
     o << "T0+" << (phase_ == Phase::Running ? (GameTime::GetGameTimeMS() - t0_ms_) / 60000u : 0u) << "min online=" << online
       << " avg_level=" << (online ? double(xp_levels_x100) / 100.0 / online : 0.0) << " quests=" << quests << " dead=" << dead
-      << " grouped=" << grouped << " inv_asked=" << asks_ << " inv_granted=" << grants_ << " rerolls=" << rerolls_
+      << " grouped=" << grouped << " inv_asked=" << asks_ << " inv_granted=" << grants_
       << " levels:";
     for (auto const& [lvl, n] : levels)
         o << " L" << lvl << '=' << n;
@@ -647,31 +644,9 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                         else if (e.session_s && now_ms - e.online_since_ms >= e.session_s * 1000u)
                         {
                             Services::SessionMgr().LogoutBot(g);
-                            bool const reroll = kPersonas[e.persona].strategy == LaunchStrategy::Reroller;
-                            e.state = reroll ? BotState::Rerolling : BotState::Done;
-                            e.reroll_at_ms = now_ms + 15000u;   // after the logout went through
-                            TC_LOG_INFO("playerbot.v2", "[launch] {} ({}) ends its session after {} min{}", e.name,
-                                kPersonas[e.persona].key, e.session_s / 60u, reroll ? ", rerolls" : "");
-                        }
-                        break;
-                    case BotState::Rerolling:
-                        if (int32(now_ms - e.reroll_at_ms) >= 0 && !ObjectAccessor::FindConnectedPlayer(g) && logins < 6)
-                        {
-                            ++logins;
-                            std::string const old_name = e.name;
-                            by_guid_.erase(e.guid_low);
-                            DeleteOne(e);
-                            e.guid_low = 0;
-                            Roll(e, /*keep_identity*/ false, /*late*/ false, LaunchPlaces::ZoneForRace(e.race));
-                            e.arrival_s = elapsed_s + urand(60, 180);   // character creation, a new name, the intro
-                            if (CreateOne(e))
-                            {
-                                ++rerolls_;
-                                TC_LOG_INFO("playerbot.v2", "[launch] {} deleted, back as {} ({} {}) in {} s", old_name, e.name,
-                                    kPersonas[e.persona].key, uint32(e.cls), e.arrival_s - elapsed_s);
-                            }
-                            else
-                                e.state = BotState::Done;
+                            e.state = BotState::Done;
+                            TC_LOG_INFO("playerbot.v2", "[launch] {} ({}) ends its session after {} min", e.name,
+                                kPersonas[e.persona].key, e.session_s / 60u);
                         }
                         break;
                     default:

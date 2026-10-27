@@ -19,7 +19,7 @@
 //   players of about its level close by, up to a group of three, with a "LF group" line the first time.
 // idle:launch_chatter @420 - now and then a line in General (or /say) of the kind a launch crowd writes: the camp is
 //   crowded, where is the cave, LFG, first time in Classic. Casuals and friendly bots talk most, loners and racers least.
-// idle:launch_snipe @860 - a kill stealer (LaunchStrategy::KillStealer) goes for untagged mobs another player stands next
+// idle:launch_snipe @860 - a griefer (LaunchTemperament::Griefer: some grinders and questers) goes for untagged mobs another player stands next
 //   to (about to pull, or walking up to), within 35 y and its level band: it tags first and the other player loses the mob.
 // idle:launch_hearth @870 - an explorer whose route reached a hearth stop uses its hearthstone (and stands still for the
 //   cast, idle:launch_hold).
@@ -330,7 +330,7 @@ ObjectGuid SnipeTarget(BotSnapshotView const& s, BotAI& ai)
 bool LaunchSnipeGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
 {
     LaunchProfile const& lp = ai.launch();
-    if (!lp.active || lp.strategy != LaunchStrategy::KillStealer || s.in_combat() || !s.is_alive() || s.hp_pct() < 60)
+    if (!lp.active || lp.temperament != LaunchTemperament::Griefer || s.in_combat() || !s.is_alive() || s.hp_pct() < 60)
         return false;
     return !SnipeTarget(s, ai).IsEmpty();
 }
