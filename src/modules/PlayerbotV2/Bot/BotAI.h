@@ -2390,6 +2390,7 @@ public:
     // toward it (live: Wylius wedged 273s). Bounds the walk: if the bot can't get
     // to the corpse within kCorpseWalkDeadlineMs, give up and try the next queued
     // corpse. Generous so a legit long walk to a reachable corpse isn't cut short.
+    static constexpr uint32 kCorpseWalkDeadlineMs = 40000;   // 40 s to REACH it
     // Only the time spent walking counts: a check more than 3 s after the last one means the walk was interrupted (a
     // fight, a pull on the way), and the clock skips that gap. Counted from the first attempt, a crowded camp's next pull
     // used up the 40 s before the bot got to the corpse (mix31: a racer gave up 30 corpses 32-57 y away on the trogg
