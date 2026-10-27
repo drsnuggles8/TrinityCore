@@ -9749,6 +9749,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 }
                 if (!done)
                     break;
+                TC_LOG_INFO("playerbot.v2", "[launch] {} (explorer) stop {}/{} done: {} {} (level {}, {} min)", p->GetName(), i + 1,
+                    routes.ExploreStops(er), uint32(st->action), st->name, uint32(lvl),
+                    (GameTime::GetGameTimeMS() - bot_ai->launch().login_ms) / 60000u);
                 ++i;
             }
             bot_ai->set_launch_explore_stop(i);
@@ -9770,7 +9773,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         if (go && LP::Dist2d(*go, px, py) > arrive * arrive)
         {
             auto& cp = snap->quest_log.current_objective_poi;
-            cp.map_id = 0;
+            cp.map_id = zone.map;   // was 0: Teldrassil's grind camp, town and explorer stops pointed into the Eastern Kingdoms
             cp.x = go->x;
             cp.y = go->y;
             cp.z = go->z;
