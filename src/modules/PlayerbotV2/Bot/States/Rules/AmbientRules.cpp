@@ -697,6 +697,9 @@ bool LeaveHotspotGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView con
     if (!s.is_alive() || s.in_combat() || s.is_casting() || s.raw().movement.is_mounted) return false;
     if (s.in_group() || s.is_in_dungeon() || s.in_battleground()) return false;
     if (ai.in_post_rescue_grace(now_ms) || ai.in_charter_grace(now_ms)) return false;
+    // A launch crowd dies all over its starter camps (pulls stolen, adds, respawns into the crowd): every camp reads as a
+    // hotspot, and leaving it would empty Coldridge. Launch bots go back in, as players do.
+    if (ai.launch().active) return false;
     float bx, by, bz; s.position(bx, by, bz);
     return ::Playerbot::DeathHotspots::Instance().Dangerous(s.map_id(), bx, by, uint8(s.level()),
                                                             uint64(GameTime::GetGameTime()));
