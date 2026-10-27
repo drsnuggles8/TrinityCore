@@ -293,7 +293,10 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
 
 bool LaunchSim::CreateOne(Entry& e)
 {
-    for (int attempt = 0; attempt < 3; ++attempt)
+    // Each attempt rolls a new appearance (and, after a failure, a new name). Skyborne have no client-made characters on the
+    // server to copy appearances from, and about 60% of their random ones fail Player::Create's validation: 3 attempts left
+    // 25 of 118 unmade (build24); 12 leave about one in 500.
+    for (int attempt = 0; attempt < 12; ++attempt)
     {
         BotCharacterFactory::Result const r = BotCharacterFactory::Create(nullptr, e.name, e.race, e.cls, e.gender);
         if (r.ok)
