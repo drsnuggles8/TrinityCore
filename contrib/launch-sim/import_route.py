@@ -75,6 +75,10 @@ def parse(text):
             m = re.search(r"<<\s*(.+)$", head)
             step_filter = m.group(1).strip() if m else ""
             optional = False
+            # "--sim: opportunistic" marks objectives done only on the way (kills next to other targets): the route never
+            # heads for them. Imported as a complete step they held a bot's route until they filled (Coldridge's troggs
+            # of A New Threat: racers stood on the trogg slope after the rest of their route).
+            opportunistic = re.search(r"^\s*--sim:\s*opportunistic", rest, re.M) is not None
             for raw in rest.split("\n"):
                 t = raw.strip()
                 if t.startswith("--"):
@@ -97,6 +101,8 @@ def parse(text):
                 elif (a := re.match(r"\.turnin\s+-?(\d+)", t)):
                     steps.append(("turnin", int(a.group(1)), 0, mask))
                 elif (a := re.match(r"\.complete\s+(\d+)\s*,\s*(\d+)", t)):
+                    if opportunistic:
+                        continue
                     steps.append(("complete", int(a.group(1)), int(a.group(2)), mask))
                 elif t.startswith(".deathskip"):
                     steps.append(("deathskip", 0, 0, mask))
