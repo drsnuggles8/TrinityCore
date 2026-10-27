@@ -128,7 +128,7 @@ step or slide onto but never path off (two racers stuck there). `contrib/launch-
 mesh; the home server's `0000_43_31.mmtile` is rebuilt with it (the shipped tile is kept in `~/forever/mmtest`). The
 generator's default slope limit (55 degrees for walkable and steep alike) was tested at 70 and 85: more steep ground, no
 islands connected, so it stays at 55 (bots would climb what players cannot). Note the tile naming: Coldridge is tile
-`43,31` (x = 32 - pos.x / 533.33 is the second number).
+`43,31` (43 = 32 - pos.x / 533.33, 31 = 32 - pos.y / 533.33).
 
 ### Respawns
 
