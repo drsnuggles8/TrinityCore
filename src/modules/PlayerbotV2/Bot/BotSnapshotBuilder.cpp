@@ -3462,7 +3462,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         // active count) the count check alone cannot see.
         size_t ks_active = 0;
         for (auto const& [spell_id, ps] : p->GetSpellMap())
-            if (ps.active && !ps.disabled) ++ks_active;
+            if (ps.active && !ps.disabled && ps.state != PLAYERSPELL_REMOVED) ++ks_active;
         constexpr uint32 kKnownSpellsCacheIntervalMs = 30000u;
         const bool ks_throttled = ks_ai &&
             ks_ai->last_known_spells_scan_ms() != 0 &&
@@ -3477,7 +3477,8 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             snap->spellbook.known_spells.reserve(ks_active);
             for (auto const& [spell_id, ps] : p->GetSpellMap())
             {
-                if (!ps.active || ps.disabled) continue;
+                // A removed spell stays in the map until the next save (Player::HasSpell already says no): not known.
+                if (!ps.active || ps.disabled || ps.state == PLAYERSPELL_REMOVED) continue;
                 snap->spellbook.known_spells.push_back(spell_id);
             }
             std::sort(snap->spellbook.known_spells.begin(), snap->spellbook.known_spells.end());

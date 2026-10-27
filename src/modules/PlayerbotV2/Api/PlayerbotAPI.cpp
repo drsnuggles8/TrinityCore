@@ -9128,7 +9128,10 @@ uint32 API::purge_foreign_class_spells()
     for (auto const& [spellId, state] : p_->GetSpellMap())
     {
         auto it = taughtBy.find(spellId);
-        if (it != taughtBy.end() && !(it->second & mine))
+        // Its own class skill line keeps a spell: a trainer's class mask is read off its spells, so a spell a paladin starts with
+        // that only another class's trainer lists looked foreign, and a level-1 paladin lost its Seal of Righteousness at login.
+        if (it != taughtBy.end() && !(it->second & mine) && state.state != PLAYERSPELL_REMOVED &&
+            !p_->IsSpellFitByClassAndRace(spellId))
             doomed.push_back(spellId);
     }
     for (uint32 spellId : doomed)
