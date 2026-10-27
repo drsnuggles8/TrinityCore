@@ -1749,7 +1749,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         ((bot_ai->launch().strategy == LaunchStrategy::TrollGrinder && p->GetLevel() < 4) ||
          // An explorer on its tour takes no quests (it kills nothing); after the tour or at level 6 it quests like anyone.
          (bot_ai->launch().strategy == LaunchStrategy::Explorer && p->GetLevel() < 6 &&
-          bot_ai->launch_explore_stop() < V2::Fleet::LaunchRoutes::Instance().ExploreStops(uint8(bot_ai->launch().seed % 100u < 60u ? 0 : 1)))));
+          bot_ai->launch_explore_stop() < V2::Fleet::LaunchRoutes::Instance().ExploreStops(uint8(bot_ai->launch().seed % 100u < 60u ? 0 : 1))));
 
     snap->guid    = p->GetGUID();
     snap->identity.name    = p->GetName();
