@@ -82,12 +82,32 @@ constexpr std::array<char const*, 13> kPersonaSurnames = { {
 } };
 static_assert(kPersonaSurnames.size() == kPersonas.size());
 
-// Classes of the Forever beta census (Alliance, 20 Sep, ~5000 characters, in percent x10), restricted below to what a
-// dwarf or gnome can be. Dwarf 16% / Gnome 15% of the Alliance.
-constexpr std::array<std::pair<uint8, uint16>, 9> kClassShares = { {
-    { CLASS_HUNTER, 160 }, { CLASS_WARRIOR, 140 }, { CLASS_PALADIN, 135 }, { CLASS_PRIEST, 105 },
-    { CLASS_ROGUE, 100 }, { CLASS_MAGE, 90 }, { CLASS_DRUID, 80 }, { CLASS_SHAMAN, 75 }, { CLASS_WARLOCK, 60 },
-} };
+// Race and class pairs of the Forever beta census (ClassicPlus.io addon census, 7 Oct 2026, 644,211 characters, published by
+// wowforeverguides.com/stats as census-combos.csv), Alliance, in hundreds of characters. Each starting zone draws from its
+// own races' pairs: a dwarf shaman is 54% of the dwarves, a human paladin 28% of the humans.
+struct RaceClassShare { uint8 zone; uint8 race; uint8 cls; uint16 hundreds; };
+constexpr RaceClassShare kRaceClassShares[] = {
+    // Coldridge Valley: dwarves (57.7k) and gnomes (55.5k)
+    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_SHAMAN, 309 }, { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_PALADIN, 99 },
+    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_HUNTER, 85 },  { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_WARRIOR, 42 },
+    { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_PRIEST, 27 },  { LaunchPlaces::kZoneColdridge, RACE_DWARF, CLASS_ROGUE, 15 },
+    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_WARLOCK, 140 }, { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_MAGE, 138 },
+    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_PRIEST, 137 }, { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_ROGUE, 83 },
+    { LaunchPlaces::kZoneColdridge, RACE_GNOME, CLASS_WARRIOR, 57 },
+    // Northshire Valley: humans (113.9k)
+    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_PALADIN, 323 }, { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_WARRIOR, 183 },
+    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_HUNTER, 174 },  { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_WARLOCK, 149 },
+    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_ROGUE, 112 },   { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_PRIEST, 109 },
+    { LaunchPlaces::kZoneNorthshire, RACE_HUMAN, CLASS_MAGE, 88 },
+    // Shadowglen: night elves (60.3k)
+    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_HUNTER, 187 }, { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_DRUID, 177 },
+    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_ROGUE, 82 },   { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_WARRIOR, 81 },
+    { LaunchPlaces::kZoneShadowglen, RACE_NIGHTELF, CLASS_PRIEST, 77 },
+    // Zephras Isle: High Order Skyborne (race 95, 62.5k)
+    { LaunchPlaces::kZoneZephras, 95, CLASS_DRUID, 204 }, { LaunchPlaces::kZoneZephras, 95, CLASS_MAGE, 160 },
+    { LaunchPlaces::kZoneZephras, 95, CLASS_HUNTER, 134 }, { LaunchPlaces::kZoneZephras, 95, CLASS_WARRIOR, 64 },
+    { LaunchPlaces::kZoneZephras, 95, CLASS_ROGUE, 63 },
+};
 
 uint32 Mix(uint32 a, uint32 b)
 {
@@ -224,31 +244,19 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
 
     if (!keep_identity)
     {
-        // Class first (the census is per class), then a race of the zone that can be it: Coldridge dwarf 16 : gnome 15,
-        // Northshire human, Shadowglen night elf, Zephras High Order Skyborne.
-        for (int guard = 0; guard < 50; ++guard)
+        // A race and class pair of the zone, by the census (kRaceClassShares; a persona's class preference narrows it).
+        std::vector<RaceClassShare const*> pairs;
+        std::vector<uint32> weights;
+        for (RaceClassShare const& rc : kRaceClassShares)
+            if (rc.zone == zone && (!p.class_pref || rc.cls == p.class_pref) && BotComposition::IsLegalRaceClass(rc.race, rc.cls))
+            {
+                pairs.push_back(&rc);
+                weights.push_back(rc.hundreds);
+            }
+        for (int guard = 0; guard < 50 && !pairs.empty(); ++guard)
         {
-            uint8 cls = p.class_pref;
-            if (!cls)
-            {
-                std::array<uint16, kClassShares.size()> w{};
-                for (size_t i = 0; i < kClassShares.size(); ++i) w[i] = kClassShares[i].second;
-                cls = kClassShares[PickWeighted(w)].first;
-            }
-            uint8 race = 0;
-            if (zone == LaunchPlaces::kZoneColdridge)
-            {
-                bool const dwarf_ok = BotComposition::IsLegalRaceClass(RACE_DWARF, cls);
-                bool const gnome_ok = BotComposition::IsLegalRaceClass(RACE_GNOME, cls);
-                if (!dwarf_ok && !gnome_ok) continue;
-                race = !gnome_ok ? RACE_DWARF : !dwarf_ok ? RACE_GNOME : (urand(0, 30) < 16 ? RACE_DWARF : RACE_GNOME);
-            }
-            else
-            {
-                race = zone == LaunchPlaces::kZoneNorthshire ? uint8(RACE_HUMAN)
-                     : zone == LaunchPlaces::kZoneShadowglen ? uint8(RACE_NIGHTELF) : uint8(95);   // High Order Skyborne
-                if (!BotComposition::IsLegalRaceClass(race, cls)) continue;
-            }
+            RaceClassShare const& rc = *pairs[PickWeighted(weights)];
+            uint8 const race = rc.race, cls = rc.cls;
             BotComposition::Pick const pick = BotComposition::Roll(race, cls, uint8(urand(0, 1)), "");
             if (!pick.race) continue;
             e.race = pick.race; e.cls = pick.cls; e.gender = pick.gender; e.name = pick.name;

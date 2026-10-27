@@ -85,7 +85,15 @@ for untagged mobs other players stand next to.
 Arrival after T0 is the same for every persona (the login queue does not care who is a racer): 35% in the first 3 minutes,
 35% by 15 minutes, the rest by 60; late arrivals (the `late` count) spread over hours one to six.
 
-Classes follow the Forever beta census (Alliance), restricted to what a dwarf or gnome can be.
+Race and class come in pairs from the Forever beta census (ClassicPlus.io addon census of 7 Oct 2026, 644,211 characters,
+the census-combos table of wowforeverguides.com/stats), each starting zone from its own races:
+
+| Zone | Census characters | Pairs |
+|---|---|---|
+| Coldridge | dwarf 57.7k, gnome 55.5k | dwarf shaman 27%, gnome warlock / mage / priest 12% each, dwarf paladin 9%, dwarf hunter 8%, gnome rogue 7%, gnome warrior 5%, dwarf warrior 4%, dwarf priest 2%, dwarf rogue 1% |
+| Northshire | human 113.9k | paladin 28%, warrior 16%, hunter 15%, warlock 13%, rogue 10%, priest 10%, mage 8% |
+| Shadowglen | night elf 60.3k | hunter 31%, druid 29%, rogue 14%, warrior 13%, priest 13% |
+| Zephras Isle | High Order Skyborne 62.5k | druid 33%, mage 26%, hunter 21%, warrior 10%, rogue 10% |
 
 ### Temperaments
 
@@ -135,8 +143,9 @@ islands connected, so it stays at 55 (bots would climb what players cannot). Not
 
 Besides Coldridge Valley (the `prepare` / `reset` count, dwarves and gnomes, where Olo practises), the other Alliance starting
 zones get their own crowds from the config: `Playerbot.Launch.NorthshireBots` (humans, Northshire), `.ShadowglenBots` (night
-elves, Shadowglen), `.ZephrasBots` (High Order Skyborne, Zephras Isle); 0 = none. The home server runs 150 / 120 / 40
-(`TC_PLAYERBOT_LAUNCH_*_BOTS`). Each zone (Bot/LaunchPlaces.h `kZones`) has its first town (Kharanos, Goldshire, Dolanaar), the
+elves, Shadowglen), `.ZephrasBots` (High Order Skyborne, Zephras Isle); 0 = none. The home server runs 150 / 80 / 80
+(`TC_PLAYERBOT_LAUNCH_*_BOTS`): the census ratio of humans : night elves : Skyborne (114 : 60 : 63) at half Coldridge's
+density (dwarves and gnomes together are as many as the humans), to stay inside the server's CPU. Each zone (Bot/LaunchPlaces.h `kZones`) has its first town (Kharanos, Goldshire, Dolanaar), the
 place leavers move on to (Thelsamar, Sentinel Hill, Auberdine), the capital casuals visit (Ironforge, Stormwind, Darnassus) and
 the area its quest hubs stay in below level 10; Zephras Isle has none of these (an island). The troll grinder and the explorer
 are Coldridge personas; elsewhere those rolls are drawn again. Guide routes by zone: `rxp` / `olo` (dwarves and gnomes),
