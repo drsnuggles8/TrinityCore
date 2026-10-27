@@ -36,6 +36,8 @@
 #include "Log.h"
 #include <cmath>
 #include <limits>
+#include <mutex>
+#include <unordered_map>
 #include <vector>
 
 namespace Playerbot {
@@ -88,10 +90,33 @@ bool SwimStuckFire(BotSnapshotView const& s, BotAI& ai,
 // normal rules (now-correct travel) resume.
 bool WaterEscapeGate(BotSnapshotView const& s, BotAI&, GroupSnapshotView const&, uint32)
 {
-    return s.water_escape_valid()
+    if (!(s.water_escape_valid()
         && s.is_alive() && !s.in_combat() && !s.is_casting()
         && !s.on_transport()
-        && !s.in_battleground() && !s.is_in_dungeon();
+        && !s.in_battleground() && !s.is_in_dungeon()))
+        return false;
+    // A minute of escaping without leaving the water: the dry footing is out of reach (explore34: two explorers stood in
+    // Crystal Lake for 15 minutes, water_escape firing every tick; in shallow water the bot is not swimming, so
+    // idle:swim_stuck's hub/hearth escalation never took over). Give the other rules two minutes, then try again.
+    struct Episode { uint32 since_ms = 0, last_ms = 0, backoff_until_ms = 0; };
+    static std::mutex s_mtx;
+    static std::unordered_map<uint64, Episode> s_episodes;
+    uint32 const now = s.published_at_ms();
+    std::lock_guard lk(s_mtx);
+    Episode& e = s_episodes[s.guid().GetCounter()];
+    if (int32(e.backoff_until_ms - now) > 0)
+        return false;
+    if (!e.since_ms || now - e.last_ms > 5000u)
+        e.since_ms = now ? now : 1u;   // a new episode
+    e.last_ms = now;
+    if (now - e.since_ms > 60000u)
+    {
+        e.backoff_until_ms = now + 120000u;
+        e.since_ms = 0;
+        TC_LOG_INFO("playerbot.v2", "[water_escape] {} has not left the water in 60 s: other rules for 2 minutes", s.name());
+        return false;
+    }
+    return true;
 }
 
 bool WaterEscapeFire(BotSnapshotView const& s, BotAI& ai,
