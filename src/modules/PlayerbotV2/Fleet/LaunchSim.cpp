@@ -71,7 +71,10 @@ constexpr std::array<Persona, 13> kPersonas = { {
     { "partylead", 3, LaunchStrategy::PartyBuilder, 1.30f, 1.70f, { 40, 60,  0,  0,  0 },  30, 120, 1.0f,  4.0f,  60,  60, 180,   0,   0,   0 },
     { "idle",      6, LaunchStrategy::Idle,         4.00f, 4.00f, { 50, 20,  0, 30,  0 }, 300,1500,10.0f, 60.0f,  10, 180, 900,   5,  30,   0 },
     { "leaver",    2, LaunchStrategy::Leaver,       1.10f, 1.30f, { 50, 20, 20, 10,  0 },  10,  90, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
-    { "explorer",  2, LaunchStrategy::Explorer,     1.00f, 1.20f, { 40, 20,  0, 40,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
+    // explorer: weight 0 since 27 Oct - without the real routes' steps (the Rothie / mafsen exploration routes live in the
+    // LevelForge guide service) the hand-made subzone tours led level-1 bots through mobs far above them. The code stays;
+    // Playerbot.Launch.PersonaWeights = "explorer:2" brings them back once real routes are imported.
+    { "explorer",  0, LaunchStrategy::Explorer,     1.00f, 1.20f, { 40, 20,  0, 40,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
 } };
 
 // Classic 1.60 surnames ("Name Surname" over the head and in the target frame): each launch bot carries its persona, so a

@@ -82,7 +82,7 @@ for untagged mobs other players stand next to.
 | partylead | 3 | PartyBuilder | 1.3-1.7 | friendly |
 | idle | 6 | Idle: AFK a lot, logs out early | 4.0 | neutral |
 | leaver | 2 | Leaver: Loch Modan at 8 | 1.1-1.3 | neutral |
-| explorer | 2 | Explorer: one of two launch-day exploration routes (below), no kills until level 6 or the end of the route, then quests | 1.0-1.2 | loner / neutral |
+| explorer | 0 (off since 27 Oct) | Explorer: a subzone tour (below), no kills until level 6 or the end of the route, then quests. Off: the real exploration routes (Rothie, mafsen) are only in the LevelForge guide service, and the hand-made tours took level-1 bots through mobs far above them; `explorer:2` in PersonaWeights brings them back with imported routes | 1.0-1.2 | loner / neutral |
 
 Arrival after T0 is the same for every persona (the login queue does not care who is a racer): 35% in the first 3 minutes,
 35% by 15 minutes, the rest by 60; late arrivals (the `late` count) spread over hours one to six.
