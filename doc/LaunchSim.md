@@ -3,15 +3,28 @@
 <!-- SUMMARY: keep this block current. -->
 ## Summary
 
-_State 27 Oct 2026, 07:15. The server runs build18 with a fresh 300-bot roster, armed: the crowd starts when the next real player logs in. Measured on the home server (Rocky 10, rootless Podman, 32 GB host; the user slice is
-capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
+_State 27 Oct 2026, 21:45. The server runs build38 (client 1.60.1.70634) with a fresh roster of 616 bots, prepared but
+**not armed** (Olo is testing logins: `.playerbot launch arm` starts the crowd at the next login). Measured on the home
+server (Rocky 10, rootless Podman, 32 GB host; the user slice is capped at MemoryHigh 3 GB / MemoryMax 4 GB for every
+container of the user)._
 
-- **What works:** a roster of fresh level-1 dwarves and gnomes in Coldridge Valley with 13 personas (strategy x temperament x
-  pace), random arrival after T0, guide routes (RestedXP and Olo's route, imported locally), troll grinders, skippers,
-  leavers, crowd grinders, party builders, explorers, AFK / UI-setup / quest-reading
-  pauses, first tag only (no shared tagging), "inv?" requests to taggers and temperament-based answers, short group stays,
-  class trainer visits instead of free spells, no flights below level 10, no quest hubs outside Dun Morogh, Ironforge and Loch Modan below level 10 (from 10 the routes fan out: tram to Elwynn and Westfall, boat to Auberdine), a minute report in the log
-  (`[launch] report`: online, average level, quests, deaths, grouped, invites asked/granted, top rules).
+- **What works:** a launch crowd in all four Alliance starting zones, sized from the Coldridge count by the end-of-beta
+  census (200 in Coldridge gives 186 humans in Northshire, 112 night elves in Shadowglen, 118 Skyborne on Zephras Isle),
+  race and class pairs from the same census; 12 active personas (the explorer is off, see the persona table), ~40% of
+  them following a guide (RestedXP, Olo's route), each bot's surname is its persona; random arrival after T0, AFK /
+  UI-setup / quest-reading pauses, first tag only, "inv?" requests and temperament-based answers, griefers that snipe
+  tags, class trainer visits, grind camps per zone, leavers to the next zone (Coldridge through North Gate Pass to
+  Thelsamar), a minute report in the log (`[launch] report`).
+- **27 Oct, the day's fixes:** launch bots take full paths to far goals (path cap 512 polygons, A* pool 32768 nodes: the
+  Coldridge Pass tunnel and the walks out of every starting zone are complete now); hunters close in or melee when Auto Shot
+  cannot fire (opener give-ups 327 -> 16 per test); spell ranks resolve to the known rank (paladins had no seal); 17 fork
+  fixes (crash on group kills, Zephras and Dun Morogh quests, creature spell scaling, resist penalty), cyman1988's class
+  mechanics (Windfury, totems, poisons, talents), the Legacy perk Talented, full-name uniqueness (same first name, other
+  surname), the friend list and names by "Name Surname"; quest givers, enders, spawns and pre-quests from the Forever
+  QuestieDB (contrib/launch-sim/questie); the release client 70634 (realms moved, login through an SSH tunnel).
+- **Racers (mix31, 45 min):** average level 3.4, the best 5 at 41 minutes; slower than real racers (5-6). Known brake:
+  few quest turn-ins (2-6 in 45 minutes): kill quests in the trogg area progress slowly and loot walks time out
+  (Open items).
 - **Capacity:** 500 bots (370 online at once) at 1.85-1.89 GB RSS, 26-28% CPU and 3.6 ms of bot-module work per world
   tick; the 4 GB cap is far away. Idle server 1.7 GB (was 2.33 GB) with `Load.Locales = 0` and `CacheDataQueries = 0`;
   CPU at 300 bots went from ~30% to ~17% with the slower world loop and no update packets for bots.
@@ -224,6 +237,18 @@ Fixed in our fork; candidates for upstream (forever-bots) once Olo says so.
 
 ## Open items
 
+- **Racer pace** (mix31): 2-6 quests turned in per racer in 45 minutes. A racer on "A New Threat" (170) attacked 42
+  troggs in 30 minutes without finishing it, and 30 loot walks timed out ("unreachable" at 32-57 y: the walk deadline
+  runs out while new pulls keep it fighting on the trogg slope). Next: why the kills do not complete 170 (tags lost? no
+  kill credit?) and whether loot walks should pause the deadline during combat.
+- **Explorer persona off** until the real routes (Rothie's, mafsen's LevelForge guides) can be imported; the stop,
+  give-up, spirit-healer and route-check machinery stays (`~/forever/routecheck.sh` checks every leg in 15 s).
+- **Questie review list** (contrib/launch-sim/questie/prequests-review-2026-10-27.txt): pre-quests not taken over,
+  among them Coldridge Valley Mail Delivery (233) after Dwarven Outfitters (179), which would change Olo's Coldridge route
+  if the live game has it. 64 Forever quests of the starting zones and their neighbours are missing from the world DB
+  altogether (no quest_template row).
+- **Builds:** a one-file change builds in 30-60 s; a change to BotAI.h (included by ~70 module files) takes ~12 minutes
+  with 4 jobs. The user slice's 4 GB cap is what limits the jobs (16 cores); raising it is Olo's call.
 - Strategies still playing as Quester: Gatherer, Casual (Ironforge visit), PartyBuilder; zone progression after Dun
   Morogh; deathskip.
 - Chat lines beyond invites; reactions to a real player's whispers.
