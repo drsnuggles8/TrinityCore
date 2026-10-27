@@ -9778,7 +9778,6 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             cp.y = go->y;
             cp.z = go->z;
             cp.valid = true;
-            cp.launch_place = true;
         }
         // A crowd grinder gives up a quest spot with more than six other players on it and grinds what is free instead.
         else if (strat == LaunchStrategy::CrowdGrinder && snap->quest_log.current_objective_poi.valid)

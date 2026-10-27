@@ -946,11 +946,12 @@ bool QuestPursueGoalFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
     // steadily close distance, with bearing-deflection on stalls and a 6-strike
     // give-up that yields to the wedge-watchdog. Same engine that cleared Durnan's
     // far travel; systemic for the far-goal wedge cluster. 2026-06-22.
-    // A launch bot's walk to a place (explorer stop, grind camp, town; the snapshot builder's launch steering) takes the full
-    // path up to the path cap (MAX_PATH_LENGTH 512 polygons, ~2000 y): straight chunks ran the Coldridge explorers into the
-    // valley wall instead of through the Coldridge Pass tunnel (explore6b: stuck after their first stop for 29 minutes).
+    // A launch bot takes the full path up to the path cap (MAX_PATH_LENGTH 512 polygons, ~2000 y), its quest objectives and
+    // its walks to places alike (explorer stops, grind camp, town; the snapshot builder's launch steering): straight chunks
+    // ran the Coldridge explorers into the valley wall instead of through the Coldridge Pass tunnel (explore6b: stuck after
+    // their first stop for 29 minutes), and a guide follower's objectives past the tunnel are the same walk.
     constexpr float kFarChunkThreshold = 250.0f;
-    if (dist > kFarChunkThreshold && !(poi.launch_place && dist < 2000.0f))
+    if (dist > kFarChunkThreshold && !(ai.launch().active && dist < 2000.0f))
         return States::ChunkedWalkToward(s, ai, emit, poi.x, poi.y, poi.z,
                                          "idle:pursue_quest_goal", now_ms);
 
