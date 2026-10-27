@@ -6495,6 +6495,16 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 snap->quest_log.current_objective_poi.x      = cx;
                 snap->quest_log.current_objective_poi.y      = cy;
                 snap->quest_log.current_objective_poi.z      = cz;
+                // A polygon's centroid can sit on a slope or a rock with no navmesh under it (Q170's troll area in Coldridge:
+                // every path to it failed). A creature spawn near the centroid stands on walkable ground: use it.
+                if (matched->Points.size() > 2)
+                    if (::CreatureData const* near_sp = NearestCreatureSpawnToPoint(cx, cy, uint32(matched->MapID),
+                            std::max(30.0f, std::sqrt(radius_sq) * 0.5f)))
+                    {
+                        snap->quest_log.current_objective_poi.x = near_sp->spawnPoint.GetPositionX();
+                        snap->quest_log.current_objective_poi.y = near_sp->spawnPoint.GetPositionY();
+                        snap->quest_log.current_objective_poi.z = near_sp->spawnPoint.GetPositionZ();
+                    }
                 snap->quest_log.current_objective_poi.radius = std::sqrt(radius_sq);
                 snap->quest_log.current_objective_poi.valid  = true;
             }

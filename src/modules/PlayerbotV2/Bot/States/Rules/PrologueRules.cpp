@@ -367,7 +367,9 @@ bool OpenerFire(BotSnapshotView const& s, BotAI& ai,
     // casts nor approach steps worked (wall, elevation, unpathable mob).
     // Give up and shield the target for minutes so engage_nearby_mob /
     // assist rules don't re-pick it the moment an 8s shield lapses.
-    constexpr uint32 kOpenerStallMs = 25000;
+    // A launch bot gives up after 10 s, as a player who sees the wolf is on a ledge does: in Coldridge the slopes hold wolves
+    // no path reaches, and 25 s per wolf cost a level-1 hunter half an hour (122 give-ups in 30 minutes).
+    uint32 const kOpenerStallMs = ai.launch().active ? 10000u : 25000u;
     if (now_ms - ai.opener_victim_since_ms() > kOpenerStallMs)
     {
         emit.stop_attack();
