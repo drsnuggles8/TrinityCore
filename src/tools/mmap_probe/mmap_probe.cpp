@@ -308,7 +308,7 @@ int RunQuery(dtNavMesh* navMesh, dtNavMeshQuery* query,
         endTC[0], endTC[1], endTC[2],
         endFar ? " [WIDE SEARCH]" : "");
 
-    constexpr int MAX_PATH_LENGTH = 74; // mirror PathGenerator.h
+    constexpr int MAX_PATH_LENGTH = 512; // mirror PathGenerator.h (raised from 74 for long bot walks)
     dtPolyRef pathPolys[MAX_PATH_LENGTH] = { 0 };
     int polyCount = 0;
     s = query->findPath(startRef, endRef, startClosest, endClosest, &filter,
@@ -469,7 +469,7 @@ int main(int argc, char** argv)
     }
 
     dtNavMeshQuery* query = dtAllocNavMeshQuery();
-    if (!query || dtStatusFailed(query->init(navMesh, 4096)))
+    if (!query || dtStatusFailed(query->init(navMesh, 8192)))
     {
         std::fprintf(stderr, "ERROR: dtNavMeshQuery init failed\n");
         return 2;
