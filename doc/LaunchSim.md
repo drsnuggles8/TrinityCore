@@ -60,7 +60,9 @@ session rhythm leave them alone.
 
 Shares and paces come from the launch research (2019 Classic launch, Season of Mastery, Hardcore, Season of Discovery, the
 Forever beta and stress test). Pace 1.0 = an uncrowded speedrun (Coldridge left at ~35 min). Weights can be overridden with
-`Playerbot.Launch.PersonaWeights = "racer:5,rxp:12,..."`. Each bot's surname is its persona ("Name Racer", "Name
+`Playerbot.Launch.PersonaWeights = "racer:6,rxp:45,..."`. About 40% follow a guide (racer + rxp: RestedXP and the
+other imported guides; Olo's route for the racers in Coldridge); where no guide exists for the race (Skyborne) those two
+personas are drawn again. Each bot's surname is its persona ("Name Racer", "Name
 Explorer"; Racer, Guided, Trollgrinder, Skipper, Questie, Friendly, Grinder, Gatherer, Casual, Partylead, Idler, Leaver,
 Explorer). The hunter, reroller and ninja personas were dropped on 27 Oct: the class shares already give 16% hunters, rerolls
 barely touch a launch's first hours, and kill stealing is the griefer temperament (some grinders and questers), which goes
@@ -68,15 +70,15 @@ for untagged mobs other players stand next to.
 
 | Persona | Weight | Strategy | Pace | Mostly |
 |---|---|---|---|---|
-| racer | 5 | GuideRoute (Olo's route) | 0.95-1.10 | greedy |
-| rxp | 12 | GuideRoute (RestedXP, other guides) | 1.0-1.3 | neutral / greedy |
+| racer | 6 | GuideRoute (Olo's route) | 0.95-1.10 | greedy |
+| rxp | 45 | GuideRoute (RestedXP, other guides) | 1.0-1.3 | neutral / greedy |
 | trolls | 3 | TrollGrinder: whelps to 4, leaves Coldridge at 4 | 1.0-1.2 | greedy / loner |
 | skipper | 2 | Skipper: out of Coldridge at 3 | 1.0-1.2 | neutral / greedy |
-| questie | 25 | Quester (nearest objective) | 1.6-2.4 | neutral / friendly, 3% griefer |
-| friends | 14 | Quester | 1.2-1.6 | neutral / friendly |
+| questie | 20 | Quester (nearest objective) | 1.6-2.4 | neutral / friendly, 3% griefer |
+| friends | 12 | Quester | 1.2-1.6 | neutral / friendly |
 | grinder | 6 | CrowdGrinder: drops crowded quest spots | 1.2-1.6 | neutral / loner, 10% griefer |
 | gatherer | 6 | Gatherer: Mining (with a pick) or Herbalism from login, detours to nodes | 2.0-2.6 | neutral / friendly |
-| casual | 15 | Casual: reads everything, slow, one trip to Ironforge from level 6 | 3.0-4.0 | friendly |
+| casual | 12 | Casual: reads everything, slow, one trip to Ironforge from level 6 | 3.0-4.0 | friendly |
 | partylead | 3 | PartyBuilder | 1.3-1.7 | friendly |
 | idle | 6 | Idle: AFK a lot, logs out early | 4.0 | neutral |
 | leaver | 2 | Leaver: Loch Modan at 8 | 1.1-1.3 | neutral |
