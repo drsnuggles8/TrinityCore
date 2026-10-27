@@ -3,7 +3,7 @@
 <!-- SUMMARY: keep this block current. -->
 ## Summary
 
-_State 27 Oct 2026, early morning. Measured on the home server (Rocky 10, rootless Podman, 32 GB host; the user slice is
+_State 27 Oct 2026, 07:15. The server runs build18 with a fresh 300-bot roster, armed: the crowd starts when the next real player logs in. Measured on the home server (Rocky 10, rootless Podman, 32 GB host; the user slice is
 capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
 
 - **What works:** a roster of fresh level-1 dwarves and gnomes in Coldridge Valley with 15 personas (strategy x temperament x
@@ -15,9 +15,10 @@ capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
 - **Capacity:** 500 bots (370 online at once) at 1.85-1.89 GB RSS, 26-28% CPU and 3.6 ms of bot-module work per world
   tick; the 4 GB cap is far away. Idle server 1.7 GB (was 2.33 GB) with `Load.Locales = 0` and `CacheDataQueries = 0`;
   CPU at 300 bots went from ~30% to ~17% with the slower world loop and no update packets for bots.
-- **Behaviour:** 300 bots, 250 online after 40 minutes, ~500 quests turned in, ~320 invite requests (~190 granted). The
-  first runs levelled too slowly (nobody past 4 at 40 min); three causes fixed late in the night (death hotspots, route
-  steps without a giver, 60-minute quest blacklists) - see the table below for the last measured run.
+- **Behaviour (last run, build18, 300 bots, dynamic respawn on):** median level 2 at ~15 minutes, 4 at 45-60 minutes,
+  the first level 5 at ~36 minutes and 29 at 60 minutes; 667 quests turned in, 844 invite requests (440 granted), bots
+  groups form and break up, rerollers come back at level 1, trainers get visited at even levels. CPU 20-32%, RSS 1.8-1.9 GB.
+  Slower than the goal's "5 by ~90 minutes" median only if that is read strictly; the crowd is the brake, as at launch.
 - **Upstream bot-module bugs** fixed on the way (no bot ever took a quest; quest POIs pointing to another zone; the idle
   watch breaking holds): [Module bugs](#module-bugs-found-on-the-way-affect-world-bots-too).
 - **Next:** [Open items](#open-items).
@@ -119,6 +120,7 @@ Measurements go here, each with the build, bot count and what changed.
 | 27 Oct | build10 (f660dfc9) | 100 (72 online at 29 min) | 1707 MB | 1745-1820 MB | 20 ms (the MinWorldUpdateTime floor) | 9.5-12% | locales/query cache off, tick 20/50 ms, no update blocks for bots; at 27 min L1=21 L2=29 L3=16 L4=5, 92 quests turned in, 46 "inv?" (24 granted) |
 | 27 Oct | build14 (bf5ca456) | 300 (254 online at 39 min) | 1675 MB | 1720-1850 MB | 20 ms floor | 16-26% | module tick 2.3-2.9 ms (snapshot build 1.4-1.8 ms) at 262 bots; 495 quests turned in, 323 "inv?" (193 granted), 8 rerolls; levels at 39 min L1=41 L2=98 L3=113 L4=2 (too slow: death hotspots, fixed in 0df87616) |
 | 27 Oct | build14 (bf5ca456) | 500 (370 online at 23 min) | | 1850-1890 MB | 20 ms floor | 26-28% | ~0.5 MB per online bot; 533 quests turned in at 23 min |
+| 27 Oct | build18 (018aa1e1) | 300 (279 online at 60 min) | | 1790-1870 MB | 20 ms floor | 20-32% | dynamic respawn on, all behaviour fixes: levels at 15 min L1=88 L2=75 L3=43; 30 min L1=31 L2=83 L3=75 L4=39; 45 min L4=90 L5=7; 60 min L1=31 L2=57 L3=65 L4=97 L5=29; 667 quests, 844 "inv?" (440 granted), 7 rerolls |
 
 The bots themselves are cheap; the worldserver's own data is what fills the memory. Startup profile (RSS sampled every
 0.2 s against the timestamped Server.log, `startup-mem.sh` on the home server), biggest steps with the defaults:
