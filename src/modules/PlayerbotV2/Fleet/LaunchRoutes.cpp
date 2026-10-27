@@ -1,4 +1,5 @@
 #include "LaunchRoutes.h"
+#include "Bot/LaunchPlaces.h"
 
 #include "CreatureData.h"
 #include "DatabaseEnv.h"
@@ -26,10 +27,12 @@ LaunchRoutes& LaunchRoutes::Instance()
 
 uint32 LaunchRoutes::ComboBit(uint8 race, uint8 cls)
 {
-    // Same layout as contrib/launch-sim/import_route.py: dwarf classes in bits 0-11, gnome classes in bits 12-23.
+    // Same layout as contrib/launch-sim/import_route.py: the route's first race in bits 0-11, its second in bits 12-23. A route
+    // is for one starting zone (dwarf/gnome, human or night elf: the name says, LaunchSim's PickRoute), so humans and night
+    // elves use the first slot.
     if (cls >= 12)
         return 0;
-    if (race == RACE_DWARF)
+    if (race == RACE_DWARF || race == RACE_HUMAN || race == RACE_NIGHTELF)
         return 1u << cls;
     if (race == RACE_GNOME)
         return 1u << (12 + cls);
@@ -42,15 +45,17 @@ void LaunchRoutes::Load()
     routes_.clear();
     givers_.clear();
 
-    // Class trainers of the launch area (within 3000 y of Coldridge Valley on map 0): trainers that are neither profession nor
-    // pet trainers and teach a known set of classes (GetClassMask is every class when the data does not say).
+    // Class trainers of the starting zones' areas (Bot/LaunchPlaces.h: Dun Morogh and Ironforge, Elwynn and Stormwind,
+    // Teldrassil and Darnassus, Zephras Isle): trainers that are neither profession nor pet trainers and teach a known set of
+    // classes (GetClassMask is every class when the data does not say).
     trainers_.clear();
     for (auto const& [spawn_id, data] : sObjectMgr->GetAllCreatureData())
     {
-        if (data.mapId != 0)
-            continue;
         float const x = data.spawnPoint.GetPositionX(), y = data.spawnPoint.GetPositionY();
-        if ((x + 6230.f) * (x + 6230.f) + (y - 400.f) * (y - 400.f) > 3000.f * 3000.f)
+        bool in_area = false;
+        for (::Playerbot::LaunchPlaces::StartZone const& z : ::Playerbot::LaunchPlaces::kZones)
+            in_area = in_area || ::Playerbot::LaunchPlaces::InHubArea(z, data.mapId, x, y);
+        if (!in_area)
             continue;
         CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(data.id);
         if (!ct || !(ct->npcflag & UNIT_NPC_FLAG_TRAINER))
@@ -61,7 +66,7 @@ void LaunchRoutes::Load()
         uint32 const mask = tr->GetClassMask();
         if (mask == 0 || (mask & 0x7FF) == 0x7FF)
             continue;
-        trainers_.push_back({ spawn_id, mask, x, y, data.spawnPoint.GetPositionZ() });
+        trainers_.push_back({ spawn_id, data.mapId, mask, x, y, data.spawnPoint.GetPositionZ() });
     }
     TC_LOG_INFO("playerbot.v2", "[launch] {} class trainers in the launch area", trainers_.size());
 
@@ -273,7 +278,7 @@ void LaunchRoutes::LoadExploreRoutes()
         explore_[1].size(), missing.empty() ? "" : "; not found: ", miss);
 }
 
-ClassTrainer const* LaunchRoutes::NearestTrainer(uint8 cls, float x, float y) const
+ClassTrainer const* LaunchRoutes::NearestTrainer(uint32 map, uint8 cls, float x, float y) const
 {
     if (cls == 0 || cls > 32)
         return nullptr;
@@ -282,7 +287,7 @@ ClassTrainer const* LaunchRoutes::NearestTrainer(uint8 cls, float x, float y) co
     float best_d = 0.f;
     for (ClassTrainer const& t : trainers_)
     {
-        if (!(t.class_mask & bit))
+        if (t.map != map || !(t.class_mask & bit))
             continue;
         float const d = (t.x - x) * (t.x - x) + (t.y - y) * (t.y - y);
         if (!best || d < best_d)

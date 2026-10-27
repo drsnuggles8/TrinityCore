@@ -52,6 +52,7 @@ struct ExploreStop
 struct ClassTrainer
 {
     uint64 spawn_id = 0;
+    uint32 map = 0;
     uint32 class_mask = 0;   // Trainer::GetClassMask
     float  x = 0.f, y = 0.f, z = 0.f;
 };
@@ -87,8 +88,8 @@ public:
     ExploreStop const* ExploreStopAt(uint8 route, size_t i) const
     { return route < kExploreRoutes && i < explore_[route].size() ? &explore_[route][i] : nullptr; }
 
-    // The class trainer for `cls` nearest to (x, y) on map 0, nullptr when there is none in the launch area.
-    ClassTrainer const* NearestTrainer(uint8 cls, float x, float y) const;
+    // The class trainer for `cls` nearest to (x, y) on `map`, nullptr when there is none in the starting zones' areas.
+    ClassTrainer const* NearestTrainer(uint32 map, uint8 cls, float x, float y) const;
 
     static uint32 ComboBit(uint8 race, uint8 cls);
 

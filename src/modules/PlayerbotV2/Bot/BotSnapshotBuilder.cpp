@@ -1754,7 +1754,8 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     snap->guid    = p->GetGUID();
     snap->identity.name    = p->GetName();
     snap->identity.level   = p->GetLevel();
-    snap->identity.launch_area_hubs = bot_ai && bot_ai->launch().active && p->GetLevel() < 10;
+    snap->identity.launch_zone = bot_ai && bot_ai->launch().active && p->GetLevel() < 10
+        ? uint8(1 + LaunchPlaces::ZoneForRace(p->GetRace())) : uint8(0);
     snap->identity.xp            = p->GetXP();
     snap->identity.xp_for_level  = p->GetXPForNextLevel();
     snap->identity.rest_bonus_xp = static_cast<uint32>(p->GetRestMgr().GetRestBonus(REST_TYPE_XP));
@@ -9678,22 +9679,26 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 }
     }
     // ---- Launch strategies that steer by place (Bot/LaunchPlaces.h) ----
-    if (bot_ai && bot_ai->launch().active && p->GetMapId() == 0)
+    if (bot_ai && bot_ai->launch().active &&
+        p->GetMapId() == ::Playerbot::LaunchPlaces::kZones[::Playerbot::LaunchPlaces::ZoneForRace(p->GetRace())].map)
     {
         namespace LP = ::Playerbot::LaunchPlaces;
+        LP::StartZoneId const zid = LP::ZoneForRace(p->GetRace());
+        LP::StartZone const& zone = LP::kZones[zid];
         LaunchStrategy const strat = bot_ai->launch().strategy;
         uint8 const lvl = p->GetLevel();
         float const px = p->GetPositionX(), py = p->GetPositionY();
-        bool const in_coldridge = LP::Dist2d(LP::kColdridge, px, py) < LP::kColdridgeRadius * LP::kColdridgeRadius;
+        bool const in_coldridge = LP::Dist2d(zone.center, px, py) < zone.radius * zone.radius;   // in the starting valley
         LP::Spot const* go = nullptr;
         float arrive = 40.f;
-        if (strat == LaunchStrategy::TrollGrinder && lvl < 4)
+        if (strat == LaunchStrategy::TrollGrinder && lvl < 4 && zid == LP::kZoneColdridge)
             go = &LP::kTrollCamp;   // grind the whelps; idle:engage_nearby_mob takes over within 50 y
-        else if (in_coldridge && ((strat == LaunchStrategy::TrollGrinder && lvl >= 4) || (strat == LaunchStrategy::Skipper && lvl >= 3)))
-            go = &LP::kKharanos, arrive = 60.f;   // out of the starter valley early
-        else if (strat == LaunchStrategy::Leaver && lvl >= 8 && LP::Dist2d(LP::kThelsamar, px, py) > 600.f * 600.f)
-            go = &LP::kThelsamar, arrive = 60.f;   // on to Loch Modan
-        else if (strat == LaunchStrategy::Explorer && lvl < 6)
+        else if (in_coldridge && LP::Exists(zone.town) &&
+                 ((strat == LaunchStrategy::TrollGrinder && lvl >= 4) || (strat == LaunchStrategy::Skipper && lvl >= 3)))
+            go = &zone.town, arrive = 60.f;   // out of the starter valley early
+        else if (strat == LaunchStrategy::Leaver && lvl >= 8 && LP::Exists(zone.leave) && LP::Dist2d(zone.leave, px, py) > 600.f * 600.f)
+            go = &zone.leave, arrive = 60.f;   // on to the next zone (Loch Modan, Westfall, Darkshore)
+        else if (strat == LaunchStrategy::Explorer && lvl < 6 && zid == LP::kZoneColdridge)
         {
             // The explorer's route (LaunchRoutes::ExploreStopAt): a subzone is done once the bot stands in it (that is when
             // the exploration XP comes); at a flight master it learns the path and at the Kharanos innkeeper it binds, as
@@ -9745,12 +9750,12 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 arrive = st->action == V2::Fleet::ExploreAction::Discover ? 20.f : 4.f;
             }
         }
-        else if (strat == LaunchStrategy::Casual && lvl >= 6 && !bot_ai->launch_ironforge_seen())
+        else if (strat == LaunchStrategy::Casual && lvl >= 6 && LP::Exists(zone.city) && !bot_ai->launch_ironforge_seen())
         {
-            if (LP::Dist2d(LP::kIronforge, px, py) < 60.f * 60.f)
+            if (LP::Dist2d(zone.city, px, py) < 60.f * 60.f)
                 bot_ai->set_launch_ironforge_seen();   // seen it: back to questing
             else
-                go = &LP::kIronforge, arrive = 60.f;   // sightseeing, once
+                go = &zone.city, arrive = 60.f;   // sightseeing, once (Ironforge, Stormwind, Darnassus)
         }
         if (go && LP::Dist2d(*go, px, py) > arrive * arrive)
         {
@@ -9780,12 +9785,12 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     // ---- Launch: a visit to the class trainer after each even level from 4 (idle:launch_train) ----
     // Launch bots learn nothing for free on a level-up (Module::OnLevelUp); they walk to their class trainer when it is within
     // 350 y, as players do between quests. A trainer farther away waits until the bot passes one.
-    if (bot_ai && bot_ai->launch().active && p->GetMapId() == 0)
+    if (bot_ai && bot_ai->launch().active)
     {
         uint8 const lvl = p->GetLevel();
         uint8 const due = lvl >= 4 ? uint8(lvl & ~1u) : uint8(0);
         if (due > bot_ai->launch_trained_level())
-            if (V2::Fleet::ClassTrainer const* t = V2::Fleet::LaunchRoutes::Instance().NearestTrainer(p->GetClass(), p->GetPositionX(), p->GetPositionY()))
+            if (V2::Fleet::ClassTrainer const* t = V2::Fleet::LaunchRoutes::Instance().NearestTrainer(p->GetMapId(), p->GetClass(), p->GetPositionX(), p->GetPositionY()))
             {
                 float const dx = t->x - p->GetPositionX(), dy = t->y - p->GetPositionY();
                 if (dx * dx + dy * dy < 350.f * 350.f)

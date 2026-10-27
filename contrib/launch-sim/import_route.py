@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Turns a leveling guide in RestedXP's guide format into a launch-simulation route (doc/LaunchSim.md, "Routes").
 
-    python3 import_route.py ROUTE_ID GUIDE.lua [GUIDE.lua ...] > route.sql
+    python3 import_route.py [--races dwarf,gnome|human|nightelf] ROUTE_ID GUIDE.lua [GUIDE.lua ...] > route.sql
 
-ROUTE_ID is a short name (e.g. rxp, olo). Every RegisterGuide block of every file is read in order and becomes one ordered
-list of quest steps: accept / complete (quest objective) / turn in, plus deathskip and hearth steps. Class and race filters
-(`step << Dwarf Hunter`, `<< !Gnome`, `.accept 1234 << Warrior/Rogue`) are evaluated for each dwarf and gnome class and
-stored as a bit mask (bit = race slot * 12 + class id; dwarf slot 0, gnome slot 1), so one route serves every class.
+ROUTE_ID is a short name (e.g. rxp, olo; rxp-human, rxp-nightelf for the other Alliance starting zones: the launch sim picks
+a route for a bot by this suffix). Every RegisterGuide block of every file is read in order and becomes one ordered list of
+quest steps: accept / complete (quest objective) / turn in, plus deathskip and hearth steps. Class and race filters
+(`step << Dwarf Hunter`, `<< !Gnome`, `.accept 1234 << Warrior/Rogue`) are evaluated for each class of the route's races
+(default dwarf,gnome) and stored as a bit mask (bit = race slot * 12 + class id; the first race slot 0, the second slot 1),
+so one route serves every class.
 
 The output is SQL for the characters database (table playerbot_launch_route_step, sql/playerbot_v2/0901_launch_routes.sql).
 It holds the guide's content: keep it on the machine that runs the server, never commit it (guides have their own licences).
@@ -14,16 +16,18 @@ It holds the guide's content: keep it on the machine that runs the server, never
 import re
 import sys
 
-RACES = {"dwarf": 3, "gnome": 7}
+RACES = {"human": 1, "dwarf": 3, "nightelf": 4, "gnome": 7}
 CLASSES = {"warrior": 1, "paladin": 2, "hunter": 3, "rogue": 4, "priest": 5, "shaman": 7, "mage": 8, "warlock": 9,
            "druid": 11, "deathknight": 6, "monk": 10, "demonhunter": 12, "evoker": 13}
-# Dwarf and gnome classes in Forever (Fleet/BotComposition.cpp IsVanillaCombo)
-COMBOS = [(3, c) for c in (1, 2, 3, 4, 5, 7)] + [(7, c) for c in (1, 4, 8, 9)]
+# Classes of the Alliance starting races in Forever (Fleet/BotComposition.cpp IsVanillaCombo)
+RACE_CLASSES = {1: (1, 2, 4, 5, 8, 9), 3: (1, 2, 3, 4, 5, 7), 4: (1, 3, 4, 5, 11), 7: (1, 4, 8, 9)}
+ROUTE_RACES = [3, 7]   # set by --races
+COMBOS = []
 ACTIONS = {"accept": 1, "complete": 2, "turnin": 3, "deathskip": 4, "hearth": 5}
 
 
 def bit(race, cls):
-    return (0 if race == 3 else 12) + cls
+    return ROUTE_RACES.index(race) * 12 + cls
 
 
 def term_true(term, race, cls):
@@ -102,13 +106,21 @@ def parse(text):
 
 
 def main():
-    if len(sys.argv) < 3:
+    global ROUTE_RACES, COMBOS
+    args = sys.argv[1:]
+    if args[:1] == ["--races"]:
+        ROUTE_RACES = [RACES[r] for r in args[1].split(",")]
+        if not 1 <= len(ROUTE_RACES) <= 2:
+            sys.exit("--races: one or two races")
+        args = args[2:]
+    COMBOS = [(r, c) for r in ROUTE_RACES for c in RACE_CLASSES[r]]
+    if len(args) < 2:
         sys.exit(__doc__)
-    route = sys.argv[1]
-    if not re.fullmatch(r"[a-z0-9_]{1,16}", route):
-        sys.exit("ROUTE_ID: 1-16 lowercase letters, digits or _")
+    route = args[0]
+    if not re.fullmatch(r"[a-z0-9_-]{1,16}", route):
+        sys.exit("ROUTE_ID: 1-16 lowercase letters, digits, _ or -")
     steps = []
-    for path in sys.argv[2:]:
+    for path in args[1:]:
         steps += parse(open(path, encoding="utf-8", errors="replace").read())
     print(f"DELETE FROM playerbot_launch_route_step WHERE route = '{route}';")
     for i in range(0, len(steps), 200):

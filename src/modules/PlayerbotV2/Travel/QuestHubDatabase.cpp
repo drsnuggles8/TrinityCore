@@ -12,6 +12,7 @@
 #include "QuestDef.h"
 #include "SharedDefines.h"
 #include "TerrainMgr.h"
+#include "Bot/LaunchPlaces.h"
 
 #include <algorithm>
 #include <chrono>
@@ -211,10 +212,11 @@ bool QuestHub::IsAppropriateFor(BotSnapshot const& snap) const
     if (snap.identity.level < minLevel) return false;
     if (maxLevel > 0 && snap.identity.level > maxLevel) return false;
     if (!(factionMask & race_team_bit(snap.identity.race))) return false;
-    // Launch bots stay in the dwarf and gnome starting area (Dun Morogh, Ironforge, Loch Modan) until 10.
-    if (snap.identity.launch_area_hubs &&
-        (mapId != 0 || location.GetPositionX() < -6800.f || location.GetPositionX() > -4500.f ||
-         location.GetPositionY() < -4800.f || location.GetPositionY() > 1000.f))
+    // Launch bots stay in their starting zone's area (Dun Morogh, Ironforge, Loch Modan; Elwynn; Teldrassil; Zephras Isle)
+    // until 10.
+    if (snap.identity.launch_zone &&
+        !::Playerbot::LaunchPlaces::InHubArea(::Playerbot::LaunchPlaces::kZones[snap.identity.launch_zone - 1], mapId,
+                                              location.GetPositionX(), location.GetPositionY()))
         return false;
     return true;
 }

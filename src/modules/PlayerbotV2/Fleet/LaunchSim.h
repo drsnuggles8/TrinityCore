@@ -86,7 +86,8 @@ private:
     LaunchSim() = default;
     void SendReplies(uint32 now_ms);
     void LoadRoster();
-    void Roll(Entry& e, bool keep_identity, bool late);
+    // zone: the starting zone (Bot/LaunchPlaces.h StartZoneId) the character is made for.
+    void Roll(Entry& e, bool keep_identity, bool late, uint8 zone);
     bool CreateOne(Entry& e);
     void DeleteOne(Entry const& e);
     void SaveRow(Entry const& e);

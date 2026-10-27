@@ -9,6 +9,7 @@
 #include "Bot/BotIntent.h"
 #include "Bot/BotIntentEmitter.h"
 #include "Bot/BotRegistry.h"
+#include "Bot/LaunchPlaces.h"
 #include "Bot/LaunchProfile.h"
 #include "Services.h"
 #include "Session/BotSessionMgr.h"
@@ -78,9 +79,9 @@ constexpr std::array<Persona, 16> kPersonas = { {
 
 // Classes of the Forever beta census (Alliance, 20 Sep, ~5000 characters, in percent x10), restricted below to what a
 // dwarf or gnome can be. Dwarf 16% / Gnome 15% of the Alliance.
-constexpr std::array<std::pair<uint8, uint16>, 8> kClassShares = { {
+constexpr std::array<std::pair<uint8, uint16>, 9> kClassShares = { {
     { CLASS_HUNTER, 160 }, { CLASS_WARRIOR, 140 }, { CLASS_PALADIN, 135 }, { CLASS_PRIEST, 105 },
-    { CLASS_ROGUE, 100 }, { CLASS_MAGE, 90 }, { CLASS_SHAMAN, 75 }, { CLASS_WARLOCK, 60 },
+    { CLASS_ROGUE, 100 }, { CLASS_MAGE, 90 }, { CLASS_DRUID, 80 }, { CLASS_SHAMAN, 75 }, { CLASS_WARLOCK, 60 },
 } };
 
 uint32 Mix(uint32 a, uint32 b)
@@ -131,24 +132,44 @@ char const* PhaseName(int p)
 
 // The guide a GuideRoute bot follows: racers their own fast route (Olo's, when imported), everyone else RestedXP mostly
 // and the other imported guides (not Olo's) for the rest. Fixed by the bot's seed.
-uint8 PickRoute(Persona const& p, uint32 seed)
+// The suffix of the route names for a race's starting zone: "rxp", "olo" (dwarves and gnomes), "rxp-human", "rxp-nightelf".
+std::string_view RouteSuffix(uint8 race)
+{
+    switch (race)
+    {
+        case RACE_HUMAN:    return "-human";
+        case RACE_NIGHTELF: return "-nightelf";
+        case RACE_DWARF:
+        case RACE_GNOME:    return "";
+        default:            return "-none";   // no guide for this race (Skyborne): it quests on its own
+    }
+}
+
+uint8 PickRoute(Persona const& p, uint32 seed, uint8 race)
 {
     LaunchRoutes const& routes = LaunchRoutes::Instance();
     if (p.strategy != LaunchStrategy::GuideRoute || routes.Empty())
         return LaunchRoutes::kNoRoute;
-    uint8 const olo = routes.Find("olo");
-    uint8 const rxp = routes.Find("rxp");
+    std::string_view const sfx = RouteSuffix(race);
+    auto const fits = [&](std::string const& name)
+    {
+        if (sfx.empty())
+            return name.find('-') == std::string::npos;   // the dwarf/gnome routes carry no race suffix
+        return name.size() > sfx.size() && name.compare(name.size() - sfx.size(), sfx.size(), sfx) == 0;
+    };
+    uint8 const olo = sfx.empty() ? routes.Find("olo") : LaunchRoutes::kNoRoute;
+    uint8 const rxp = routes.Find("rxp" + std::string(sfx));
     if (std::string_view(p.key) == "racer" && olo != LaunchRoutes::kNoRoute)
         return olo;
     std::vector<uint8> others;
     for (size_t i = 0; i < routes.Names().size(); ++i)
-        if (uint8(i) != olo && uint8(i) != rxp)
+        if (uint8(i) != olo && uint8(i) != rxp && fits(routes.Names()[i]))
             others.push_back(uint8(i));
     if (rxp != LaunchRoutes::kNoRoute && (others.empty() || Mix(seed, 11) % 100 < 75))
         return rxp;
     if (!others.empty())
         return others[Mix(seed, 12) % others.size()];
-    return olo;   // only Olo's route is imported
+    return olo;   // only Olo's route is imported (dwarves and gnomes), or none for this race
 }
 
 } // anonymous namespace
@@ -179,15 +200,23 @@ std::vector<uint32> LaunchSim::PersonaWeights() const
     return w;
 }
 
-void LaunchSim::Roll(Entry& e, bool keep_identity, bool late)
+void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
 {
-    e.persona = uint8(PickWeighted(PersonaWeights()));
+    // Personas tied to Coldridge (the troll camp, the dwarf/gnome exploration routes) exist there only.
+    for (int guard = 0; guard < 20; ++guard)
+    {
+        e.persona = uint8(PickWeighted(PersonaWeights()));
+        LaunchStrategy const st = kPersonas[e.persona].strategy;
+        if (zone == LaunchPlaces::kZoneColdridge || (st != LaunchStrategy::TrollGrinder && st != LaunchStrategy::Explorer))
+            break;
+    }
     Persona const& p = kPersonas[e.persona];
     e.seed = urand(1, 0x7FFFFFFF);
 
     if (!keep_identity)
     {
-        // Class first (the census is per class), then a race that can be it: dwarf 16 : gnome 15.
+        // Class first (the census is per class), then a race of the zone that can be it: Coldridge dwarf 16 : gnome 15,
+        // Northshire human, Shadowglen night elf, Zephras High Order Skyborne.
         for (int guard = 0; guard < 50; ++guard)
         {
             uint8 cls = p.class_pref;
@@ -197,10 +226,20 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late)
                 for (size_t i = 0; i < kClassShares.size(); ++i) w[i] = kClassShares[i].second;
                 cls = kClassShares[PickWeighted(w)].first;
             }
-            bool const dwarf_ok = BotComposition::IsLegalRaceClass(RACE_DWARF, cls);
-            bool const gnome_ok = BotComposition::IsLegalRaceClass(RACE_GNOME, cls);
-            if (!dwarf_ok && !gnome_ok) continue;
-            uint8 race = !gnome_ok ? RACE_DWARF : !dwarf_ok ? RACE_GNOME : (urand(0, 30) < 16 ? RACE_DWARF : RACE_GNOME);
+            uint8 race = 0;
+            if (zone == LaunchPlaces::kZoneColdridge)
+            {
+                bool const dwarf_ok = BotComposition::IsLegalRaceClass(RACE_DWARF, cls);
+                bool const gnome_ok = BotComposition::IsLegalRaceClass(RACE_GNOME, cls);
+                if (!dwarf_ok && !gnome_ok) continue;
+                race = !gnome_ok ? RACE_DWARF : !dwarf_ok ? RACE_GNOME : (urand(0, 30) < 16 ? RACE_DWARF : RACE_GNOME);
+            }
+            else
+            {
+                race = zone == LaunchPlaces::kZoneNorthshire ? uint8(RACE_HUMAN)
+                     : zone == LaunchPlaces::kZoneShadowglen ? uint8(RACE_NIGHTELF) : uint8(95);   // High Order Skyborne
+                if (!BotComposition::IsLegalRaceClass(race, cls)) continue;
+            }
             BotComposition::Pick const pick = BotComposition::Roll(race, cls, uint8(urand(0, 1)), "");
             if (!pick.race) continue;
             e.race = pick.race; e.cls = pick.cls; e.gender = pick.gender; e.name = pick.name;
@@ -312,13 +351,28 @@ std::string LaunchSim::Prepare(uint32 bots, uint32 late)
     if (bots == 0 || bots + late > 2000)
         return "Bots must be 1-2000 in total.";
     LaunchRoutes::Instance().Load();   // pick up routes imported since the server started
-    roster_.resize(bots + late);
-    for (size_t i = 0; i < roster_.size(); ++i)
-        Roll(roster_[i], /*keep_identity*/ false, /*late*/ i >= bots);
+    // `bots` start in Coldridge Valley; the other Alliance starting zones get theirs from the config (0 = none):
+    // Playerbot.Launch.NorthshireBots (humans), .ShadowglenBots (night elves), .ZephrasBots (High Order Skyborne).
+    // Order: Coldridge, Northshire, Shadowglen, Zephras, then the late arrivals (Coldridge).
+    auto const cfg = [](char const* key) { return uint32(std::clamp(sConfigMgr->GetIntDefault(key, 0, true), 0, 1000)); };
+    std::array<uint32, LaunchPlaces::kZoneCount> per_zone = { bots, cfg("Playerbot.Launch.NorthshireBots"),
+        cfg("Playerbot.Launch.ShadowglenBots"), cfg("Playerbot.Launch.ZephrasBots") };
+    uint32 total = late;
+    for (uint32 n : per_zone) total += n;
+    if (total > 2000)
+        return "Bots must be 1-2000 in total (all zones).";
+    roster_.resize(total);
+    size_t i = 0;
+    for (uint8 z = 0; z < LaunchPlaces::kZoneCount; ++z)
+        for (uint32 k = 0; k < per_zone[z]; ++k, ++i)
+            Roll(roster_[i], /*keep_identity*/ false, /*late*/ false, z);
+    for (; i < roster_.size(); ++i)
+        Roll(roster_[i], /*keep_identity*/ false, /*late*/ true, LaunchPlaces::kZoneColdridge);
     late_count_ = late;
     phase_ = Phase::Creating;
-    return "Creating " + std::to_string(bots) + " launch bots + " + std::to_string(late) + " late arrivals (a few per tick). "
-           "`.playerbot launch status` shows the progress; then `.playerbot launch arm` and log in.";
+    return "Creating " + std::to_string(bots) + " launch bots in Coldridge + " + std::to_string(per_zone[1]) + " Northshire + " +
+           std::to_string(per_zone[2]) + " Shadowglen + " + std::to_string(per_zone[3]) + " Zephras + " + std::to_string(late) +
+           " late arrivals (a few per tick). `.playerbot launch status` shows the progress; then `.playerbot launch arm` and log in.";
 }
 
 std::string LaunchSim::Arm()
@@ -392,6 +446,16 @@ std::string LaunchSim::Status()
       << ", done " << by_state[4] << ", rerolling " << by_state[5];
     if (phase_ == Phase::Running)
         o << "; T0 + " << (GameTime::GetGameTimeMS() - t0_ms_) / 60000u << " min";
+    o << "\nOnline by zone:";
+    {
+        std::array<uint32, LaunchPlaces::kZoneCount> by_zone{};
+        for (Entry const& e : roster_)
+            if (e.state == BotState::Online)
+                ++by_zone[LaunchPlaces::ZoneForRace(e.race)];
+        for (uint8 z = 0; z < LaunchPlaces::kZoneCount; ++z)
+            if (by_zone[z])
+                o << ' ' << LaunchPlaces::kZones[z].key << '=' << by_zone[z];
+    }
     o << "\nOnline by persona:";
     for (size_t i = 0; i < kPersonas.size(); ++i)
         if (online_by_persona[i])
@@ -572,7 +636,7 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                             by_guid_.erase(e.guid_low);
                             DeleteOne(e);
                             e.guid_low = 0;
-                            Roll(e, /*keep_identity*/ false, /*late*/ false);
+                            Roll(e, /*keep_identity*/ false, /*late*/ false, LaunchPlaces::ZoneForRace(e.race));
                             e.arrival_s = elapsed_s + urand(60, 180);   // character creation, a new name, the intro
                             if (CreateOne(e))
                             {
@@ -632,7 +696,8 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
             // All gone: the same names, races and classes again, fresh, with new personas, arrivals and sessions.
             for (size_t i = 0; i < roster_.size(); ++i)
             {
-                Roll(roster_[i], /*keep_identity*/ true, /*late*/ i + late_count_ >= roster_.size());
+                Roll(roster_[i], /*keep_identity*/ true, /*late*/ i + late_count_ >= roster_.size(),
+                     LaunchPlaces::ZoneForRace(roster_[i].race));
                 roster_[i].state = BotState::ToCreate;
             }
             phase_ = Phase::Creating;
@@ -702,7 +767,7 @@ bool LaunchSim::OnBotLogin(Player* p, BotAI* ai)
     }
     lp.session_ms = e.session_s * 1000u;
     lp.seed = e.seed;
-    lp.route = PickRoute(pr, e.seed);
+    lp.route = PickRoute(pr, e.seed, p->GetRace());
     ai->set_launch(lp);
     // A gatherer picks up its gathering profession right away (a shortcut for the trip to the trainer in Kharanos or
     // Ironforge): dwarves mostly Mining, with a pick, gnomes mostly Herbalism. Its gather rule (idle:gather) then detours to

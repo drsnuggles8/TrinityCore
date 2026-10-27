@@ -130,6 +130,18 @@ generator's default slope limit (55 degrees for walkable and steep alike) was te
 islands connected, so it stays at 55 (bots would climb what players cannot). Note the tile naming: Coldridge is tile
 `43,31` (43 = 32 - pos.x / 533.33, 31 = 32 - pos.y / 533.33).
 
+### Starting zones
+
+Besides Coldridge Valley (the `prepare` / `reset` count, dwarves and gnomes, where Olo practises), the other Alliance starting
+zones get their own crowds from the config: `Playerbot.Launch.NorthshireBots` (humans, Northshire), `.ShadowglenBots` (night
+elves, Shadowglen), `.ZephrasBots` (High Order Skyborne, Zephras Isle); 0 = none. The home server runs 150 / 120 / 40
+(`TC_PLAYERBOT_LAUNCH_*_BOTS`). Each zone (Bot/LaunchPlaces.h `kZones`) has its first town (Kharanos, Goldshire, Dolanaar), the
+place leavers move on to (Thelsamar, Sentinel Hill, Auberdine), the capital casuals visit (Ironforge, Stormwind, Darnassus) and
+the area its quest hubs stay in below level 10; Zephras Isle has none of these (an island). The troll grinder and the explorer
+are Coldridge personas; elsewhere those rolls are drawn again. Guide routes by zone: `rxp` / `olo` (dwarves and gnomes),
+`rxp-human`, `rxp-nightelf` (`import_route.py --races human|nightelf`). Dynamic respawn covers Elwynn, Teldrassil and Zephras
+too (`2026_10_27_01_world_launch_dynamic_respawn_zones.sql`).
+
 ### Respawns
 
 The 2019 Classic launch used dynamic respawns in the starter zones (more players, faster respawns); whether Forever does is
