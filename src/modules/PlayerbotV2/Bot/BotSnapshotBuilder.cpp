@@ -1143,6 +1143,43 @@ std::vector<uint32> const& QuestItemCreatureEntries(uint32 item_entry)
     return first;
 }
 
+// The QuestPOI blob of an objective: matched by QuestObjectiveID (real objectives only: synthesized ones carry id 0, as
+// do many overview blobs), then QuestObjectID, then ObjectiveIndex. Several blobs can match one key - Q179 "Dwarven
+// Outfitters" lists the Coldridge wolves and two Elwynn wolf areas for its Tough Wolf Meat - so the one whose centroid is
+// nearest the bot wins (same map first), not the first in the data: the first sent every Coldridge bot to Northshire.
+QuestPOIBlobData const* MatchObjectivePoiBlob(QuestPOIData const* poi, QuestObjectiveEntry const& obj, uint32 bot_map,
+    float bot_x, float bot_y)
+{
+    if (!poi)
+        return nullptr;
+    auto nearest = [&](auto const& matches) -> QuestPOIBlobData const*
+    {
+        QuestPOIBlobData const* best = nullptr;
+        double best_d = 0.0;
+        for (auto const& b : poi->Blobs)
+        {
+            if (!matches(b) || b.Points.empty())
+                continue;
+            double sx = 0.0, sy = 0.0;
+            for (auto const& pt : b.Points) { sx += double(pt.X); sy += double(pt.Y); }
+            double const n = double(b.Points.size());
+            double const dx = sx / n - double(bot_x), dy = sy / n - double(bot_y);
+            double const d = (uint32(b.MapID) == bot_map ? 0.0 : 1e15) + dx * dx + dy * dy;
+            if (!best || d < best_d)
+                best = &b, best_d = d;
+        }
+        return best;
+    };
+    QuestPOIBlobData const* m = nullptr;
+    if (obj.id != 0)
+        m = nearest([&](QuestPOIBlobData const& b) { return b.QuestObjectiveID == int32(obj.id); });
+    if (!m)
+        m = nearest([&](QuestPOIBlobData const& b) { return b.QuestObjectID == obj.object_id; });
+    if (!m)
+        m = nearest([&](QuestPOIBlobData const& b) { return b.ObjectiveIndex == int32(obj.storage_index); });
+    return m;
+}
+
 // Picker LOCAL-WORK distance gate (cross-zone same-map fix). Estimate an
 // objective's planar world position + area radius so the picker can distinguish
 // LOCAL work (same zone, within ~one zone) from a same-MAP-but-cross-ZONE trek.
@@ -1168,16 +1205,7 @@ bool EstimateObjectivePlanarPos(QuestPOIData const* quest_poi,
     // 1) Matched POI blob centroid — same match order as the winner (Q-P2).
     if (quest_poi)
     {
-        QuestPOIBlobData const* matched = nullptr;
-        if (obj.id != 0)
-            for (auto const& b : quest_poi->Blobs)
-                if (b.QuestObjectiveID == int32(obj.id)) { matched = &b; break; }
-        if (!matched)
-            for (auto const& b : quest_poi->Blobs)
-                if (b.QuestObjectID == obj.object_id) { matched = &b; break; }
-        if (!matched)
-            for (auto const& b : quest_poi->Blobs)
-                if (b.ObjectiveIndex == int32(obj.storage_index)) { matched = &b; break; }
+        QuestPOIBlobData const* matched = MatchObjectivePoiBlob(quest_poi, obj, bot_map, bot_x, bot_y);
         if (matched && !matched->Points.empty())
         {
             double sx = 0.0, sy = 0.0;
@@ -6422,25 +6450,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         if (poi && !poi->Blobs.empty() && !snap->quest_log.current_objective.use_start_item)
         {
             auto const& obj = snap->quest_log.current_objective;
-            QuestPOIBlobData const* matched = nullptr;
-            // Q-P2a: synthesized breadcrumb/turn-in objectives carry id==0.
-            // Many POI overview blobs also have QuestObjectiveID==0, so an
-            // unguarded match here would fasten a synth objective onto the
-            // wrong (overview) blob. Only use the QuestObjectiveID matcher for
-            // real objectives (id!=0); synth objectives fall through to the
-            // object_id / ObjectiveIndex matchers below.
-            if (obj.id != 0)
-                for (auto const& blob : poi->Blobs)
-                    if (blob.QuestObjectiveID == int32(obj.id))
-                    { matched = &blob; break; }
-            if (!matched)
-                for (auto const& blob : poi->Blobs)
-                    if (blob.QuestObjectID == obj.object_id)
-                    { matched = &blob; break; }
-            if (!matched)
-                for (auto const& blob : poi->Blobs)
-                    if (blob.ObjectiveIndex == int32(obj.storage_index))
-                    { matched = &blob; break; }
+            // Q-P2a: synthesized breadcrumb/turn-in objectives carry id==0 and skip the QuestObjectiveID matcher (overview
+            // blobs carry 0 too); of several matching blobs the nearest wins (MatchObjectivePoiBlob).
+            QuestPOIBlobData const* matched = MatchObjectivePoiBlob(poi, obj, p->GetMapId(), p->GetPositionX(), p->GetPositionY());
             if (matched && !matched->Points.empty())
             {
                 // Single-point POI → use the point as-is (radius=0).
