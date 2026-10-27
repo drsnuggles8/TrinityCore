@@ -2390,17 +2390,24 @@ public:
     // toward it (live: Wylius wedged 273s). Bounds the walk: if the bot can't get
     // to the corpse within kCorpseWalkDeadlineMs, give up and try the next queued
     // corpse. Generous so a legit long walk to a reachable corpse isn't cut short.
-    static constexpr uint32 kCorpseWalkDeadlineMs = 40000;   // 40 s to REACH it
+    // Only the time spent walking counts: a check more than 3 s after the last one means the walk was interrupted (a
+    // fight, a pull on the way), and the clock skips that gap. Counted from the first attempt, a crowded camp's next pull
+    // used up the 40 s before the bot got to the corpse (mix31: a racer gave up 30 corpses 32-57 y away on the trogg
+    // slope, and quest drops with them).
     [[nodiscard]] bool loot_corpse_walk_overdue(uint64 corpse_low, uint32 now_ms)
     {
         auto it = loot_walk_first_ms_.find(corpse_low);
         if (it == loot_walk_first_ms_.end())
         {
             if (loot_walk_first_ms_.size() >= 32) loot_walk_first_ms_.clear();
-            loot_walk_first_ms_[corpse_low] = now_ms;
+            loot_walk_first_ms_[corpse_low] = { now_ms, now_ms };
             return false;
         }
-        return (now_ms - it->second) >= kCorpseWalkDeadlineMs;
+        constexpr uint32 kWalkGapMs = 3000;
+        if (now_ms - it->second.last_ms > kWalkGapMs)
+            it->second.start_ms += now_ms - it->second.last_ms;   // the interruption does not count
+        it->second.last_ms = now_ms;
+        return (now_ms - it->second.start_ms) >= kCorpseWalkDeadlineMs;
     }
     void clear_loot_corpse_walk(uint64 corpse_low) { loot_walk_first_ms_.erase(corpse_low); }
 
@@ -4906,8 +4913,9 @@ private:
     std::unordered_map<uint32, uint32> tried_hub_until_ms_;
     // A4 per-corpse loot first-seen timestamp — see loot_corpse_overdue.
     std::unordered_map<uint64, uint32> loot_first_seen_;
-    // Per-corpse WALK first-attempt timestamp — see loot_corpse_walk_overdue.
-    std::unordered_map<uint64, uint32> loot_walk_first_ms_;
+    // Per-corpse WALK clock (start shifted past interruptions, last check) — see loot_corpse_walk_overdue.
+    struct LootWalkClock { uint32 start_ms = 0; uint32 last_ms = 0; };
+    std::unordered_map<uint64, LootWalkClock> loot_walk_first_ms_;
     // Per-target start_attack lockout — see kStartAttackLockoutMs.
     std::unordered_map<uint64, uint32> start_attack_until_ms_;
     // Raid damage-school rule bookkeeping (see RaidSchoolState).

@@ -6511,6 +6511,29 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     }
                 snap->quest_log.current_objective_poi.radius = std::sqrt(radius_sq);
                 snap->quest_log.current_objective_poi.valid  = true;
+                // A kill objective heads for its own creature's nearest spawn cluster (QuestObjectiveLocations) when the
+                // polygon is shared: Q170's one polygon covers both trogg kinds, its middle sits among the Burly Rockjaw
+                // Troggs, and with those done the bots stood there while the Rockjaw Troggs they still needed lived further
+                // south (q170: 6/6 Burly for every racer, 0-4 of 6 Rockjaw after 25 minutes; the quest completed once in 26
+                // tries over four runs). Only a cluster near the polygon, so a far-off spawn never replaces a real POI.
+                if (matched->Points.size() > 2 && obj.id != 0 &&
+                    (obj.type == QUEST_OBJECTIVE_MONSTER || obj.type == QUEST_OBJECTIVE_KILL_WITH_LABEL))
+                {
+                    ObjectiveCluster cl;
+                    if (PickQuestObjectiveCluster(snap->quest_log.current_quest_id, obj.id, p->GetMapId(), p->GetPositionX(),
+                            p->GetPositionY(), cl) && cl.map_id == uint32(matched->MapID))
+                    {
+                        float const ddx = cl.x - cx, ddy = cl.y - cy;
+                        float const reach = std::sqrt(radius_sq) + 150.0f;
+                        if (ddx * ddx + ddy * ddy <= reach * reach)
+                        {
+                            snap->quest_log.current_objective_poi.x = cl.x;
+                            snap->quest_log.current_objective_poi.y = cl.y;
+                            snap->quest_log.current_objective_poi.z = cl.z;
+                            snap->quest_log.current_objective_poi.radius = std::max(30.0f, cl.radius + 20.0f);
+                        }
+                    }
+                }
             }
         }
         // Q-P1a: QuestPOI fallback via target spawn. Many quests (especially
