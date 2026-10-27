@@ -10,6 +10,7 @@
 #include "SharedDefines.h"
 #include "DB2Stores.h"
 #include "PhasingHandler.h"
+#include "Map.h"
 #include "TerrainMgr.h"
 #include "Trainer.h"
 #include "UnitDefines.h"
@@ -200,6 +201,21 @@ void LaunchRoutes::LoadExploreRoutes()
                 innkeepers.push_back({ sp, area });
         }
     }
+    // The ground itself, every 30 y over the regions: a subzone without creatures (Tundrid Hills) or whose creatures all stand
+    // in buildings of their own subzone (Kharanos: Thunderbrew Distillery) still gets points. Terrain height only (no vmaps),
+    // so a point is outdoors, where exploration counts.
+    if (std::shared_ptr<TerrainInfo> terrain = sTerrainMgr.LoadTerrain(0))
+        for (Box const& b : kRegions)
+            for (float x = b.x0; x <= b.x1; x += 30.f)
+                for (float y = b.y0; y <= b.y1; y += 30.f)
+                {
+                    float const z = terrain->GetGridHeight(PhasingHandler::GetEmptyPhaseShift(), 0, x, y);
+                    if (z <= INVALID_HEIGHT)
+                        continue;
+                    uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), 0, x, y, z);
+                    if (area)
+                        by_area[area].push_back({ x, y, z });
+                }
     // Is `area` the subzone `name`, or inside it (a town's buildings are subzones of their own)?
     auto const in_named = [&](uint32 area, std::vector<uint32> const& named)
     {
@@ -233,37 +249,55 @@ void LaunchRoutes::LoadExploreRoutes()
                 continue;
             }
             bool found = false;
+            // The points of the named subzone (and of areas inside it), and the one nearest their middle: a point on the
+            // ground, inside the subzone.
+            std::vector<Spot> pts;
+            for (auto const& [area, list] : by_area)
+                if (in_named(area, it->second))
+                    pts.insert(pts.end(), list.begin(), list.end());
+            Spot const* mid = nullptr;
+            if (!pts.empty())
+            {
+                double cx = 0, cy = 0;
+                for (Spot const& p : pts) { cx += p.x; cy += p.y; }
+                cx /= pts.size(); cy /= pts.size();
+                mid = &pts.front();
+                for (Spot const& p : pts)
+                    if ((p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy) < (mid->x - cx) * (mid->x - cx) + (mid->y - cy) * (mid->y - cy))
+                        mid = &p;
+            }
             if (d.action == ExploreAction::Discover)
             {
-                // The subzone's spawn nearest the centroid of its spawns (on the ground, inside the subzone).
-                std::vector<Spot> pts;
-                for (uint32 id : it->second)
-                    if (auto const a = by_area.find(id); a != by_area.end())
-                        pts.insert(pts.end(), a->second.begin(), a->second.end());
-                if (!pts.empty())
+                if (mid)
                 {
-                    double cx = 0, cy = 0;
-                    for (Spot const& p : pts) { cx += p.x; cy += p.y; }
-                    cx /= pts.size(); cy /= pts.size();
-                    Spot const* best = &pts.front();
-                    for (Spot const& p : pts)
-                        if ((p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy) < (best->x - cx) * (best->x - cx) + (best->y - cy) * (best->y - cy))
-                            best = &p;
                     st.area = it->second.front();
-                    st.x = best->x; st.y = best->y; st.z = best->z;
+                    st.x = mid->x; st.y = mid->y; st.z = mid->z;
                     found = true;
                 }
             }
             else
             {
+                // The flight master / innkeeper of the place: one standing in it, else the one nearest its middle (within
+                // 400 y; a town's inn is a building subzone of its own, Kharanos' Thunderbrew Distillery).
                 auto const& list = d.action == ExploreAction::Flight ? flight_masters : innkeepers;
+                Spot const* best = nullptr;
+                float best_d = 400.f * 400.f;
                 for (auto const& [sp, area] : list)
+                {
                     if (in_named(area, it->second))
                     {
-                        st.x = sp.x; st.y = sp.y; st.z = sp.z;
-                        found = true;
+                        best = &sp;
                         break;
                     }
+                    if (mid)
+                        if (float const dd = (sp.x - mid->x) * (sp.x - mid->x) + (sp.y - mid->y) * (sp.y - mid->y); dd < best_d)
+                            best = &sp, best_d = dd;
+                }
+                if (best)
+                {
+                    st.x = best->x; st.y = best->y; st.z = best->z;
+                    found = true;
+                }
             }
             if (found)
                 explore_[r].push_back(st);
