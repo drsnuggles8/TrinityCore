@@ -22,6 +22,12 @@ namespace WorldPackets::Social
 {
 void SendContactList::Read()
 {
+    // Classic 1.60 puts one more byte (seen 0) before the flags: 00 15 00 00 00 / 00 11 00 00 00. Read as a uint32 the flags
+    // came out as 0x1500 and the server sent an empty friend list every time it was opened (jibay442/forever_docker,
+    // docker/patches/0003, from packet logs of 70450).
+    if (_worldPacket.size() > sizeof(uint32))
+        _worldPacket.read_skip<uint8>();
+
     _worldPacket >> Flags;
 }
 

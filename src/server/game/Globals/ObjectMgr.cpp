@@ -170,6 +170,10 @@ bool normalizePlayerName(std::string& name)
     if (first == std::wstring::npos)
         return false;
     tmp = tmp.substr(first, tmp.find_last_not_of(blanks) - first + 1);
+    // Classic 1.60.1.70425+: the client shows and sends "Name Surname" (add friend, ignore, guild invite by name). Character
+    // names never contain blanks, so keep the first word only (jibay442/forever_docker, docker/patches/0002). With several
+    // characters of the same name (only name + surname is unique) this finds one of them; mail resolves the surname itself.
+    tmp = tmp.substr(0, tmp.find_first_of(blanks));
 
     wstrToLower(tmp);
     if (!tmp.empty())
