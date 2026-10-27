@@ -19,6 +19,7 @@
 #include "BotArchetype.h"
 #include "BotRng.h"
 #include "LaunchProfile.h"
+#include "GameTime.h"
 #include "ObjectGuid.h"
 #include <algorithm>
 #include <array>
@@ -2023,11 +2024,15 @@ public:
     // Default cooldown is 60 minutes; longer than the typical questing trip
     // through a hub so the bot never re-encounters a recently-dropped offer.
     static constexpr uint32 kQuestBlacklistMs = 60u * 60u * 1000u;
+    // A launch bot gives a quest or objective up for 3 minutes at most: in a launch crowd every wait for a free mob, a
+    // body-blocked giver or a death at a camp reads as "stuck", and the 60-minute drops left bots with a quest log full of
+    // blacklisted (even finished) quests, wandering.
+    static constexpr uint32 kLaunchBlacklistMaxMs = 3u * 60u * 1000u;
     void blacklist_quest(uint32 quest_id, uint32 now_ms)
     {
         if (quest_id == 0) return;
         std::lock_guard<std::mutex> lk(quest_mem_mtx_);
-        quest_blacklist_until_ms_[quest_id] = now_ms + kQuestBlacklistMs;
+        quest_blacklist_until_ms_[quest_id] = now_ms + (launch_.active ? kLaunchBlacklistMaxMs : kQuestBlacklistMs);
     }
     bool quest_blacklisted(uint32 quest_id, uint32 now_ms) const
     {
@@ -5150,6 +5155,8 @@ private:
     { return (uint64(quest_id) << 32) | uint64(obj_id); }
     void blacklist_put(uint32 quest_id, uint32 obj_id, uint32 until_ms)
     {
+        if (launch_.active)
+            until_ms = std::min(until_ms, GameTime::GetGameTimeMS() + kLaunchBlacklistMaxMs);
         std::lock_guard<std::mutex> lk(quest_mem_mtx_);
         // Prune expired entries opportunistically; hard-cap the map so a
         // pathological bot can't grow it unbounded (~32 live entries is far
