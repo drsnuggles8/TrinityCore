@@ -77,6 +77,9 @@ public:
     // A casual launch bot's sightseeing trip to Ironforge is done (the snapshot builder sets it on arrival).
     bool                 launch_ironforge_seen() const { return launch_ironforge_seen_.load(std::memory_order_relaxed); }
     void                 set_launch_ironforge_seen() { launch_ironforge_seen_.store(true, std::memory_order_relaxed); }
+    // An explorer launch bot's next stop on its tour (LaunchRoutes::ExploreStop; the snapshot builder advances it).
+    uint16               launch_explore_stop() const { return launch_explore_stop_.load(std::memory_order_relaxed); }
+    void                 set_launch_explore_stop(uint16 i) { launch_explore_stop_.store(i, std::memory_order_relaxed); }
     BotRng const&       rng()         const { return rng_; }
     BotRng&             rng()               { return rng_; }
     Ms                  state_age(Ms now) const { return now - state_entered_; }
@@ -3230,6 +3233,7 @@ private:
     LaunchSocial   launch_social_{};
     std::atomic<uint8> launch_trained_level_{0};
     std::atomic<bool>  launch_ironforge_seen_{false};
+    std::atomic<uint16> launch_explore_stop_{0};
     BotRng         rng_;
     BotState       state_         = BotState::LoggingIn;
     BotState       prev_state_    = BotState::LoggingIn;

@@ -57,7 +57,7 @@ struct Persona
 };
 
 //                                                                     N   F   G   L   Gr
-constexpr std::array<Persona, 15> kPersonas = { {
+constexpr std::array<Persona, 16> kPersonas = { {
     { "racer",     5, LaunchStrategy::GuideRoute,   0.95f, 1.10f, { 25,  5, 60, 10,  0 },   0,  30, 0.0f,  0.5f,   0,   0,   0,   0,   0, 0 },
     { "rxp",      12, LaunchStrategy::GuideRoute,   1.00f, 1.30f, { 45, 10, 35, 10,  0 },  10, 120, 0.3f,  1.5f,  90,  60, 180,   0,   0,   0 },
     { "trolls",    3, LaunchStrategy::TrollGrinder, 1.00f, 1.20f, { 20,  0, 50, 30,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
@@ -73,6 +73,7 @@ constexpr std::array<Persona, 15> kPersonas = { {
     { "reroller",  4, LaunchStrategy::Reroller,     1.50f, 2.50f, { 50, 30, 10, 10,  0 },  60, 300, 1.0f,  6.0f,  30,  60, 240,  10,  40,   0 },
     { "ninja",     2, LaunchStrategy::KillStealer,  1.10f, 1.40f, {  0,  0, 30,  0, 70 },  10,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
     { "leaver",    2, LaunchStrategy::Leaver,       1.10f, 1.30f, { 50, 20, 20, 10,  0 },  10,  90, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
+    { "explorer",  2, LaunchStrategy::Explorer,     1.00f, 1.20f, { 40, 20,  0, 40,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
 } };
 
 // Classes of the Forever beta census (Alliance, 20 Sep, ~5000 characters, in percent x10), restricted below to what a

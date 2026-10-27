@@ -79,6 +79,7 @@ Forever beta and stress test). Pace 1.0 = an uncrowded speedrun (Coldridge left 
 | reroller | 4 | Reroller | 1.5-2.5 | neutral |
 | ninja | 2 | KillStealer: tags untagged mobs other players stand next to | 1.1-1.4 | griefer |
 | leaver | 2 | Leaver: Loch Modan at 8 | 1.1-1.3 | neutral |
+| explorer | 2 | Explorer: tours every exploration subzone of Dun Morogh, Ironforge and Loch Modan and their flight masters (learns the paths), kills nothing until level 6 or the end of the tour, then quests | 1.0-1.2 | loner / neutral |
 
 Arrival after T0 is the same for every persona (the login queue does not care who is a racer): 35% in the first 3 minutes,
 35% by 15 minutes, the rest by 60; late arrivals (the `late` count) spread over hours one to six.

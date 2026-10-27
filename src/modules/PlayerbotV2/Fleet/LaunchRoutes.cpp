@@ -7,6 +7,9 @@
 #include "Player.h"
 #include "QuestDef.h"
 #include "SharedDefines.h"
+#include "DB2Stores.h"
+#include "PhasingHandler.h"
+#include "TerrainMgr.h"
 #include "Trainer.h"
 #include "UnitDefines.h"
 #include <algorithm>
@@ -60,6 +63,68 @@ void LaunchRoutes::Load()
         trainers_.push_back({ spawn_id, mask, x, y, data.spawnPoint.GetPositionZ() });
     }
     TC_LOG_INFO("playerbot.v2", "[launch] {} class trainers in the launch area", trainers_.size());
+
+    // Explorer tour: the creature spawns of Dun Morogh (zone 1), Ironforge (1537) and Loch Modan (38) grouped by subzone;
+    // per subzone that gives exploration XP the spawn nearest the group's centroid, plus the flight masters.
+    explore_.clear();
+    {
+        struct Acc { double sx = 0, sy = 0; uint32 n = 0; std::vector<Position> pts; };
+        std::unordered_map<uint32, Acc> by_area;
+        std::vector<ExploreStop> fms;
+        for (auto const& [spawn_id, data] : sObjectMgr->GetAllCreatureData())
+        {
+            if (data.mapId != 0)
+                continue;
+            float const x = data.spawnPoint.GetPositionX(), y = data.spawnPoint.GetPositionY();
+            if (x < -6800.f || x > -4000.f || y < -4800.f || y > 1100.f)
+                continue;
+            uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), 0, data.spawnPoint);
+            AreaTableEntry const* at = sAreaTableStore.LookupEntry(area);
+            if (!at)
+                continue;
+            uint32 const zone = at->ParentAreaID ? at->ParentAreaID : at->ID;
+            if (zone != 1 && zone != 1537 && zone != 38)
+                continue;
+            if (CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(data.id); ct && (ct->npcflag & UNIT_NPC_FLAG_FLIGHTMASTER))
+                fms.push_back({ x, y, data.spawnPoint.GetPositionZ(), 0, true });
+            if (at->AreaBit < 0 || at->ExplorationLevel <= 0)
+                continue;
+            Acc& a = by_area[area];
+            a.sx += x; a.sy += y; ++a.n;
+            a.pts.push_back(data.spawnPoint);
+        }
+        std::vector<ExploreStop> stops = fms;
+        for (auto const& [area, a] : by_area)
+        {
+            double const cx = a.sx / a.n, cy = a.sy / a.n;
+            Position const* best = nullptr;
+            double best_d = 0;
+            for (Position const& pt : a.pts)
+            {
+                double const d = (pt.GetPositionX() - cx) * (pt.GetPositionX() - cx) + (pt.GetPositionY() - cy) * (pt.GetPositionY() - cy);
+                if (!best || d < best_d)
+                    best = &pt, best_d = d;
+            }
+            stops.push_back({ best->GetPositionX(), best->GetPositionY(), best->GetPositionZ(), area, false });
+        }
+        // Nearest-neighbour walk from the middle of Coldridge Valley.
+        float cx = -6230.f, cy = 400.f;
+        while (!stops.empty())
+        {
+            size_t bi = 0;
+            float bd = 0.f;
+            for (size_t i = 0; i < stops.size(); ++i)
+            {
+                float const d = (stops[i].x - cx) * (stops[i].x - cx) + (stops[i].y - cy) * (stops[i].y - cy);
+                if (i == 0 || d < bd)
+                    bi = i, bd = d;
+            }
+            explore_.push_back(stops[bi]);
+            cx = stops[bi].x; cy = stops[bi].y;
+            stops.erase(stops.begin() + bi);
+        }
+    }
+    TC_LOG_INFO("playerbot.v2", "[launch] explorer tour: {} stops", explore_.size());
 
     QueryResult r = CharacterDatabase.Query("SELECT route, combos, action, quest, objective FROM playerbot_launch_route_step ORDER BY route, step");
     if (!r)

@@ -27,6 +27,8 @@ enum class LaunchStrategy : uint8
     Reroller      = 9,   // plays a while, deletes, comes back at level 1
     KillStealer   = 10,  // tags what others are fighting, skips lines
     Leaver        = 11,  // quests like a Quester, moves on to Loch Modan at level 8
+    Explorer      = 12,  // tours the subzones of Dun Morogh, Ironforge and Loch Modan for exploration XP and the flight paths,
+                         // no kills (the Reddit "explore to 5" routes), then quests
     Count
 };
 

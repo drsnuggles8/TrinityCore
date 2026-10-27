@@ -30,6 +30,14 @@ struct RouteStep
 
 struct RouteGiver { uint32 map = 0; float x = 0.f, y = 0.f, z = 0.f; };
 
+// A stop on the explorer tour (LaunchStrategy::Explorer): a subzone that gives exploration XP, or a flight master.
+struct ExploreStop
+{
+    float  x = 0.f, y = 0.f, z = 0.f;
+    uint32 area = 0;              // the subzone (AreaTable id); 0 for a flight master
+    bool   flight_master = false;
+};
+
 // A class trainer of the launch area (Dun Morogh, Ironforge, Loch Modan) on map 0.
 struct ClassTrainer
 {
@@ -61,6 +69,11 @@ public:
     // Where a quest's giver stands (first spawn of a creature that starts it), nullptr when unknown.
     RouteGiver const* Giver(uint32 quest) const;
 
+    // The explorer tour: every exploration subzone of Dun Morogh, Ironforge and Loch Modan (a real spawn near its middle)
+    // and the flight masters there, as a nearest-neighbour walk from Coldridge Valley.
+    size_t ExploreStops() const { return explore_.size(); }
+    ExploreStop const* ExploreStopAt(size_t i) const { return i < explore_.size() ? &explore_[i] : nullptr; }
+
     // The class trainer for `cls` nearest to (x, y) on map 0, nullptr when there is none in the launch area.
     ClassTrainer const* NearestTrainer(uint8 cls, float x, float y) const;
 
@@ -74,6 +87,7 @@ private:
     std::vector<std::vector<RouteStep>>  routes_;
     std::unordered_map<uint32, RouteGiver> givers_;
     std::vector<ClassTrainer>            trainers_;
+    std::vector<ExploreStop>             explore_;
 };
 
 } // namespace Playerbot::V2::Fleet
