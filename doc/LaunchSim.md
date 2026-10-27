@@ -142,8 +142,9 @@ Configuration changes, each measured against the defaults (steady state about tw
 | `Load.Locales = 0`, `CacheDataQueries = 0` | | | locales: enUS only (the client is enUS); queries answered on demand, a handful of real players |
 | + `MinWorldUpdateTime = 20`, `MapUpdateInterval = 50` | 1712 MB | ~36-42% (noisy) | the bot module's own `[mem]` line |
 
-In `worldserver.env` (home server): `TC_LOAD_LOCALES=0`, `TC_CACHE_DATA_QUERIES=0`, `TC_MIN_WORLD_UPDATE_TIME=20`,
-`TC_MAP_UPDATE_INTERVAL=50`.
+In `worldserver.env` (home server): `TC_LOAD_LOCALES=0`, `TC_CACHE_DATA_QUERIES=0`. The slower world loop
+(`MinWorldUpdateTime = 20`, `MapUpdateInterval = 50`) was undone on 27 Oct at Olo's request: it adds up to 50 ms to server
+reactions and its own share of the CPU saving was never isolated; runs before that date had it.
 
 Code changes for capacity:
 
