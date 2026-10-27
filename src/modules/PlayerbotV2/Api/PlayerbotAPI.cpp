@@ -3009,16 +3009,35 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
             FaceUnitForCast(p_, victim);
         else if (res == SPELL_FAILED_OUT_OF_RANGE)
         {
+            // The chase is (re)issued when the hunter stands still, at most every 2 s: the engage's ranged chase (0-28 y) is
+            // content at 10 y and never closes the dead zone, and a chase another move replaced does not come back by itself
+            // (mix27: hunters waited 9-11 y from their mob, not moving, ~100 give-ups each in an hour).
+            static std::mutex s_chase_mtx;
+            static std::unordered_map<uint64, uint32> s_chase_ms;
+            uint32 const now = GameTime::GetGameTimeMS();
+            bool chase_due = false;
+            if (!p_->isMoving())
+            {
+                std::lock_guard lk(s_chase_mtx);
+                uint32& last = s_chase_ms[p_->GetGUID().GetCounter()];
+                if (!last || now - last >= 2000u)
+                {
+                    last = now ? now : 1u;
+                    chase_due = true;
+                }
+            }
             if (p_->GetExactDist(victim) < 12.0f)
             {
                 if (!p_->HasUnitState(UNIT_STATE_MELEE_ATTACKING))
                 {
                     p_->Attack(victim, /*meleeAttack*/ true);
                     p_->SetSheath(SHEATH_STATE_MELEE);
-                    p_->GetMotionMaster()->MoveChase(victim);
+                    chase_due = true;
                 }
+                if (chase_due && !p_->IsWithinMeleeRange(victim))
+                    p_->GetMotionMaster()->MoveChase(victim);
             }
-            else if (p_->GetMotionMaster()->GetCurrentMovementGeneratorType() != CHASE_MOTION_TYPE)
+            else if (chase_due || p_->GetMotionMaster()->GetCurrentMovementGeneratorType() != CHASE_MOTION_TYPE)
                 p_->GetMotionMaster()->MoveChase(victim, ChaseRange(0.0f, 28.0f));
         }
         // [auto_shot] why a hunter's Auto Shot did not start or does not fire (launch-sim hunters stayed level 1: few shots,
