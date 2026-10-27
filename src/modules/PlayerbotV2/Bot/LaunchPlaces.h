@@ -49,12 +49,15 @@ inline constexpr StartZone kZones[kZoneCount] = {
     // Dwarves and gnomes: Coldridge Valley -> Kharanos, Loch Modan, Ironforge.
     { "coldridge", 0, kColdridge, kColdridgeRadius, kKharanos, kThelsamar, kIronforge, kTrollCamp, 4,
       { -6800.f, -4500.f, -4800.f, 1000.f }, false },
-    // Humans: Northshire Valley (Deputy Willem) -> Goldshire (Innkeeper Farley), Westfall (Sentinel Hill), Stormwind.
+    // Humans: Northshire Valley (Deputy Willem) -> Goldshire (Innkeeper Farley), Westfall (Sentinel Hill), Stormwind. The
+    // 2019 launch groups farmed the Kobold Vermin and Workers by Echo Ridge Mine (their spawn centroid) to 4.
     { "northshire", 0, { -8933.5f, -136.5f, 83.4f }, 400.f, { -9462.7f, 16.2f, 57.0f }, { -10653.3f, 1166.4f, 34.9f },
-      { -8867.8f, 673.7f, 98.0f }, {}, 0, { -10050.f, -8400.f, -1600.f, 800.f }, false },
-    // Night elves: Shadowglen (Conservator Ilthalaine) -> Dolanaar (Innkeeper Keldamyr), Auberdine, Darnassus.
-    { "shadowglen", 1, { 10328.9f, 826.1f, 1326.5f }, 350.f, { 9802.2f, 982.6f, 1314.0f }, { 6406.5f, 515.4f, 8.7f },
-      { 10127.9f, 2224.8f, 1328.8f }, {}, 0, { 8500.f, 11200.f, -500.f, 2600.f }, false },
+      { -8867.8f, 673.7f, 98.0f }, { -8770.f, -170.f, 84.5f }, 4, { -10050.f, -8400.f, -1600.f, 800.f }, false },
+    // Night elves: Shadowglen (Conservator Ilthalaine) -> Dolanaar (Innkeeper Keldamyr), Starbreeze Village, Darnassus.
+    // Grinders take the Young Thistle Boars and Nightsabers around Shadowglen to 5 (the 2019 night elf grind plan). The
+    // leavers go to Starbreeze Village (the Gnarlpine Gardeners), not Auberdine: no walking off Teldrassil.
+    { "shadowglen", 1, { 10328.9f, 826.1f, 1326.5f }, 350.f, { 9802.2f, 982.6f, 1314.0f }, { 9738.2f, 473.5f, 1308.7f },
+      { 10127.9f, 2224.8f, 1328.8f }, { 10360.7f, 825.9f, 1329.1f }, 5, { 8500.f, 11200.f, -500.f, 2600.f }, false },
     // High Order Skyborne (Classic 1.60): Zephras Isle, map 2991, an island with no way off before level 10.
     { "zephras", 2991, { 4098.1f, 1849.7f, 975.6f }, 400.f, {}, {}, {}, {}, 0, {}, true },
 };

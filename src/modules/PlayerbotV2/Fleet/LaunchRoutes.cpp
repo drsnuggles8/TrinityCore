@@ -181,12 +181,26 @@ constexpr RouteDef kHumanSheet[] = {
     { ExploreAction::Discover, "Coldridge Pass" },
 };
 
+// Night elves: no full text route from Shadowglen survives (Jay Ell's NElf tab is deleted). Teldrassil's subzones in his
+// order, walked from Shadowglen: Dolanaar (bind), the east (Lake Al'Ameth, Starbreeze Village), the south (Gnarlpine Hold,
+// Pools of Arlithrien), up the Wellspring to The Oracle Glade, Darnassus, Ban'ethil Hollow, hearth back. The trip off the
+// island (Rut'theran portal, Auberdine flight, boat) is left out: the bots ride no portal or boat.
+constexpr RouteDef kTeldrassilWalk[] = {
+    { ExploreAction::Discover, "Dolanaar" }, { ExploreAction::Bind, "Dolanaar" },
+    { ExploreAction::Discover, "Lake Al'Ameth" }, { ExploreAction::Discover, "Starbreeze Village" },
+    { ExploreAction::Discover, "Gnarlpine Hold" }, { ExploreAction::Discover, "Pools of Arlithrien" },
+    { ExploreAction::Discover, "Wellspring River" }, { ExploreAction::Discover, "Wellspring Lake" },
+    { ExploreAction::Discover, "The Oracle Glade" }, { ExploreAction::Discover, "Darnassus" },
+    { ExploreAction::Discover, "Ban'ethil Hollow" }, { ExploreAction::Hearth, "" },
+};
+
 // The routes of each starting zone (Bot/LaunchPlaces.h StartZoneId) and the share of its explorers on each.
 struct ExploreSpec { uint8 zone; uint8 share; char const* name; std::span<RouteDef const> defs; };
 ExploreSpec const kExploreSpecs[] = {
     { ::Playerbot::LaunchPlaces::kZoneColdridge,  60, "south loop",  kSouthLoop },
     { ::Playerbot::LaunchPlaces::kZoneColdridge,  40, "north run",   kNorthRun },
     { ::Playerbot::LaunchPlaces::kZoneNorthshire, 100, "human sheet", kHumanSheet },
+    { ::Playerbot::LaunchPlaces::kZoneShadowglen, 100, "teldrassil walk", kTeldrassilWalk },
 };
 
 // The regions the routes cross, where the ground is sampled for subzone points: Dun Morogh and Ironforge, Elwynn and
