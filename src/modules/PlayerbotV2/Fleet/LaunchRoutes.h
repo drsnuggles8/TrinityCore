@@ -80,13 +80,14 @@ public:
     // Where a quest's giver stands (first spawn of a creature that starts it), nullptr when unknown.
     RouteGiver const* Giver(uint32 quest) const;
 
-    // The explorer routes, resolved against this server's area data (0 = the "south loop" through Elwynn and Westfall,
-    // 1 = the "north run" through Loch Modan to Menethil). A stop whose subzone, flight master or innkeeper is not found is
-    // left out (and logged at load).
-    static constexpr uint8 kExploreRoutes = 2;
-    size_t ExploreStops(uint8 route) const { return route < kExploreRoutes ? explore_[route].size() : 0; }
+    // The explorer routes of the starting zones (doc/LaunchSim.md "Explorer routes"), resolved against this server's area
+    // data; a stop whose subzone, flight master or innkeeper is not found is left out (and logged at load). ExploreRoute picks
+    // a bot's route by its starting zone (Bot/LaunchPlaces.h) and seed; kNoRoute when the zone has none.
+    uint8 ExploreRoute(uint8 zone, uint32 seed) const;
+    bool  HasExploreRoute(uint8 zone) const;
+    size_t ExploreStops(uint8 route) const { return route < explore_.size() ? explore_[route].size() : 0; }
     ExploreStop const* ExploreStopAt(uint8 route, size_t i) const
-    { return route < kExploreRoutes && i < explore_[route].size() ? &explore_[route][i] : nullptr; }
+    { return route < explore_.size() && i < explore_[route].size() ? &explore_[route][i] : nullptr; }
 
     // The class trainer for `cls` nearest to (x, y) on `map`, nullptr when there is none in the starting zones' areas.
     ClassTrainer const* NearestTrainer(uint32 map, uint8 cls, float x, float y) const;
@@ -101,7 +102,7 @@ private:
     std::vector<std::vector<RouteStep>>  routes_;
     std::unordered_map<uint32, RouteGiver> givers_;
     std::vector<ClassTrainer>            trainers_;
-    std::array<std::vector<ExploreStop>, 2> explore_;
+    std::vector<std::vector<ExploreStop>> explore_;              // per route spec (LaunchRoutes.cpp kExploreSpecs)
     void LoadExploreRoutes();
 };
 

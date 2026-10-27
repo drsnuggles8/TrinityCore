@@ -156,17 +156,52 @@ constexpr RouteDef kNorthRun[] = {
     { ExploreAction::Discover, "Dun Modr" }, { ExploreAction::Flight, "Menethil Harbor" },
 };
 
-// Map 0 regions the routes cross: Dun Morogh and Ironforge, Elwynn and Stormwind, Westfall, Loch Modan, the Wetlands.
-struct Box { float x0, x1, y0, y1; };
-constexpr Box kRegions[] = {
-    { -6800.f, -4400.f, -1600.f, 1100.f }, { -9900.f, -8000.f, -1500.f, 1600.f }, { -11500.f, -9800.f, 300.f, 2300.f },
-    { -6100.f, -4500.f, -4700.f, -1600.f }, { -4500.f, -2300.f, -3600.f, -400.f },
+// Jay Ell's Human tab (Wayback capture of his deleted sheet): Northshire to Goldshire (hearth), east Elwynn, Redridge
+// (Lakeshire flight path), hearth back, west Elwynn, Westfall (Sentinel Hill), Stormwind, the tram, Ironforge, east Dun
+// Morogh and the Kharanos loop. His deathskips (Hogger, Duskwood) are walked.
+constexpr RouteDef kHumanSheet[] = {
+    { ExploreAction::Discover, "Crystal Lake" }, { ExploreAction::Bind, "Goldshire" }, { ExploreAction::Discover, "Goldshire" },
+    { ExploreAction::Discover, "Brackwell Pumpkin Patch" }, { ExploreAction::Discover, "Eastvale Logging Camp" },
+    { ExploreAction::Discover, "Ridgepoint Tower" }, { ExploreAction::Discover, "Three Corners" },
+    { ExploreAction::Discover, "Lakeridge Highway" }, { ExploreAction::Flight, "Lakeshire" },
+    { ExploreAction::Discover, "Lake Everstill" }, { ExploreAction::Discover, "Lakeshire" },
+    { ExploreAction::Discover, "Redridge Canyons" }, { ExploreAction::Hearth, "" },
+    { ExploreAction::Discover, "Maclure Vineyards" }, { ExploreAction::Discover, "Fargodeep Mine" },
+    { ExploreAction::Discover, "Stonefield Farm" }, { ExploreAction::Discover, "Forest's Edge" },
+    { ExploreAction::Discover, "Westbrook Garrison" }, { ExploreAction::Discover, "Jansen Stead" },
+    { ExploreAction::Discover, "Saldean's Farm" }, { ExploreAction::Flight, "Sentinel Hill" },
+    { ExploreAction::Discover, "The Dead Acre" }, { ExploreAction::Discover, "Stendel's Pond" },
+    { ExploreAction::Discover, "Stormwind City" }, { ExploreAction::Flight, "Stormwind City" },
+    { ExploreAction::Flight, "Ironforge" },
+    { ExploreAction::Discover, "Misty Pine Refuge" }, { ExploreAction::Discover, "Tundrid Hills" },
+    { ExploreAction::Discover, "Amberstill Ranch" }, { ExploreAction::Discover, "Gol'Bolar Quarry" },
+    { ExploreAction::Discover, "Kharanos" }, { ExploreAction::Discover, "Shimmer Ridge" },
+    { ExploreAction::Discover, "Chill Breeze Valley" }, { ExploreAction::Discover, "Iceflow Lake" },
+    { ExploreAction::Discover, "Brewnall Village" }, { ExploreAction::Discover, "Frostmane Hold" },
+    { ExploreAction::Discover, "Coldridge Pass" },
 };
 
-bool InRegions(float x, float y)
+// The routes of each starting zone (Bot/LaunchPlaces.h StartZoneId) and the share of its explorers on each.
+struct ExploreSpec { uint8 zone; uint8 share; char const* name; std::span<RouteDef const> defs; };
+ExploreSpec const kExploreSpecs[] = {
+    { ::Playerbot::LaunchPlaces::kZoneColdridge,  60, "south loop",  kSouthLoop },
+    { ::Playerbot::LaunchPlaces::kZoneColdridge,  40, "north run",   kNorthRun },
+    { ::Playerbot::LaunchPlaces::kZoneNorthshire, 100, "human sheet", kHumanSheet },
+};
+
+// The regions the routes cross, where the ground is sampled for subzone points: Dun Morogh and Ironforge, Elwynn and
+// Stormwind, Westfall, Loch Modan, the Wetlands, Redridge (map 0); Teldrassil and Darkshore (map 1).
+struct Box { uint32 map; float x0, x1, y0, y1; };
+constexpr Box kRegions[] = {
+    { 0, -6800.f, -4400.f, -1600.f, 1100.f }, { 0, -9900.f, -8000.f, -1500.f, 1600.f }, { 0, -11500.f, -9800.f, 300.f, 2300.f },
+    { 0, -6100.f, -4500.f, -4700.f, -1600.f }, { 0, -4500.f, -2300.f, -3600.f, -400.f }, { 0, -9900.f, -8800.f, -3300.f, -1500.f },
+    { 1, 8500.f, 11200.f, -500.f, 2600.f }, { 1, 4000.f, 8000.f, -1500.f, 1500.f },
+};
+
+bool InRegions(uint32 map, float x, float y)
 {
     for (Box const& b : kRegions)
-        if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1)
+        if (map == b.map && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1)
             return true;
     return false;
 }
@@ -175,12 +210,11 @@ bool InRegions(float x, float y)
 
 void LaunchRoutes::LoadExploreRoutes()
 {
-    for (auto& r : explore_)
-        r.clear();
-    // Subzone names of the routes -> AreaTable ids (continent 0).
+    explore_.assign(std::size(kExploreSpecs), {});
+    // Subzone names of the routes -> AreaTable ids (Eastern Kingdoms and Kalimdor).
     std::unordered_map<std::string, std::vector<uint32>> ids_by_name;
     for (AreaTableEntry const* at : sAreaTableStore)
-        if (at && at->ContinentID == 0 && at->AreaName[LOCALE_enUS] && *at->AreaName[LOCALE_enUS])
+        if (at && (at->ContinentID == 0 || at->ContinentID == 1) && at->AreaName[LOCALE_enUS] && *at->AreaName[LOCALE_enUS])
             ids_by_name[at->AreaName[LOCALE_enUS]].push_back(at->ID);
     // Spawns of the regions by subzone (creatures, for a point on the ground), with the flight masters and innkeepers.
     struct Spot { float x, y, z; };
@@ -188,9 +222,9 @@ void LaunchRoutes::LoadExploreRoutes()
     std::vector<std::pair<Spot, uint32>> flight_masters, innkeepers;   // spot, subzone
     for (auto const& [spawn_id, data] : sObjectMgr->GetAllCreatureData())
     {
-        if (data.mapId != 0 || !InRegions(data.spawnPoint.GetPositionX(), data.spawnPoint.GetPositionY()))
+        if (!InRegions(data.mapId, data.spawnPoint.GetPositionX(), data.spawnPoint.GetPositionY()))
             continue;
-        uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), 0, data.spawnPoint);
+        uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), data.mapId, data.spawnPoint);
         Spot const sp{ data.spawnPoint.GetPositionX(), data.spawnPoint.GetPositionY(), data.spawnPoint.GetPositionZ() };
         by_area[area].push_back(sp);
         if (CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(data.id))
@@ -204,15 +238,15 @@ void LaunchRoutes::LoadExploreRoutes()
     // The ground itself, every 30 y over the regions: a subzone without creatures (Tundrid Hills) or whose creatures all stand
     // in buildings of their own subzone (Kharanos: Thunderbrew Distillery) still gets points. Terrain height only (no vmaps),
     // so a point is outdoors, where exploration counts.
-    if (std::shared_ptr<TerrainInfo> terrain = sTerrainMgr.LoadTerrain(0))
-        for (Box const& b : kRegions)
+    for (Box const& b : kRegions)
+        if (std::shared_ptr<TerrainInfo> terrain = sTerrainMgr.LoadTerrain(b.map))
             for (float x = b.x0; x <= b.x1; x += 30.f)
                 for (float y = b.y0; y <= b.y1; y += 30.f)
                 {
-                    float const z = terrain->GetGridHeight(PhasingHandler::GetEmptyPhaseShift(), 0, x, y);
+                    float const z = terrain->GetGridHeight(PhasingHandler::GetEmptyPhaseShift(), b.map, x, y);
                     if (z <= INVALID_HEIGHT)
                         continue;
-                    uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), 0, x, y, z);
+                    uint32 const area = sTerrainMgr.GetAreaId(PhasingHandler::GetEmptyPhaseShift(), b.map, x, y, z);
                     if (area)
                         by_area[area].push_back({ x, y, z });
                 }
@@ -229,9 +263,9 @@ void LaunchRoutes::LoadExploreRoutes()
         return false;
     };
     std::vector<std::string> missing;
-    for (uint8 r = 0; r < kExploreRoutes; ++r)
+    for (uint8 r = 0; r < std::size(kExploreSpecs); ++r)
     {
-        std::span<RouteDef const> const defs = r == 0 ? std::span<RouteDef const>(kSouthLoop) : std::span<RouteDef const>(kNorthRun);
+        std::span<RouteDef const> const defs = kExploreSpecs[r].defs;
         for (RouteDef const& d : defs)
         {
             ExploreStop st;
@@ -308,8 +342,37 @@ void LaunchRoutes::LoadExploreRoutes()
     std::string miss;
     for (std::string const& m : missing)
         miss += (miss.empty() ? "" : ", ") + m;
-    TC_LOG_INFO("playerbot.v2", "[launch] explorer routes: south loop {} stops, north run {} stops{}{}", explore_[0].size(),
-        explore_[1].size(), missing.empty() ? "" : "; not found: ", miss);
+    std::string counts;
+    for (size_t r = 0; r < explore_.size(); ++r)
+        counts += (r ? ", " : "") + std::string(kExploreSpecs[r].name) + " " + std::to_string(explore_[r].size());
+    TC_LOG_INFO("playerbot.v2", "[launch] explorer routes: {} stops{}{}", counts, missing.empty() ? "" : "; not found: ", miss);
+}
+
+uint8 LaunchRoutes::ExploreRoute(uint8 zone, uint32 seed) const
+{
+    uint32 total = 0;
+    for (size_t r = 0; r < explore_.size(); ++r)
+        if (kExploreSpecs[r].zone == zone && !explore_[r].empty())
+            total += kExploreSpecs[r].share;
+    if (!total)
+        return kNoRoute;
+    uint32 roll = (seed * 2654435761u >> 8) % total;
+    for (size_t r = 0; r < explore_.size(); ++r)
+        if (kExploreSpecs[r].zone == zone && !explore_[r].empty())
+        {
+            if (roll < kExploreSpecs[r].share)
+                return uint8(r);
+            roll -= kExploreSpecs[r].share;
+        }
+    return kNoRoute;
+}
+
+bool LaunchRoutes::HasExploreRoute(uint8 zone) const
+{
+    for (size_t r = 0; r < explore_.size(); ++r)
+        if (kExploreSpecs[r].zone == zone && !explore_[r].empty())
+            return true;
+    return false;
 }
 
 ClassTrainer const* LaunchRoutes::NearestTrainer(uint32 map, uint8 cls, float x, float y) const

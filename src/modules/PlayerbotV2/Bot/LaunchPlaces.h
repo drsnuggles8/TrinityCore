@@ -31,6 +31,8 @@ struct StartZone
     Spot        center;
     float       radius;     // the starting valley: a bot farther than this from `center` has left it
     Spot        town, leave, city;
+    Spot        grind;      // the camp grinders (LaunchStrategy::TrollGrinder) farm before leaving the valley
+    unsigned char grind_until; // ... until this level
     Box         hubs;       // the zone's quest hubs below level 10 (map `map`)
     bool        whole_map;  // hubs: the whole map (an island)
 };
@@ -39,16 +41,16 @@ enum StartZoneId : unsigned char { kZoneColdridge = 0, kZoneNorthshire = 1, kZon
 
 inline constexpr StartZone kZones[kZoneCount] = {
     // Dwarves and gnomes: Coldridge Valley -> Kharanos, Loch Modan, Ironforge.
-    { "coldridge", 0, kColdridge, kColdridgeRadius, kKharanos, kThelsamar, kIronforge,
+    { "coldridge", 0, kColdridge, kColdridgeRadius, kKharanos, kThelsamar, kIronforge, kTrollCamp, 4,
       { -6800.f, -4500.f, -4800.f, 1000.f }, false },
     // Humans: Northshire Valley (Deputy Willem) -> Goldshire (Innkeeper Farley), Westfall (Sentinel Hill), Stormwind.
     { "northshire", 0, { -8933.5f, -136.5f, 83.4f }, 400.f, { -9462.7f, 16.2f, 57.0f }, { -10653.3f, 1166.4f, 34.9f },
-      { -8867.8f, 673.7f, 98.0f }, { -10050.f, -8400.f, -1600.f, 800.f }, false },
+      { -8867.8f, 673.7f, 98.0f }, {}, 0, { -10050.f, -8400.f, -1600.f, 800.f }, false },
     // Night elves: Shadowglen (Conservator Ilthalaine) -> Dolanaar (Innkeeper Keldamyr), Auberdine, Darnassus.
     { "shadowglen", 1, { 10328.9f, 826.1f, 1326.5f }, 350.f, { 9802.2f, 982.6f, 1314.0f }, { 6406.5f, 515.4f, 8.7f },
-      { 10127.9f, 2224.8f, 1328.8f }, { 8500.f, 11200.f, -500.f, 2600.f }, false },
+      { 10127.9f, 2224.8f, 1328.8f }, {}, 0, { 8500.f, 11200.f, -500.f, 2600.f }, false },
     // High Order Skyborne (Classic 1.60): Zephras Isle, map 2991, an island with no way off before level 10.
-    { "zephras", 2991, { 4098.1f, 1849.7f, 975.6f }, 400.f, {}, {}, {}, {}, true },
+    { "zephras", 2991, { 4098.1f, 1849.7f, 975.6f }, 400.f, {}, {}, {}, {}, 0, {}, true },
 };
 
 // The starting zone of a race (Alliance: human, dwarf, night elf, gnome, High Order Skyborne).

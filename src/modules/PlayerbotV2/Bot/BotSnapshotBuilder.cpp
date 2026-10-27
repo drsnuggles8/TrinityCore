@@ -1744,12 +1744,14 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     { return std::find(launch_window.begin(), launch_window.end(), quest) != launch_window.end(); };
     uint32 const launch_quest = launch_step ? launch_step->quest : 0u;
     bool const launch_accept = launch_step && launch_step->action == V2::Fleet::RouteAction::Accept;
-    // A troll-camp grinder takes no quests before level 4: it grinds the whelps (the destination is set late in the build).
+    // A grinder (LaunchStrategy::TrollGrinder) takes no quests until its zone's grind level: it farms the zone's camp (Coldridge: the troll whelps to 4; the destination is set late in the build).
     bool const launch_no_quests = bot_ai && bot_ai->launch().active &&
-        ((bot_ai->launch().strategy == LaunchStrategy::TrollGrinder && p->GetLevel() < 4) ||
+        ((bot_ai->launch().strategy == LaunchStrategy::TrollGrinder &&
+          p->GetLevel() < LaunchPlaces::kZones[LaunchPlaces::ZoneForRace(p->GetRace())].grind_until) ||
          // An explorer on its tour takes no quests (it kills nothing); after the tour or at level 6 it quests like anyone.
          (bot_ai->launch().strategy == LaunchStrategy::Explorer && p->GetLevel() < 6 &&
-          bot_ai->launch_explore_stop() < V2::Fleet::LaunchRoutes::Instance().ExploreStops(uint8(bot_ai->launch().seed % 100u < 60u ? 0 : 1))));
+          bot_ai->launch_explore_stop() < V2::Fleet::LaunchRoutes::Instance().ExploreStops(
+              V2::Fleet::LaunchRoutes::Instance().ExploreRoute(LaunchPlaces::ZoneForRace(p->GetRace()), bot_ai->launch().seed))));
 
     snap->guid    = p->GetGUID();
     snap->identity.name    = p->GetName();
@@ -9691,20 +9693,20 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         bool const in_coldridge = LP::Dist2d(zone.center, px, py) < zone.radius * zone.radius;   // in the starting valley
         LP::Spot const* go = nullptr;
         float arrive = 40.f;
-        if (strat == LaunchStrategy::TrollGrinder && lvl < 4 && zid == LP::kZoneColdridge)
-            go = &LP::kTrollCamp;   // grind the whelps; idle:engage_nearby_mob takes over within 50 y
+        if (strat == LaunchStrategy::TrollGrinder && LP::Exists(zone.grind) && lvl < zone.grind_until)
+            go = &zone.grind;   // grind the zone's camp (Coldridge: the troll whelps); idle:engage_nearby_mob takes over within 50 y
         else if (in_coldridge && LP::Exists(zone.town) &&
-                 ((strat == LaunchStrategy::TrollGrinder && lvl >= 4) || (strat == LaunchStrategy::Skipper && lvl >= 3)))
+                 ((strat == LaunchStrategy::TrollGrinder && lvl >= zone.grind_until) || (strat == LaunchStrategy::Skipper && lvl >= 3)))
             go = &zone.town, arrive = 60.f;   // out of the starter valley early
         else if (strat == LaunchStrategy::Leaver && lvl >= 8 && LP::Exists(zone.leave) && LP::Dist2d(zone.leave, px, py) > 600.f * 600.f)
             go = &zone.leave, arrive = 60.f;   // on to the next zone (Loch Modan, Westfall, Darkshore)
-        else if (strat == LaunchStrategy::Explorer && lvl < 6 && zid == LP::kZoneColdridge)
+        else if (strat == LaunchStrategy::Explorer && lvl < 6)
         {
             // The explorer's route (LaunchRoutes::ExploreStopAt): a subzone is done once the bot stands in it (that is when
             // the exploration XP comes); at a flight master it learns the path and at the Kharanos innkeeper it binds, as
             // their gossip would; a hearth stop asks idle:launch_hearth to use the stone.
             auto const& routes = V2::Fleet::LaunchRoutes::Instance();
-            uint8 const er = uint8(bot_ai->launch().seed % 100u < 60u ? 0 : 1);   // south loop 60%, north run 40%
+            uint8 const er = routes.ExploreRoute(zid, bot_ai->launch().seed);   // the zone's routes by share (kExploreSpecs)
             uint32 const here_area = p->GetAreaId();
             uint16 i = bot_ai->launch_explore_stop();
             while (V2::Fleet::ExploreStop const* st = routes.ExploreStopAt(er, i))

@@ -202,13 +202,17 @@ std::vector<uint32> LaunchSim::PersonaWeights() const
 
 void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
 {
-    // Personas tied to Coldridge (the troll camp, the dwarf/gnome exploration routes) exist there only.
+    // Personas tied to a zone's own places: the troll grinder needs a grind camp (LaunchPlaces StartZone::grind), the explorer
+    // an exploration route of the zone (LaunchRoutes::HasExploreRoute). Elsewhere the roll is drawn again.
     for (int guard = 0; guard < 20; ++guard)
     {
         e.persona = uint8(PickWeighted(PersonaWeights()));
         LaunchStrategy const st = kPersonas[e.persona].strategy;
-        if (zone == LaunchPlaces::kZoneColdridge || (st != LaunchStrategy::TrollGrinder && st != LaunchStrategy::Explorer))
-            break;
+        if (st == LaunchStrategy::TrollGrinder && !LaunchPlaces::Exists(LaunchPlaces::kZones[zone].grind))
+            continue;
+        if (st == LaunchStrategy::Explorer && !LaunchRoutes::Instance().HasExploreRoute(zone))
+            continue;
+        break;
     }
     Persona const& p = kPersonas[e.persona];
     e.seed = urand(1, 0x7FFFFFFF);
