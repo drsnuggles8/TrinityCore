@@ -234,6 +234,13 @@ bool AutoRun()
     return sConfigMgr->GetBoolDefault("Playerbot.Launch.AutoRun", false, true);
 }
 
+// Playerbot.Launch.MaxBots: the most launch bots the roster may hold, the fresh crowds for later players included (5000; the
+// home server runs WoW only since 28 Oct, the 2000 before was a guess at its share).
+uint32 MaxBots()
+{
+    return uint32(std::max<int32>(1, sConfigMgr->GetIntDefault("Playerbot.Launch.MaxBots", 5000, true)));
+}
+
 // Real (non-bot) players in the world, `except` left out.
 uint32 RealPlayersOnline(Player const* except)
 {
@@ -483,8 +490,8 @@ std::string LaunchSim::Prepare(uint32 bots, uint32 late)
     LoadRoster();
     if (!roster_.empty())
         return "A roster exists already (" + std::to_string(roster_.size()) + " bots): use `.playerbot launch reset` for a fresh one.";
-    if (bots == 0 || bots + late > 2000)
-        return "Bots must be 1-2000 in total.";
+    if (bots == 0 || bots + late > MaxBots())
+        return "Bots must be 1-" + std::to_string(MaxBots()) + " in total (Playerbot.Launch.MaxBots).";
     LaunchRoutes::Instance().Load();   // pick up routes imported since the server started
     // `bots` start in Coldridge Valley; the other Alliance starting zones are sized from it by the census (Coldridge's dwarves
     // and gnomes against the zone's race: 100 in Coldridge -> 93 humans, 56 night elves, 59 Skyborne). The config overrides a
@@ -504,8 +511,8 @@ std::string LaunchSim::Prepare(uint32 bots, uint32 late)
         zone_count("Playerbot.Launch.ZephrasBots", LaunchPlaces::kZoneZephras) };
     uint32 total = late;
     for (uint32 n : per_zone) total += n;
-    if (total > 2000)
-        return "Bots must be 1-2000 in total (all zones).";
+    if (total > MaxBots())
+        return "Bots must be 1-" + std::to_string(MaxBots()) + " in total, all zones (Playerbot.Launch.MaxBots).";
     roster_.resize(total);
     if (int32 const roster_seed = sConfigMgr->GetIntDefault("Playerbot.Launch.RosterSeed", 0, true); roster_seed > 0)
         gRollRng.emplace(uint32(roster_seed));
@@ -575,8 +582,8 @@ std::string LaunchSim::Reset(uint32 bots, uint32 late)
     LoadRoster();
     if (roster_.empty())
         return "No roster: use `.playerbot launch prepare`.";
-    if (bots + late > 2000)
-        return "Bots must be 1-2000 in total.";
+    if (bots + late > MaxBots())
+        return "Bots must be 1-" + std::to_string(MaxBots()) + " in total (Playerbot.Launch.MaxBots).";
     SaveClock(0);
     CharacterDatabase.Execute("DELETE FROM playerbot_launch_done");
     phase_ = Phase::Stopping;
@@ -942,7 +949,7 @@ uint32 LaunchSim::AddCohort(uint8 zone, uint32 elapsed_s)
     uint32 const base = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("Playerbot.Launch.CohortBots", 150, true)));
     uint32 n = uint32((uint64(base) * CensusShareOf(zone) + CensusShareOf(LaunchPlaces::kZoneColdridge) / 2) /
                       CensusShareOf(LaunchPlaces::kZoneColdridge));
-    n = std::min<uint32>(n, roster_.size() < 2000 ? uint32(2000 - roster_.size()) : 0u);
+    n = std::min<uint32>(n, roster_.size() < MaxBots() ? uint32(MaxBots() - roster_.size()) : 0u);
     for (uint32 k = 0; k < n; ++k)
     {
         Entry e;

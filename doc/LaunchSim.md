@@ -67,7 +67,7 @@ saved every minute in `playerbot_launch_run`, the bots whose session ended in `p
 database; both created at load). `.playerbot launch stop` keeps the clock as well; only `.playerbot launch reset` starts
 over at level 1. A second player joining a running crowd changes nothing, unless it is a new level-1 character in a
 run past its first half hour: then a fresh crowd of level-1 bots launches in its starting zone on the same arrival curve
-(`Playerbot.Launch.CohortBots`, default 150 for Coldridge and the other zones by the census; at most 2000 bots in all;
+(`Playerbot.Launch.CohortBots`, default 150 for Coldridge and the other zones by the census; at most `Playerbot.Launch.MaxBots` (5000) bots in all;
 `playerbot_launch_cohort`; a reset removes them). (Until 28 Oct the last logout and every server
 start reset the roster to level 1, so a restart left the players alone among level-1 bots.)
 
