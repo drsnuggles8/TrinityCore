@@ -419,6 +419,18 @@ SchoolHint::SchoolChoice const kEnhSchoolChoices[] = {
     { EARTH_SHOCK, ShouldEnhEarthShock },
 };
 bool ShouldEnhSchoolNuke(ApPredicateContext const& ctx) { return SchoolHint::ShouldCast(ctx, kEnhSchoolChoices); }
+
+// Levelling: Lightning Bolt pulls from range, and before the shocks (Earth Shock at 4) it is the shaman's only damage spell,
+// cast between swings while the mana lasts. Without it a level 1-3 shaman bot only swung its weapon: 17 s a kill, the slowest
+// class (crowd60, 28 Oct; hunters 2.5 s, mages 7 s).
+bool ShouldEnhLevelingBolt(ApPredicateContext const& ctx)
+{
+    if (!ShouldLightningBolt(ctx))
+        return false;
+    if (!ctx.bot.knows_spell(EARTH_SHOCK))
+        return ManaPct(ctx) >= 20;
+    return !ctx.bot.knows_spell(STORMSTRIKE) && DistToVictim(ctx) > 10.f && ManaPct(ctx) >= 50;   // the pull
+}
 void DoEnhSchoolNuke(ApPredicateContext const& ctx, BotIntentEmitter& e) { SchoolHint::DoCast(ctx, e, kEnhSchoolChoices); }
 
 ApRule const kEnhRules[] = {
@@ -433,6 +445,7 @@ ApRule const kEnhRules[] = {
     { ShouldCure,                   DoCure,            "classic_sham_enh:cure" },
     { ShouldEnhFlameShock,          DoFlameShock,      "classic_sham_enh:flame_shock" },
     { ShouldEnhEarthShock,          DoEarthShock,      "classic_sham_enh:earth_shock" },
+    { ShouldEnhLevelingBolt,        DoLightningBolt,   "classic_sham_enh:lightning_bolt" },
     { ShouldResurrection,           DoResurrection,    "classic_sham_enh:ancestral_spirit" },
     { HasLiveTarget,                DoAutoAttack,      "classic_sham_enh:auto_attack" },
 };
