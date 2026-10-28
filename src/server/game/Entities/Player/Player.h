@@ -2338,6 +2338,9 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         void RemovedInsignia(Player* looterPlr);
 
         WorldSession* GetSession() const { return m_session; }
+        // A session without a client (WorldSession::IsBot): nothing it sees is sent anywhere. Read in the hot grid
+        // notifiers (visibility, packet broadcasts), so it is kept here instead of asking the session each time.
+        bool IsClientless() const { return m_clientless; }
 
     protected:
         UF::UpdateFieldFlag GetUpdateFieldFlagsFor(Player const* target) const override;
@@ -3378,6 +3381,7 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         std::unique_ptr<ResurrectionData> _resurrectionData;
 
         WorldSession* m_session;
+        bool m_clientless = false;
 
         JoinedChannelsList m_channels;
 

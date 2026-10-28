@@ -76,7 +76,7 @@ namespace Trinity
 
     // A bot (WorldSession::IsBot) has no client: what it sees is never sent anywhere, and the bot logic searches the grid
     // itself. Its own visibility list is not kept on relocation; others still see the bot, and creatures still notice it.
-    TC_GAME_API bool IsClientlessObserver(Player const& player);
+    inline bool IsClientlessObserver(Player const& player) { return player.IsClientless(); }
 
     struct TC_GAME_API PlayerRelocationNotifier : public VisibleNotifier
     {

@@ -140,12 +140,6 @@ inline void CreatureUnitRelocationWorker(Creature* c, Unit* u)
     }
 }
 
-bool Trinity::IsClientlessObserver(Player const& player)
-{
-    WorldSession const* session = player.GetSession();
-    return session && session->IsBot();
-}
-
 void PlayerRelocationNotifier::Visit(PlayerMapType &m)
 {
     for (PlayerMapType::iterator iter = m.begin(); iter != m.end(); ++iter)

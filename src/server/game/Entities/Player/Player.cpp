@@ -177,6 +177,7 @@ Player::Player(WorldSession* session) : Unit(true), m_sceneMgr(this)
     m_entityFragments.Add(WowCS::EntityFragment::Tag_Player, false);
 
     m_session = session;
+    m_clientless = session && session->IsBot();
 
     m_modMeleeHitChance = 0.0f;                             // Classic 1.60: no innate hit bonus (Player::UpdateMeleeHitChances)
     m_modRangedHitChance = 0.0f;

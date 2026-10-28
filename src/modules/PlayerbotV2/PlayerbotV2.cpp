@@ -1614,7 +1614,8 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
     // lazily on first parallel tick (a box that never enables pays nothing).
     // A crowded map is split across the workers too (kSnapMinChunk bots and more per task), so a launch crowd on one
     // continent is no longer built on a single worker.
-    constexpr size_t kSnapMinChunk = 48;
+    // ~70-140 bots are due per tick with 5000 online (the tier cadence), so a large minimum left a map in one or two tasks.
+    constexpr size_t kSnapMinChunk = 8;
     const bool want_parallel =
         Services::Config().parallel_snapshot_build() && build_order.size() > 1 &&
         (by_map.size() > 1 || build_order.size() >= 2 * kSnapMinChunk);
