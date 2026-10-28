@@ -9882,16 +9882,34 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         else if (obj.type == QUEST_OBJECTIVE_ITEM)
             if (::CreatureData const* dropper = QuestItemCreatureSpawnNearest(uint32(obj.object_id), cp.x, cp.y, cp.map_id))
                 entry = dropper->id;
-        uint32 const pick = uint32(p->GetGUID().GetCounter()) * 2654435761u ^ (GameTime::GetGameTimeMS() / 60000u) * 40503u;
-        if (entry)
-            if (::CreatureData const* sp = PickCreatureSpawnInArea(entry, cp.map_id, cp.x, cp.y, std::max(cp.radius, 60.f) + 40.f,
-                    pick, p->GetPositionX(), p->GetPositionY()))
+        cp.roam_entry = entry;
+        if (entry && bot_ai)
+        {
+            // Kept until reached (12 y), 90 s or another objective: a pick that changed every minute turned bots around midway
+            // (live 28 Oct: "they stop and walk, stop and walk").
+            BotAI::RoamPick& rp = bot_ai->roam_pick();
+            uint32 const now_ms = GameTime::GetGameTimeMS();
+            float const px = p->GetPositionX(), py = p->GetPositionY();
+            bool const keep = rp.quest == snap->quest_log.current_quest_id && rp.objective == uint32(obj.id) &&
+                now_ms - rp.since_ms < 90000u && (rp.x - px) * (rp.x - px) + (rp.y - py) * (rp.y - py) > 12.f * 12.f;
+            if (!keep)
             {
-                cp.roam_x = sp->spawnPoint.GetPositionX();
-                cp.roam_y = sp->spawnPoint.GetPositionY();
-                cp.roam_z = sp->spawnPoint.GetPositionZ();
+                ++rp.epoch;
+                uint32 const pick = uint32(p->GetGUID().GetCounter()) * 2654435761u ^ rp.epoch * 40503u;
+                ::CreatureData const* sp = PickCreatureSpawnInArea(entry, cp.map_id, cp.x, cp.y, std::max(cp.radius, 60.f) + 40.f,
+                    pick, px, py);
+                rp = sp ? BotAI::RoamPick{ snap->quest_log.current_quest_id, uint32(obj.id), rp.epoch, now_ms,
+                                           sp->spawnPoint.GetPositionX(), sp->spawnPoint.GetPositionY(), sp->spawnPoint.GetPositionZ() }
+                        : BotAI::RoamPick{ 0, 0, rp.epoch, now_ms };
+            }
+            if (rp.quest)
+            {
+                cp.roam_x = rp.x;
+                cp.roam_y = rp.y;
+                cp.roam_z = rp.z;
                 cp.roam_valid = true;
             }
+        }
     }
     // ---- Launch strategies that steer by place (Bot/LaunchPlaces.h) ----
     if (bot_ai && bot_ai->launch().active &&

@@ -3684,6 +3684,14 @@ private:
     // The quest givers (with a ! or ? for this bot, or named by its guide) and trainers the last hub scan saw; every
     // snapshot appends them to nearby_friends. Builder-only field.
     std::vector<NearbyUnit> seen_givers_;
+public:
+    // The spawn point a bot walks to when it sees none of its kill objective's creatures (QuestObjectivePoi::roam_*): kept
+    // until it gets there, for 90 s at most, or until the objective changes, so the bot does not turn around on the way.
+    // Builder-only field.
+    struct RoamPick { uint32 quest = 0; uint32 objective = 0; uint32 epoch = 0; uint32 since_ms = 0; float x = 0.f, y = 0.f, z = 0.f; };
+    RoamPick& roam_pick() { return roam_pick_; }
+private:
+    RoamPick       roam_pick_;
     // Same throttle pattern for the 200y extended gather-node scan
     // (perf audit #3 — capital-clustered gatherers also fire this
     // every frame). Nodes are static; 1Hz refresh is plenty.

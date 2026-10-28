@@ -19634,8 +19634,12 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                 if (s.current_objective().type == /*MONSTER*/ 0 ||
                     s.current_objective().type == /*ITEM*/ 1)
                 {
+                    // One the bot can have: alive and not tagged by someone else. For an item objective the creature is the
+                    // one that drops it (poi.roam_entry): the item id never matched a creature, so the bot walked back to the
+                    // area's centre between pulls. A crowd's tagged mobs counted too, and the bot waited among them.
+                    uint32 const hunted = poi.roam_entry ? poi.roam_entry : uint32(target_id);
                     for (auto const& u : s.raw().combat.nearby_enemies)
-                        if (uint32(target_id) == u.entry) { any_match = true; break; }
+                        if (u.entry == hunted && u.hp > 0 && (!u.tapped || u.tapped_by_us)) { any_match = true; break; }
                 }
                 else if (s.current_objective().type == /*TALKTO*/ 3)
                 {

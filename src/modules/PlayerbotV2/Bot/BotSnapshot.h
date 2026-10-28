@@ -1131,6 +1131,7 @@ struct QuestObjectivePoi
     // the bot, the minute and on arrival.
     float  roam_x = 0.f, roam_y = 0.f, roam_z = 0.f;
     bool   roam_valid = false;
+    uint32 roam_entry = 0;   // the creature it hunts (for an item objective: the one that drops the item)
 };
 
 // Resolved AreaTrigger waypoint for QUEST_OBJECTIVE_AREATRIGGER /
