@@ -397,6 +397,18 @@ void WorldSession::HandleRequestCemeteryList(WorldPackets::Misc::RequestCemetery
 
 void WorldSession::HandleSetSelectionOpcode(WorldPackets::Misc::SetSelection& packet)
 {
+    // Which selections a hunter's client makes on its own (playtest 28 Oct: after a kill the client selected another mob
+    // and sent Auto Shot at it, without a click): the old target's state and the fight at the moment of the change.
+    if (_player->GetClass() == CLASS_HUNTER && packet.Selection != _player->GetTarget() && !packet.Selection.IsEmpty())
+    {
+        Unit const* old = ObjectAccessor::GetUnit(*_player, _player->GetTarget());
+        Unit const* now = ObjectAccessor::GetUnit(*_player, packet.Selection);
+        TC_LOG_INFO("server", "[selection] {} {} -> {} (old {}, new {} at {:.0f} y, in combat {}, attacking {}, auto shot {})",
+            _player->GetName(), old ? old->GetName() : "-", now ? now->GetName() : packet.Selection.ToString(),
+            !old ? "none" : old->IsAlive() ? "alive" : "dead", now && now->IsInCombatWith(_player) ? "fighting us" : "not fighting us",
+            now ? _player->GetDistance(now) : 0.f, _player->IsInCombat(), _player->GetVictim() ? _player->GetVictim()->GetName() : "-",
+            _player->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL) ? "running" : "off");
+    }
     _player->SetSelection(packet.Selection);
 }
 
