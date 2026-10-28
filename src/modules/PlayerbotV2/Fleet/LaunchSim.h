@@ -44,7 +44,8 @@ public:
 
     void OnWorldTick(uint32 now_ms);
     // A real (non-bot) player entered the world: T0 of an armed run, or with Playerbot.Launch.AutoRun of a ready one when
-    // nobody else is online.
+    // nobody else is online. With AutoRun a new level-1 character in a run past its first half hour also gets a fresh crowd
+    // of level-1 bots in its starting zone (AddCohort).
     void OnRealPlayerLogin(Player* p);
     // A real player left the world. With Playerbot.Launch.AutoRun, when nobody is left the run pauses (the bots log out, the
     // clock stops) and the next login resumes it.
@@ -73,6 +74,7 @@ private:
         BotState    state = BotState::ToCreate;
         uint32      online_since_ms = 0;
         uint32      login_sent_ms = 0;
+        bool        cohort = false;   // added for a new level-1 player after the launch (playerbot_launch_cohort)
     };
 
     // An answer to an "inv?" whisper, sent by `from` (a launch bot) once due: an invite, or a whisper back.
@@ -111,6 +113,9 @@ private:
     // fresh run. The bots that ended their session are kept in playerbot_launch_done.
     uint32             resume_elapsed_s_ = 0;
     void SaveClock(uint32 elapsed_s);
+    // A fresh crowd of level-1 bots for `zone`, arriving from `elapsed_s` on the launch curve; returns how many.
+    uint32 AddCohort(uint8 zone, uint32 elapsed_s);
+    std::unordered_map<uint64, bool> cohort_given_;   // the new characters that got one (this server run)
 };
 
 } // namespace Playerbot::V2::Fleet

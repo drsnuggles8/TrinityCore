@@ -353,6 +353,8 @@ bool LaunchSim::CreateOne(Entry& e)
             e.state = BotState::Offline;
             by_guid_[e.guid_low] = size_t(&e - roster_.data());
             SaveRow(e);
+            if (e.cohort)
+                CharacterDatabase.PExecute("REPLACE INTO playerbot_launch_cohort (character_guid_low) VALUES ({})", e.guid_low);
             // The persona as surname. The character row's INSERT is queued before this UPDATE on the async worker; the cache
             // (what the PlayerData update field reads) gets it at once.
             std::string const surname = kPersonaSurnames[e.persona];
@@ -379,6 +381,7 @@ static void EnsureRunTables()
     CharacterDatabase.DirectExecute("CREATE TABLE IF NOT EXISTS playerbot_launch_run (id TINYINT UNSIGNED NOT NULL PRIMARY KEY, "
                                     "elapsed_s INT UNSIGNED NOT NULL DEFAULT 0)");
     CharacterDatabase.DirectExecute("CREATE TABLE IF NOT EXISTS playerbot_launch_done (character_guid_low BIGINT UNSIGNED NOT NULL PRIMARY KEY)");
+    CharacterDatabase.DirectExecute("CREATE TABLE IF NOT EXISTS playerbot_launch_cohort (character_guid_low BIGINT UNSIGNED NOT NULL PRIMARY KEY)");
 }
 
 void LaunchSim::SaveClock(uint32 elapsed_s)
@@ -413,6 +416,7 @@ void LaunchSim::DeleteOne(Entry const& e)
     Player::DeleteFromDB(g, account, /*updateRealmChars*/ true, /*deleteFinally*/ true);
     Services::Accounts().note_character_removed(account);
     CharacterDatabase.PExecute("DELETE FROM playerbot_launch_bot WHERE character_guid_low = {}", e.guid_low);
+    CharacterDatabase.PExecute("DELETE FROM playerbot_launch_cohort WHERE character_guid_low = {}", e.guid_low);
 }
 
 void LaunchSim::LoadRoster()
@@ -437,10 +441,19 @@ void LaunchSim::LoadRoster()
         e.state = BotState::Offline;
         roster_.push_back(std::move(e));
     } while (r->NextRow());
+    EnsureRunTables();
+    for (size_t i = 0; i < roster_.size(); ++i)
+        by_guid_[roster_[i].guid_low] = i;
+    if (QueryResult cohort = CharacterDatabase.Query("SELECT character_guid_low FROM playerbot_launch_cohort"))
+        do
+        {
+            auto const it = by_guid_.find(cohort->Fetch()[0].GetUInt64());
+            if (it != by_guid_.end())
+                roster_[it->second].cohort = true;
+        } while (cohort->NextRow());
     for (size_t i = 0; i < roster_.size(); ++i)
     {
-        by_guid_[roster_[i].guid_low] = i;
-        if (roster_[i].arrival_s >= 3600) ++late_count_;
+        if (roster_[i].arrival_s >= 3600 && !roster_[i].cohort) ++late_count_;
         // A roster made before the persona surnames (or a row whose UPDATE lost the race with its INSERT) gets them here.
         sCharacterCache->UpdateCharacterSurname(ObjectGuid::Create<HighGuid::Player>(roster_[i].guid_low), kPersonaSurnames[roster_[i].persona]);
     }
@@ -765,6 +778,11 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
         case Phase::Running:
         {
             uint32 const elapsed_s = (now_ms - t0_ms_) / 1000u;
+            // A cohort's characters are made while the run goes on, a few per tick (creation writes to the database here).
+            uint32 made = 0;
+            for (Entry& e : roster_)
+                if (e.state == BotState::ToCreate && made++ < 4 && !CreateOne(e))
+                    e.state = BotState::Done;   // gave up on this one
             uint32 logins = 0;
             for (Entry& e : roster_)
             {
@@ -841,7 +859,11 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                 resize_bots_ = resize_late_ = 0;
                 return;
             }
-            // All gone: the same names, races and classes again, fresh, with new personas, arrivals and sessions.
+            // All gone: the same names, races and classes again, fresh, with new personas, arrivals and sessions. The crowds
+            // added for later players go (the first roster keeps its order, late arrivals last).
+            std::erase_if(roster_, [](Entry const& e) { return e.cohort; });
+            by_guid_.clear();
+            CharacterDatabase.Execute("DELETE FROM playerbot_launch_cohort");
             for (size_t i = 0; i < roster_.size(); ++i)
             {
                 Roll(roster_[i], /*keep_identity*/ true, /*late*/ i + late_count_ >= roster_.size(),
@@ -872,8 +894,27 @@ void LaunchSim::OnRealPlayerLogin(Player* p)
         }
         else if (phase_ != Phase::Running)
             auto_start_pending_ = true;   // the roster is being made: it starts once ready
-        return;
     }
+    // A new level-1 character after the launch's first half hour (its crowd has moved on): a fresh crowd of level-1 bots in
+    // its starting zone, arriving from now on the launch curve (playtest 28 Oct: "whenever a level 1 logs in, there need to
+    // be bots launching as well"). Once per character; Alliance starting zones only.
+    if (AutoRun() && phase_ == Phase::Running && p->GetLevel() == 1 && p->GetTotalPlayedTime() < 600 &&
+        !cohort_given_.count(p->GetGUID().GetCounter()))
+    {
+        uint8 const race = p->GetRace();
+        uint32 const elapsed_s = (GameTime::GetGameTimeMS() - t0_ms_) / 1000u;
+        if ((race == RACE_HUMAN || race == RACE_DWARF || race == RACE_NIGHTELF || race == RACE_GNOME || race == 95) &&
+            elapsed_s >= 1800u)
+        {
+            cohort_given_[p->GetGUID().GetCounter()] = true;
+            uint8 const zone = LaunchPlaces::ZoneForRace(race);
+            uint32 const n = AddCohort(zone, elapsed_s);
+            TC_LOG_INFO("playerbot.v2", "[launch] {} is a new level-1 character: {} fresh bots launch in {} (AutoRun)",
+                p->GetName(), n, LaunchPlaces::kZones[zone].key);
+        }
+    }
+    if (AutoRun())
+        return;
     if (phase_ != Phase::Armed)
         return;
     TC_LOG_INFO("playerbot.v2", "[launch] {} entered the world: launch starts", p->GetName());
@@ -894,6 +935,25 @@ void LaunchSim::OnRealPlayerLogout(Player* p)
         phase_ = Phase::Ready;   // armed, never started
 }
 
+
+uint32 LaunchSim::AddCohort(uint8 zone, uint32 elapsed_s)
+{
+    // Playerbot.Launch.CohortBots: Coldridge's size of a fresh crowd; the other zones by the census, as for the first roster.
+    uint32 const base = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("Playerbot.Launch.CohortBots", 150, true)));
+    uint32 n = uint32((uint64(base) * CensusShareOf(zone) + CensusShareOf(LaunchPlaces::kZoneColdridge) / 2) /
+                      CensusShareOf(LaunchPlaces::kZoneColdridge));
+    n = std::min<uint32>(n, roster_.size() < 2000 ? uint32(2000 - roster_.size()) : 0u);
+    for (uint32 k = 0; k < n; ++k)
+    {
+        Entry e;
+        Roll(e, /*keep_identity*/ false, /*late*/ false, zone);
+        e.arrival_s += elapsed_s;
+        e.cohort = true;
+        e.state = BotState::ToCreate;
+        roster_.push_back(std::move(e));
+    }
+    return n;
+}
 
 bool LaunchSim::IsLaunchBot(uint64 guid_low) const
 {
