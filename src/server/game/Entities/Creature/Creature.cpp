@@ -1419,7 +1419,9 @@ void Creature::SetTappedBy(Unit const* unit, bool withGroup)
                 if (GetMap()->IsRaid() || group->SameSubGroup(player, itr.GetSource()))
                     m_tapList.insert(itr.GetSource()->GetGUID());
 
-    if (m_tapList.size() >= CREATURE_TAPPERS_SOFT_CAP)
+    // Classic: the first tag greys the creature for everyone outside the tap list (the viewer-dependent DynamicFlags clear
+    // the flag for the tappers themselves); retail shared tagging greys it only at the soft cap.
+    if (m_tapList.size() >= CREATURE_TAPPERS_SOFT_CAP || !sWorld->getBoolConfig(CONFIG_CLASSIC_SHARED_TAGGING))
         SetDynamicFlag(UNIT_DYNFLAG_TAPPED);
 }
 
