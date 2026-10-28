@@ -8,6 +8,7 @@
 #include "Bot/BotSnapshotView.h"
 #include "Bot/BotIntentEmitter.h"
 #include "Bot/BotIntent.h"
+#include "Fleet/LaunchRoutes.h"   // LaunchRoutes::kNoRoute (guide followers keep the quest-first yield)
 #include "ObjectGuid.h"
 #include "Log.h"
 #include <atomic>
@@ -126,8 +127,10 @@ bool GatherFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&,Bo
 // left untouched.
 bool GatherFullGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32 now_ms)
 {
-    // Quest-first (2026-06-16): yield to a reachable quest action.
-    if (s.has_actionable_quest()) return false;
+    // No quest-first yield (LatvjuAvs 122b42f352): GatherFire only acts on a node within 5 y, a 3 s pick; with the yield a bot
+    // with any actionable quest (nearly all) never gathered: the detour brought it to the node and the pick was skipped (968
+    // detours, 6 nodes in 30 minutes). A launch guide follower keeps it: racers that gathered on the way lost their pace.
+    if (ai.launch().active && ai.launch().route != V2::Fleet::LaunchRoutes::kNoRoute && s.has_actionable_quest()) return false;
     return GatherGate(s, ai, g, now_ms);
 }
 
@@ -149,7 +152,7 @@ bool GatherDetourFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView con
     float bx, by, bz; s.position(bx, by, bz);
     constexpr float kInteract = 5.0f;
     constexpr float kInt2 = kInteract * kInteract;
-    constexpr float kDetour = 12.0f;
+    constexpr float kDetour = 30.0f;   // was 12 y: 3 nodes gathered in 25 minutes; players detour further for a herb (LatvjuAvs 21b4b4db8c)
     constexpr float kDet2 = kDetour * kDetour;
     NearbyObject const* best = nullptr;
     float best_dsq = kDet2;
@@ -165,7 +168,7 @@ bool GatherDetourFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView con
         best = &obj; best_dsq = dsq;
     }
     if (!best) return false;
-    emit.move_to(best->x, best->y, best->z, /*run*/ false);
+    emit.move_to(best->x, best->y, best->z, /*run*/ true);   // was a walk: 1,642 detours, 6 nodes reached (LatvjuAvs 8e13ad064c)
     ai.set_last_rule_fired("idle:gather_detour");
     return true;
 }
