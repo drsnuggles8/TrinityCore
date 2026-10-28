@@ -405,9 +405,14 @@ bool LaunchTrainFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
     LaunchSocial& soc = ai.launch_social();
     if (d > 4.5f)
     {
-        // One order every 2.5 s while it walks: the move generator keeps the path between orders.
+        // One order every 2.5 s while it walks: the move generator keeps the path between orders. The tick stays this rule's:
+        // handing it on let the quest walks turn the bot back outside, and the next order turned it round again (live 28 Oct,
+        // Anvilmar: bots stuttered along the corridor, 90 s wedges on idle:launch_train_walk).
         if (soc.train_move_ms && now - soc.train_move_ms < 2500u && s.is_moving())
-            return false;
+        {
+            ai.set_last_rule_fired("idle:launch_train_walk");
+            return true;
+        }
         soc.train_move_ms = now;
         float const k = (d - 3.0f) / d;
         emit.move_to(bx + dx * k, by + dy * k, r.launch_trainer_z, /*run*/ true);
