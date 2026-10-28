@@ -3116,6 +3116,13 @@ void Unit::_UpdateAutoRepeatSpell()
             InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
             return;
         }
+        // Classic: Auto Shot stops when its target dies. It stayed on with the dead target, and the client turned it on the
+        // next mob it selected (playtest 28 Oct: "other monsters got shot" after a kill).
+        if (Unit const* target = autoRepeatSpell->m_targets.GetUnitTarget(); target && !target->IsAlive())
+        {
+            InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
+            return;
+        }
     }
 
     // castroutine
@@ -3127,8 +3134,15 @@ void Unit::_UpdateAutoRepeatSpell()
         {
             if (autoRepeatSpellInfo->Id != 75)
                 InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
-            else if (GetTypeId() == TYPEID_PLAYER)
-                Spell::SendCastResult(ToPlayer(), autoRepeatSpellInfo, m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_SpellVisual, m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_castId, result);
+            else
+            {
+                if (GetTypeId() == TYPEID_PLAYER)
+                    Spell::SendCastResult(ToPlayer(), autoRepeatSpellInfo, m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_SpellVisual, m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_castId, result);
+                // Out of ammo or no valid target: Auto Shot stops (Classic) instead of failing quietly on every swing timer; the
+                // next press of Auto Shot answers with the error ("Ammo needs to be in the paper doll ammo slot...").
+                if (result == SPELL_FAILED_NO_AMMO || result == SPELL_FAILED_TARGETS_DEAD || result == SPELL_FAILED_BAD_TARGETS)
+                    InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
+            }
 
             return;
         }
