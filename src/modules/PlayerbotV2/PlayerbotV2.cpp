@@ -1632,8 +1632,11 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
                 // Rescue ghost-BG bots BEFORE SnapToGroundIfDrifted — the
                 // BG map's BIH can crash that call. RescueOrphanedBgBot is
                 // a no-op for bots not in an orphaned BG map.
-                RescueOrphanedBgBot(p);
-                SnapToGroundIfDrifted(p);
+                if (!Fleet::IsTrainingPlayer(p))
+                {
+                    RescueOrphanedBgBot(p);
+                    SnapToGroundIfDrifted(p);
+                }
                 // Resolve the bot's bot logic ONCE here on the world thread (registry
                 // quiescent under for_each's shared_lock) and thread it through
                 // the BuiltSlot. Build workers MUST NOT call Registry().ai()
