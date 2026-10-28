@@ -140,9 +140,11 @@ namespace Trinity
         {
             uint32 baseGain;
 
-            // Classic 1.60 (vanilla, VMaNGOS Formulas.h): the player's base (5 * level + 45) for every mob level; lower mobs give
-            // (ZD + mob - player) / ZD of it (retail used the lower mob's own base, about 18% less)
+            // Classic 1.60 (official sniffs, 146 regular kills of known player level): mobs of the player's level or higher give the
+            // player's base (5 * level + 45) * (1 + 0.05 * diff, at most 4); lower mobs give (ZD + mob - player) / ZD of the LOWER MOB's
+            // own base (vanilla VMaNGOS used the player's base there, which gave 4-18% more than the official server)
             float const playerBase = pl_level * 5.0f + 45.0f;
+            float const mobBase = mob_level * 5.0f + 45.0f;
             if (mob_level >= pl_level)
             {
                 uint8 nLevelDiff = mob_level - pl_level;
@@ -157,7 +159,7 @@ namespace Trinity
                 if (mob_level > gray_level)
                 {
                     uint8 ZD = GetZeroDifference(pl_level);
-                    baseGain = uint32(round(playerBase * (ZD + mob_level - pl_level) / float(ZD)));
+                    baseGain = uint32(round(mobBase * (ZD + mob_level - pl_level) / float(ZD)));
                 }
                 else
                     baseGain = 0;
