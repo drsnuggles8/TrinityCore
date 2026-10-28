@@ -49,6 +49,7 @@
 #include "SpellMgr.h"
 #include "SpellHistory.h"
 #include "CriteriaHandler.h"
+#include "Util/TaxiFare.h"          // bots that pay their own fare
 #include <functional>
 #include "Map.h"
 #include "InstanceScript.h"
@@ -10573,6 +10574,10 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 {
                     std::vector<uint32> route;
                     TaxiPathGraph::GetCompleteNodeRoute(from_e, to_e, p, route);
+                    // Only a flight the bot can pay for when it pays its own way (Util/TaxiFare.h); else it walks.
+                    if (route.size() >= 2 && ::Playerbot::V2::TaxiFare::PayOwnWay(bot_ai && bot_ai->launch().active) &&
+                        p->GetMoney() < ::Playerbot::V2::TaxiFare::RouteFare(p, route))
+                        route.clear();
                     if (route.size() >= 2)
                     {
                         snap->travel.recommended_taxi_dest_node = best_dest;

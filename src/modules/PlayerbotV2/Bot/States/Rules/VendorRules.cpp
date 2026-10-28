@@ -19,6 +19,7 @@
 #include "Bot/IdleRule.h"
 #include "Group/GroupSnapshot.h"
 #include "Bot/BotAI.h"
+#include "Util/TaxiFare.h"
 #include "Bot/BotSnapshotView.h"
 #include "Bot/BotIntentEmitter.h"
 #include "Bot/BotIntent.h"
@@ -537,6 +538,8 @@ bool CriticalRepairGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView c
     }
     // A battleground match owns the bot (BgDispatch, priority 718): a repair walk would pull it off the march every tick.
     if (s.in_battleground()) return false;
+    // Too poor to repair even a quarter of its gear (a bot that pays its own way): it keeps questing on broken gear.
+    if (::Playerbot::V2::TaxiFare::TooPoorToRepair(ai.launch().active, s.raw().inventory.gold, s.estimated_repair_cost())) return false;
     // Futility backoff: the bot was at a vendor making no durability progress
     // (too poor to repair the rest even after selling trash) and yielded so the
     // quest funnel could run and earn money. Stay suppressed until the cooldown

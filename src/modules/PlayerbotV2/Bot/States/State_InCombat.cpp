@@ -3,6 +3,7 @@
 // engages auto-attack on its current target — never freezes.
 
 #include "StateBase.h"
+#include "Util/TaxiFare.h"
 #include "Bot/BotAI.h"
 #include "Bot/Formation.h"                      // StableJitter / MeleeArcSpot (SpreadOut)
 #include "Bot/BotSnapshotView.h"
@@ -1877,6 +1878,7 @@ void DispatchInCombat(BotAI& ai,
         // gear is destroyed, fleeing to repair is ALWAYS correct — fire unconditionally.
         if (!snapshot.is_in_instance() && !snapshot.in_battleground() &&
             !group.exists() &&
+            !::Playerbot::V2::TaxiFare::TooPoorToRepair(ai.launch().active, snapshot.raw().inventory.gold, snapshot.estimated_repair_cost()) &&
             dura <= 20 &&
             (dura <= 5 || snapshot.combat_duration_ms() > 60000 || low_hp))
         {

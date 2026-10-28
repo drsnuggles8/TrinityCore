@@ -52,6 +52,8 @@
 #include "NoMotionGuard.h"
 #include "TradeFlow.h"
 #include "JunkDrop.h"
+#include "Fleet/LaunchSim.h"   // IsLaunchBot: launch bots pay their own way (Util/TaxiFare.h)
+#include "Util/TaxiFare.h"
 #include "BotTrade.h"
 #include "BotTradeShop.h"
 #include "SocialMgr.h"  // SOCIAL_FLAG_FRIEND/IGNORED for friend ops
@@ -5611,7 +5613,9 @@ Result API::repair_all(ObjectGuid npc, bool from_guild_bank)
     {
         uint64 total_cost = 0;
         for (auto const& pr : repairables) total_cost += pr.second;
-        if (total_cost > 0 && p_->GetMoney() < total_cost)
+        // Not for a bot that pays its own way (Util/TaxiFare.h: launch bots): it repairs what it can afford, like a player.
+        if (total_cost > 0 && p_->GetMoney() < total_cost &&
+            !V2::TaxiFare::PayOwnWay(V2::Fleet::LaunchSim::Instance().IsLaunchBot(p_->GetGUID().GetCounter())))
             p_->ModifyMoney(int64(total_cost - p_->GetMoney()));
     }
 
@@ -8937,7 +8941,18 @@ Result API::fly_to_node(ObjectGuid flight_master, uint32 to_node)
     // ride is fine, and this is far cheaper than the leveling time lost to a bot
     // stranded on the wrong continent). 5g covers any single multi-hop route.
     constexpr uint64 kFlightReserve = 50000;   // 5 gold in copper
-    if (p_->GetMoney() < kFlightReserve)
+    if (V2::TaxiFare::PayOwnWay(V2::Fleet::LaunchSim::Instance().IsLaunchBot(p_->GetGUID().GetCounter())))
+    {
+        // A bot that pays its own way (Util/TaxiFare.h) gets no top-up; the planners only pick flights it can pay for.
+        uint64 const fare = V2::TaxiFare::RouteFare(p_, nodes);
+        if (p_->GetMoney() < fare)
+        {
+            TC_LOG_INFO("playerbot.v2", "[fly_dbg] {} FAIL fare {} > money {} hops={}", p_->GetName(), fare, p_->GetMoney(),
+                uint32(nodes.size()));
+            return Result::NotEnoughResource;
+        }
+    }
+    else if (p_->GetMoney() < kFlightReserve)
         p_->ModifyMoney(int64(kFlightReserve - p_->GetMoney()));
     if (!p_->ActivateTaxiPathTo(nodes, unit, /*spellid*/ 0, /*preferredMountDisplay*/ 0))
     {
