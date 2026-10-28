@@ -3681,6 +3681,9 @@ private:
     // 40y scan still captures the immediate neighborhood every tick.
     // Builder reads/writes; bot worker doesn't touch this field.
     uint32         last_hub_scan_ms_      = 0;
+    // The quest givers (with a ! or ? for this bot, or named by its guide) and trainers the last hub scan saw; every
+    // snapshot appends them to nearby_friends. Builder-only field.
+    std::vector<NearbyUnit> seen_givers_;
     // Same throttle pattern for the 200y extended gather-node scan
     // (perf audit #3 — capital-clustered gatherers also fire this
     // every frame). Nodes are static; 1Hz refresh is plenty.
@@ -3704,6 +3707,7 @@ private:
 public:
     uint32 last_hub_scan_ms() const { return last_hub_scan_ms_; }
     void   set_last_hub_scan_ms(uint32 v) { last_hub_scan_ms_ = v; }
+    std::vector<NearbyUnit>& seen_givers() { return seen_givers_; }
     uint32 last_bg_veh_scan_ms() const { return last_bg_veh_scan_ms_; }
     void   set_last_bg_veh_scan_ms(uint32 v) { last_bg_veh_scan_ms_ = v; }
     uint32 last_gather_scan_ms() const { return last_gather_scan_ms_; }

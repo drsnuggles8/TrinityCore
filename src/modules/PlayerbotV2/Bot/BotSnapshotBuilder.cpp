@@ -5016,7 +5016,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         // FRIEND, so it lives in nearby_friends — and the distance-sorted 12-cap
         // below can evict it when the bot is surrounded by closer friendlies,
         // starving the use-on-friend / talk-credit rules in State_Idle. Before
-        // the cap, move any friend whose entry matches an INCOMPLETE
+        // the cap, stable_partition any friend whose entry matches an INCOMPLETE
         // friendly objective to the FRONT so it survives the truncate. The
         // entry set MUST mirror what the consumers check: the use-on-friend rule
         // (idle:quest_use_item_on_friend) and quest_talk rule both key on the
@@ -5053,21 +5053,11 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                         obj_friendly_entries.insert(a);
                 }
             }
-            // Quest givers come right after the objective friendlies: at a launch the 12 nearest friends at a start
-            // camp are all players, the giver dropped out, and only the 800 ms hub scan below brought it back (Coldridge,
-            // 79 bots: half the questers had taken no quest after 5 minutes, median wait 56 s against 12 s without the
-            // crowd). Ranks 0 objective, 1 quest giver, 2 other; distance order within a rank.
-            auto const rank = [&](Unit const* u) -> int
-            {
-                if (!u) return 2;
-                if (!obj_friendly_entries.empty() && obj_friendly_entries.count(u->GetEntry()) != 0) return 0;
-                if (u->GetTypeId() == TYPEID_UNIT && (uint32(u->GetNpcFlags()) & uint32(UNIT_NPC_FLAG_QUESTGIVER))) return 1;
-                return 2;
-            };
-            std::stable_sort(by_dist.begin(), by_dist.end(),
-                [&](std::pair<float, Unit*> const& a, std::pair<float, Unit*> const& b) {
-                    return rank(a.second) < rank(b.second);
-                });
+            if (!obj_friendly_entries.empty())
+                std::stable_partition(by_dist.begin(), by_dist.end(),
+                    [&](std::pair<float, Unit*> const& pr) {
+                        return pr.second && obj_friendly_entries.count(pr.second->GetEntry()) != 0;
+                    });
         }
 
         if (by_dist.size() > MAX_FRIENDS) by_dist.resize(MAX_FRIENDS);
@@ -5250,9 +5240,18 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         if (hub == nullptr && !hub_throttled && p->GetLevel() < 20)
             forced_ext_radius = 150.0f;
 
+        // What the bot has seen, kept between scans: a player looks for the yellow ! and ? over heads and on the minimap,
+        // or for the NPC the guide names, and walks to that one. The scan below refreshes the list every 800 ms and every
+        // snapshot appends it, so a giver no longer drops out between scans (at a launch the 12 nearest friends at a start
+        // camp are all players: in a 79-bot Coldridge half the questers had taken no quest after 5 minutes, and a giver
+        // that came and went also restarted the quest-reading pause of idle:quest_accept).
+        thread_local std::vector<NearbyUnit> no_ai_givers;
+        std::vector<NearbyUnit>& seen_givers = hb_ai ? hb_ai->seen_givers() : no_ai_givers;
+        if (!hb_ai) no_ai_givers.clear();
         if ((hub != nullptr && hub->mapId == p->GetMapId()) || forced_ext_radius > 0.0f)
         {
             if (hb_ai) hb_ai->set_last_hub_scan_ms(hub_now_ms);
+            seen_givers.clear();
             const float ext_radius = (hub != nullptr)
                 ? std::clamp(hub->radius, 100.0f, 500.0f)
                 : forced_ext_radius;
@@ -5271,30 +5270,36 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 Trinity::CreatureListSearcher<Trinity::AnyUnitInObjectRangeCheck> cr_searcher(p, creatures, cr_check);
                 Cell::VisitAllObjects(p, cr_searcher, ext_radius);
 
-                // Dedupe against existing nearby_friends (the 40y entries are
-                // already there — don't double-count). Build a small set of
-                // already-seen guids; appended entries don't need to be
-                // re-deduped against each other since UnitListSearcher
-                // returns each unit once.
-                std::unordered_set<ObjectGuid> seen;
-                seen.reserve(snap->combat.nearby_friends.size() + 16);
-                for (auto const& nf : snap->combat.nearby_friends)
-                    seen.insert(nf.guid);
+                // A guide follower looks for the givers of its route's next steps only.
+                auto const serves_window = [&](uint32 entry)
+                {
+                    for (uint32 qid : sObjectMgr->GetCreatureQuestRelations(entry))
+                        if (in_launch_window(qid)) return true;
+                    for (uint32 qid : sObjectMgr->GetCreatureQuestInvolvedRelations(entry))
+                        if (in_launch_window(qid)) return true;
+                    return false;
+                };
+                // Reward (0x2000) and up: the yellow ? and ! a player sees. The bits below are the future and trivial
+                // (grey) marks.
+                constexpr uint64 kMarkMask = ~uint64(0x1FFF);
 
                 // Both quest givers AND trainers — the
                 // idle:travel_to_trainer rule needs trainer-flagged NPCs
                 // visible in the wide scan so a bot in profession mode
                 // can walk across the city to reach one.
-                constexpr uint32 kQuestGiverFlagMask =
-                    uint32(UNIT_NPC_FLAG_QUESTGIVER) | uint32(UNIT_NPC_FLAG_TRAINER);
-                size_t appended = 0;
                 constexpr size_t kMaxAppend = 64;
                 for (Creature* c : creatures)
                 {
-                    if (!c || appended >= kMaxAppend) break;
+                    if (!c || seen_givers.size() >= kMaxAppend) break;
                     if (!c->IsAlive()) continue;
-                    if (!(uint32(c->GetNpcFlags()) & kQuestGiverFlagMask)) continue;
-                    if (seen.count(c->GetGUID())) continue;
+                    uint32 const flags = uint32(c->GetNpcFlags());
+                    bool const trainer = (flags & UNIT_NPC_FLAG_TRAINER) != 0;
+                    if (!trainer && !(flags & UNIT_NPC_FLAG_QUESTGIVER)) continue;
+                    if (!trainer)
+                    {
+                        if (!(uint64(p->GetQuestDialogStatus(c)) & kMarkMask)) continue;
+                        if (!launch_window.empty() && !serves_window(c->GetEntry())) continue;
+                    }
                     NearbyUnit u{};
                     u.guid      = c->GetGUID();
                     u.entry     = c->GetEntry();
@@ -5305,12 +5310,24 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     u.y         = c->GetPositionY();
                     u.z         = c->GetPositionZ();
                     u.o         = c->GetOrientation();
-                    u.npc_flags = uint32(c->GetNpcFlags());
-                    snap->combat.nearby_friends.push_back(u);
-                    seen.insert(c->GetGUID());
-                    ++appended;
+                    u.npc_flags = flags;
+                    seen_givers.push_back(u);
                 }
             }
+        }
+        else if (!hub_throttled)
+            seen_givers.clear();   // out of the hubs and past the starter zones
+
+        // Dedupe against nearby_friends (the 40y entries are already there).
+        if (!seen_givers.empty())
+        {
+            std::unordered_set<ObjectGuid> seen;
+            seen.reserve(snap->combat.nearby_friends.size() + seen_givers.size());
+            for (auto const& nf : snap->combat.nearby_friends)
+                seen.insert(nf.guid);
+            for (NearbyUnit const& u : seen_givers)
+                if (seen.insert(u.guid).second)
+                    snap->combat.nearby_friends.push_back(u);
         }
     }
 
