@@ -1831,8 +1831,10 @@ void Player::RegenerateHealth()
             addValue *= 1.5f;
     }
 
-    // always regeneration bonus (including combat)
-    addValue += GetTotalAuraModifier(SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT);
+    // always regeneration bonus (including combat). Classic 1.60: the aura amount is health per 5 seconds (Demon Skin "3 per 5
+    // sec"; VMaNGOS: 2 / 5 of it per 2 second tick); it was added whole every tick, 2.5 times too much, in combat too
+    // (playtest 28 Oct: a level-2 warlock "regenning like crazy even in combat").
+    addValue += GetTotalAuraModifier(SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT) * 2.0f / 5.0f;
     addValue += m_baseHealthRegen / 2.5f;
 
     if (addValue < 0.0f)
