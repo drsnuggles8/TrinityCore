@@ -114,8 +114,8 @@ for untagged mobs other players stand next to.
 | leaver | 2 | Leaver: Loch Modan at 8 | 1.1-1.3 | neutral |
 | explorer | 0 (off since 27 Oct) | Explorer: a subzone tour (below), no kills until level 6 or the end of the route, then quests. Off: the real exploration routes (Rothie, mafsen) are only in the LevelForge guide service, and the hand-made tours took level-1 bots through mobs far above them; `explorer:2` in PersonaWeights brings them back with imported routes | 1.0-1.2 | loner / neutral |
 
-Arrival after T0 is the same for every persona (the login queue does not care who is a racer): 35% in the first 3 minutes,
-35% by 15 minutes, the rest by 60; late arrivals (the `late` count) spread over hours one to six.
+Arrival after T0 is the same for every persona (the login queue does not care who is a racer): 55% in the first 3 minutes,
+30% more by 15 minutes, the rest by 60 (35/35/30 until 28 Oct); late arrivals (the `late` count) spread over hours one to six.
 
 Race and class come in pairs from the Forever census at the end of the beta (ClassicPlus.io addon census, data of 24-26 Oct
 2026, 1,148,135 characters, as tabled by classicplus.world; it replaced the 7 Oct snapshot of 644k and the 20 Sep Reddit

@@ -321,8 +321,9 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
         }
     }
 
-    // Arrival after T0, the same for every persona (the login queue does not care who is a racer): 35% in the first 3 min,
-    // 35% by 15 min, the rest by 60; late arrivals spread over hours one to six.
+    // Arrival after T0, the same for every persona (the login queue does not care who is a racer): 55% in the first 3 min,
+    // 30% by 15 min, the rest by 60 (a launch-time queue; the old 35/35/30 left a start zone a third full after 3 minutes and
+    // the level-3 areas empty at 15, playtest 28 Oct); late arrivals spread over hours one to six.
     // Playerbot.Launch.ArrivalMaxS > 0: everyone arrives within that many seconds (tests: "5 racers starting together").
     uint32 const arrival_max = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("Playerbot.Launch.ArrivalMaxS", 0, true)));
     if (late)
@@ -332,7 +333,7 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
     else
     {
         uint32 const r = RollRand(0, 99);
-        e.arrival_s = r < 35 ? RollRand(5, 180) : r < 70 ? RollRand(180, 900) : RollRand(900, 3600);
+        e.arrival_s = r < 55 ? RollRand(5, 180) : r < 85 ? RollRand(180, 900) : RollRand(900, 3600);
     }
     e.session_s = p.session_hi_min ? RollRand(p.session_lo_min, p.session_hi_min) * 60u : 0u;
 }
