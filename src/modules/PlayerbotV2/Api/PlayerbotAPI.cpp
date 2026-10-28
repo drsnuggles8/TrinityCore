@@ -5866,8 +5866,10 @@ Result API::loot_corpse(ObjectGuid corpse)
     if (V2::KillCycle::Entry kc; V2::KillCycle::Looted(p_->GetGUID().GetCounter(), corpse.GetCounter(), kc))
     {
         uint32 const now_ms = GameTime::GetGameTimeMS();
-        TC_LOG_INFO("playerbot.v2", "[kill_cycle] {} L{} mob={} dist={:.0f} engage_to_death_ms={} death_to_loot_ms={}",
-            p_->GetName(), uint32(p_->GetLevel()), kc.entry, kc.dist, kc.death_ms - kc.engage_ms, now_ms - kc.death_ms);
+        // at = where the bot loots (by the corpse): how a crowd spreads over a camp
+        TC_LOG_INFO("playerbot.v2", "[kill_cycle] {} L{} mob={} dist={:.0f} engage_to_death_ms={} death_to_loot_ms={} at={:.0f},{:.0f}",
+            p_->GetName(), uint32(p_->GetLevel()), kc.entry, kc.dist, kc.death_ms - kc.engage_ms, now_ms - kc.death_ms,
+            p_->GetPositionX(), p_->GetPositionY());
     }
     // CRITICAL: SendLootRelease() only sends the client a packet â it does NOT
     // run the server-side release. The real release (WorldSession::DoLootRelease)
