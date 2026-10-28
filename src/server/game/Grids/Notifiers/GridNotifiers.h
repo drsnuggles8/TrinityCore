@@ -89,6 +89,19 @@ namespace Trinity
         bool i_clientless;
     };
 
+    // Creatures this close to a moving bot check it for aggro (MoveInLineOfSight); the largest aggro radius is 45 y.
+    constexpr float CLIENTLESS_AI_NOTIFY_DISTANCE = 50.0f;
+
+    // A bot moved: the creatures within CLIENTLESS_AI_NOTIFY_DISTANCE notice it. (The real players who see it are updated from
+    // the map's list of them, Map::GetRelocationClientPlayers: there is no visibility list of its own to keep.)
+    struct TC_GAME_API ClientlessRelocationNotifier
+    {
+        Player& i_player;
+        explicit ClientlessRelocationNotifier(Player& player) : i_player(player) { }
+        template<class T> void Visit(GridRefManager<T> &) { }
+        void Visit(CreatureMapType &);
+    };
+
     struct TC_GAME_API CreatureRelocationNotifier
     {
         Creature &i_creature;

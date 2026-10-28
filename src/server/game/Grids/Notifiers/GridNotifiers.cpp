@@ -187,10 +187,29 @@ void CreatureRelocationNotifier::Visit(PlayerMapType &m)
     {
         Player* player = iter->GetSource();
 
-        if (!player->m_seer->isNeedNotify(NOTIFY_VISIBILITY_CHANGED) && !(player->m_seer == player && IsClientlessObserver(*player)))
+        if (player->m_seer == player && IsClientlessObserver(*player))
+        {
+            // A bot: no visibility to update, and an aggro check only within reach (the visit spans the whole visibility
+            // distance, a few thousand bots around a launch spawn)
+            if (i_creature.GetExactDist2dSq(player) <= CLIENTLESS_AI_NOTIFY_DISTANCE * CLIENTLESS_AI_NOTIFY_DISTANCE)
+                CreatureUnitRelocationWorker(&i_creature, player);
+            continue;
+        }
+
+        if (!player->m_seer->isNeedNotify(NOTIFY_VISIBILITY_CHANGED))
             player->UpdateVisibilityOf(&i_creature);
 
         CreatureUnitRelocationWorker(&i_creature, player);
+    }
+}
+
+void ClientlessRelocationNotifier::Visit(CreatureMapType &m)
+{
+    for (CreatureMapType::iterator iter = m.begin(); iter != m.end(); ++iter)
+    {
+        Creature* c = iter->GetSource();
+        if (!c->isNeedNotify(NOTIFY_VISIBILITY_CHANGED))
+            CreatureUnitRelocationWorker(c, &i_player);
     }
 }
 
@@ -241,6 +260,21 @@ void DelayedUnitRelocation::Visit(PlayerMapType &m)
             continue;
 
         i_map.LoadGridsInRange(viewPoint->GetPositionX(), viewPoint->GetPositionY(), i_radius + viewPoint->GetCombatReach());
+
+        // A bot moved. Visiting everything within the visibility distance (533 y) for every moving bot was the n x n cost of a
+        // launch crowd (30% of the map update at 5000 bots, build58). It only has to show itself to the real players who can
+        // see it and be noticed by the creatures within aggro reach.
+        if (player == viewPoint && IsClientlessObserver(*player))
+        {
+            for (Player* watcher : i_map.GetRelocationClientPlayers())
+                if (watcher != player && !watcher->m_seer->isNeedNotify(NOTIFY_VISIBILITY_CHANGED) &&
+                    watcher->m_seer->GetExactDist2dSq(player) <= i_radius * i_radius)
+                    watcher->UpdateVisibilityOf(player);
+
+            ClientlessRelocationNotifier notice(*player);
+            Cell::VisitGridObjects(player, notice, CLIENTLESS_AI_NOTIFY_DISTANCE);
+            continue;
+        }
 
         PlayerRelocationNotifier relocate(*player);
         Cell::VisitAllObjects(viewPoint, relocate, i_radius);

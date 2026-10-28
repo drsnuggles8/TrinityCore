@@ -847,6 +847,11 @@ struct ResetNotifier
 
 void Map::ProcessRelocationNotifies(const uint32 diff)
 {
+    _relocationClientPlayers.clear();
+    for (MapReference const& ref : m_mapRefManager)
+        if (Player* player = ref.GetSource(); !player->IsClientless())
+            _relocationClientPlayers.push_back(player);
+
     for (GridRefManager<NGridType>::iterator i = GridRefManager<NGridType>::begin(); i != GridRefManager<NGridType>::end(); ++i)
     {
         NGridType *grid = i->GetSource();

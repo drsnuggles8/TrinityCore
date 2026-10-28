@@ -409,6 +409,9 @@ class TC_GAME_API Map : public GridRefManager<NGridType>
 
         typedef MapRefManager PlayerList;
         PlayerList const& GetPlayers() const { return m_mapRefManager; }
+        // The players with a client on this map, gathered at the start of ProcessRelocationNotifies: a moving bot shows itself
+        // to these instead of visiting every object around it (Trinity::DelayedUnitRelocation).
+        std::vector<Player*> const& GetRelocationClientPlayers() const { return _relocationClientPlayers; }
 
         template <typename T>
         void DoOnPlayers(T&& fn)
@@ -672,6 +675,7 @@ class TC_GAME_API Map : public GridRefManager<NGridType>
         MapRefManager::iterator m_mapRefIter;
 
         int32 m_VisibilityNotifyPeriod;
+        std::vector<Player*> _relocationClientPlayers;
 
         typedef std::set<WorldObject*> ActiveNonPlayers;
         ActiveNonPlayers m_activeNonPlayers;
