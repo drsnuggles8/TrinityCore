@@ -72,7 +72,9 @@ constexpr std::array<Persona, 13> kPersonas = { {
     { "gatherer",  6, LaunchStrategy::Gatherer,     2.00f, 2.60f, { 50, 50,  0,  0,  0 },  15,  60, 2.0f,  8.0f,  45,  60, 300, 120, 480,   0 },
     { "casual",   12, LaunchStrategy::Casual,       3.00f, 4.00f, { 40, 50,  0, 10,  0 },  30,  90, 8.0f, 40.0f,  20, 120, 600,  30, 180,   0 },
     { "partylead", 3, LaunchStrategy::PartyBuilder, 1.30f, 1.70f, { 40, 60,  0,  0,  0 },  15,  60, 1.0f,  4.0f,  60,  60, 180,   0,   0,   0 },
-    { "idle",      6, LaunchStrategy::Idle,         4.00f, 4.00f, { 50, 20,  0, 30,  0 },  60, 180,10.0f, 60.0f,  10, 180, 900,   5,  30,   0 },
+    // idle: was AFK 3-15 minutes every 10 and 10-60 s on every quest text, so an Idler stood still most of the time (Olo, 28 Oct:
+    // "Idlers stand around a lot"). Now the slow, chatty player who steps away now and then.
+    { "idle",      6, LaunchStrategy::Idle,         3.00f, 3.50f, { 50, 20,  0, 30,  0 },  45, 150, 5.0f, 25.0f,  20,  60, 300,   5,  30,   0 },
     { "leaver",    2, LaunchStrategy::Leaver,       1.10f, 1.30f, { 50, 20, 20, 10,  0 },   5,  45, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
     // explorer: weight 0 since 27 Oct - without the real routes' steps (the Rothie / mafsen exploration routes live in the
     // LevelForge guide service) the hand-made subzone tours led level-1 bots through mobs far above them. The code stays;
