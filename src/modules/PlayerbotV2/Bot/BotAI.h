@@ -2696,6 +2696,8 @@ public:
                                // object's guid_low (bit 41 set). Companion quest help
                                // (idle:companion_quest_*): 15s between attempts on the same quest / object.
         CompanionQuestShare = 56, // target = 0 (per bot). One auto-share pass per 90s.
+        QuestGoWalk     = 57,  // target = quest object guid_low, or a cast objective's id (bit 40 cast, bit 41 walk).
+                               // One walk order / cast try per 15 s (idle:quest_loot_go, idle:quest_cast_at_focus).
     };
     static constexpr uint32 kActionRetryLockoutMs = 5u * 60u * 1000u;
     // Per-kind cooldown override — most actions use the 5 min default, but
@@ -2711,11 +2713,12 @@ public:
                 // a second one); with the 5 s bot-side capture channel the first emit only STARTS the capture, and the 5 min
                 // lockout meant it never came back to finish it: no node was ever captured (AB test 2026-10-08, score 0/2000).
                 return 3u * 1000u;
-            case ActionKind::WanderToNode:
-                // One walk order per node or quest object. With the 5 min default a walk cut short (a fight on the way, the path
-                // ending 5.5 y off) was not resumed for minutes (crowd43: 3 quest-object uses in 45 minutes, the Shadowglen
+            case ActionKind::QuestGoWalk:
+                // One walk order per quest object. With WanderToNode's 5 min default a walk cut short (a fight on the way, the
+                // path ending 5.5 y off) was not resumed for minutes (crowd43: 3 quest-object uses in 45 minutes, the Shadowglen
                 // mushrooms and the Zephras windstones walked to from the same spots again and again). 15 s lets a walk resume;
-                // quest_loot_go skips an object a walk does not get closer to (go_walk_stalled).
+                // quest_loot_go skips an object a walk does not get closer to (go_walk_stalled). Gathering-node detours keep
+                // WanderToNode's 5 min (at 15 s the racers detoured to every ore vein: racer45 build44).
                 return 15u * 1000u;
             case ActionKind::BgVehicleFire:
                 // Siege vehicle ramming a gate fires continuously; the real

@@ -18024,7 +18024,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                     // GO so repeated re-paths (blocked / LOS) don't spam.
                     const uint64 go_low = best_far_go->guid.GetCounter();
                     const float far_dist = std::sqrt(best_far_distSq);
-                    if (!ai.action_recently_tried(BotAI::ActionKind::WanderToNode, go_low, now_ms) &&
+                    if (!ai.action_recently_tried(BotAI::ActionKind::QuestGoWalk, go_low, now_ms) &&
                         ai.go_walk_stalled(go_low, far_dist))
                     {
                         // The last walk did not get closer: out of reach from here; the next object gets a turn.
@@ -18032,7 +18032,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                         ai.set_last_rule_fired("idle:quest_loot_go_unreachable");
                         return true;
                     }
-                    if (!ai.action_recently_tried(BotAI::ActionKind::WanderToNode,
+                    if (!ai.action_recently_tried(BotAI::ActionKind::QuestGoWalk,
                                                   go_low, now_ms))
                     {
                         const float dist = far_dist;
@@ -18056,7 +18056,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                         }
                         if (emit.move_to(tx, ty, best_far_go->z, /*run*/ true))
                         {
-                            ai.note_action_retry(BotAI::ActionKind::WanderToNode,
+                            ai.note_action_retry(BotAI::ActionKind::QuestGoWalk,
                                                  go_low, now_ms);
                             ai.set_last_rule_fired("idle:quest_loot_go");
                             TC_LOG_INFO("playerbot.v2",
@@ -18083,22 +18083,22 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
             const float pdx = poi.x - bx, pdy = poi.y - by;
             const float pd2 = pdx * pdx + pdy * pdy;
             const bool at_focus = !obj.cast_focus || (poi.valid && poi.map_id == s.map_id() && pd2 <= 4.0f * 4.0f);
-            const uint64 retry_key = (uint64(1) << 63) | obj.id;   // WanderToNode's 15 s, kept apart from object guids
+            const uint64 retry_key = (uint64(1) << 40) | obj.id;   // QuestGoWalk, apart from object guids (bit 41: the walk)
             if (at_focus)
             {
                 if (s.is_moving())
                     emit.stop_movement();
-                else if (!ai.action_recently_tried(BotAI::ActionKind::WanderToNode, retry_key, now_ms) &&
+                else if (!ai.action_recently_tried(BotAI::ActionKind::QuestGoWalk, retry_key, now_ms) &&
                          emit.cast(obj.cast_spell, s.guid()))
-                    ai.note_action_retry(BotAI::ActionKind::WanderToNode, retry_key, now_ms);
+                    ai.note_action_retry(BotAI::ActionKind::QuestGoWalk, retry_key, now_ms);
                 ai.set_last_rule_fired("idle:quest_cast_at_focus");
                 return true;
             }
             if (poi.valid && poi.map_id == s.map_id() && pd2 <= 80.0f * 80.0f &&
-                !ai.action_recently_tried(BotAI::ActionKind::WanderToNode, retry_key ^ 1u, now_ms) &&
+                !ai.action_recently_tried(BotAI::ActionKind::QuestGoWalk, retry_key | (uint64(1) << 41), now_ms) &&
                 emit.move_to(poi.x, poi.y, poi.z, /*run*/ true))
             {
-                ai.note_action_retry(BotAI::ActionKind::WanderToNode, retry_key ^ 1u, now_ms);
+                ai.note_action_retry(BotAI::ActionKind::QuestGoWalk, retry_key | (uint64(1) << 41), now_ms);
                 ai.set_last_rule_fired("idle:quest_cast_walk");
                 return true;
             }
