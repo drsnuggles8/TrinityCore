@@ -375,9 +375,18 @@ bool OpenerFire(BotSnapshotView const& s, BotAI& ai,
         emit.stop_attack();
         ai.note_engage(vg, now_ms, 5u * 60u * 1000u);
         ai.set_last_rule_fired("combat:opener_give_up");
+        // Why it never got going (a launch hunter still gives up ~60 times in 45 minutes): where the mob is, whom it fights,
+        // whether someone else holds the tag, whether the bot moved and an Auto Shot runs.
+        float bx, by, bz;
+        s.position(bx, by, bz);
         TC_LOG_INFO("playerbot.v2",
-            "[opener_give_up] bot={} victim={} unreachable for {}ms — shielded 5min",
-            s.bot_id(), vg.ToString(), now_ms - ai.opener_victim_since_ms());
+            "[opener_give_up] bot={} victim={} unreachable for {}ms — shielded 5min | dist={:.1f} dz={:.1f} mob_victim={} "
+            "tapped={} by_us={} moving={} autorepeat={} oor={}",
+            s.bot_id(), vg.ToString(), now_ms - ai.opener_victim_since_ms(),
+            std::sqrt((vu->x - bx) * (vu->x - bx) + (vu->y - by) * (vu->y - by)), vu->z - bz,
+            vu->victim.IsEmpty() ? "none" : (vu->victim == s.guid() ? "me" : "other"),
+            vu->tapped ? 1 : 0, vu->tapped_by_us ? 1 : 0, s.is_moving() ? 1 : 0,
+            s.raw().cast.is_autorepeat ? 1 : 0, ai.cast_oor_count());
         return true;
     }
 
