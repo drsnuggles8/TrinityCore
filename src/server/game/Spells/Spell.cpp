@@ -4279,7 +4279,13 @@ void Spell::SendSpellCooldown()
     m_caster->ToUnit()->GetSpellHistory()->HandleCooldowns(m_spellInfo, m_castItemEntry, this);
 
     if (IsAutoRepeat())
-        m_caster->ToUnit()->resetAttackTimer(RANGED_ATTACK);
+    {
+        Unit* unitCaster = m_caster->ToUnit();
+        unitCaster->resetAttackTimer(RANGED_ATTACK);
+        // the wind-up is the end of the ranged swing, not added to it: the next one starts that much before the timer runs out
+        uint32 const swing = unitCaster->getAttackTimer(RANGED_ATTACK);
+        unitCaster->setAttackTimer(RANGED_ATTACK, swing > uint32(m_casttime) ? swing - uint32(m_casttime) : 0);
+    }
 }
 
 void Spell::update(uint32 difftime)
@@ -4302,6 +4308,20 @@ void Spell::update(uint32 difftime)
     // check if the unit caster has moved before the spell finished
     if (m_timer != 0 && m_caster->IsUnit() && m_caster->ToUnit()->isMoving() && CheckMovement() != SPELL_CAST_OK)
         cancel();
+
+    // The ranged wind-up (SpellInfo::CalcCastTime) needs the caster standing still, but the repeated shots are cast triggered, which
+    // CheckMovement lets move: moving holds Auto Shot's wind-up until the hunter stops, and ends a wand's Shoot (Classic).
+    if (IsAutoRepeat() && m_spellState == SPELL_STATE_PREPARING && m_timer > 0 && m_caster->IsUnit() && m_caster->ToUnit()->isMoving()
+        && !m_caster->ToUnit()->CanCastSpellWhileMoving(m_spellInfo))
+    {
+        if (m_spellInfo->Id == 75)
+            m_timer = m_casttime;
+        else if (m_caster->ToUnit()->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL) == this)
+            m_caster->ToUnit()->InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
+        else
+            cancel();
+        return;
+    }
 
     switch (m_spellState)
     {
