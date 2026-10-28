@@ -424,11 +424,21 @@ void DoPowerInfusion(ApPredicateContext const& ctx, BotIntentEmitter& e)
 // Damage only while everyone is healthy and mana is comfortable. The wand
 // costs no mana (it keeps the five-second rule); spells in a raid also wait
 // for a quiet spell at 90%+ mana (ClassicHeal::RaidHealerMayDamage).
+// A priest levelling on its own, or a launch bot below level 10 in an "inv?" group (they quest side by side like solo players):
+// it opens its own fights and spends its mana on damage (thresholds from LatvjuAvs 5610fd6b01 / e4890f9512 / e804bc36e9).
+bool SoloPriest(ApPredicateContext const& ctx)
+{
+    return !ctx.bot.in_group() || ctx.bot.raw().identity.launch_zone != 0;
+}
+
 bool HealerMayWand(ApPredicateContext const& ctx)
 {
-    // A healer on its own also pulls with its damage spells: "only once in combat" left a solo Holy priest (the default spec
-    // of a fresh priest) unable to start any fight, at level 1 for a whole launch run.
-    return HasLiveTarget(ctx) && (ctx.bot.in_combat() || !ctx.bot.in_group()) && WoundedCount(ctx, 90) == 0 && LowestFriendOrSelf(ctx).hp_pct > 90;
+    // Alone only its own health counts (above half): the patient pick also takes wounded strangers, and in a crowded starter
+    // valley someone always is, so a solo priest healed passers-by and never opened (LatvjuAvs: 2 Smites in 13 minutes). In a
+    // launch group the partners' health counts too.
+    if (SoloPriest(ctx))
+        return HasLiveTarget(ctx) && ctx.bot.hp_pct() > 50 && (!ctx.bot.in_group() || WoundedCount(ctx, 50) == 0);
+    return HasLiveTarget(ctx) && ctx.bot.in_combat() && WoundedCount(ctx, 90) == 0 && LowestFriendOrSelf(ctx).hp_pct > 90;
 }
 bool HealerMayDps(ApPredicateContext const& ctx)
 {
@@ -437,14 +447,14 @@ bool HealerMayDps(ApPredicateContext const& ctx)
 
 bool ShouldHealerPain(ApPredicateContext const& ctx)
 {
-    return HealerMayDps(ctx) && ManaPct(ctx) >= 50 && (Ready(ctx, SHADOW_WORD_PAIN) && ctx.bot.victim_in_spell_range(SHADOW_WORD_PAIN))
+    return HealerMayDps(ctx) && ManaPct(ctx) >= (SoloPriest(ctx) ? 20 : 50) && (Ready(ctx, SHADOW_WORD_PAIN) && ctx.bot.victim_in_spell_range(SHADOW_WORD_PAIN))
         && !ctx.bot.has_aura(SHADOW_WORD_PAIN, ctx.bot.victim());
 }
 void DoPain(ApPredicateContext const& ctx, BotIntentEmitter& e) { e.cast(SHADOW_WORD_PAIN, ctx.bot.victim()); }
 
 bool ShouldHealerSmite(ApPredicateContext const& ctx)
 {
-    return HealerMayDps(ctx) && ManaPct(ctx) >= 70 && (Ready(ctx, SMITE) && ctx.bot.victim_in_spell_range(SMITE));
+    return HealerMayDps(ctx) && ManaPct(ctx) >= (SoloPriest(ctx) ? 20 : 70) && (Ready(ctx, SMITE) && ctx.bot.victim_in_spell_range(SMITE));
 }
 void DoSmite(ApPredicateContext const& ctx, BotIntentEmitter& e) { e.cast(SMITE, ctx.bot.victim()); }
 
