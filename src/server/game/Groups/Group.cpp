@@ -1627,11 +1627,17 @@ bool Group::HasBotMember() const
 
 bool Group::IsRaidForQuests() const
 {
-    std::size_t players = 0;
+    // Count offline members too. Ignoring them could turn a raid of six players into a questing party merely because
+    // one player disconnected. Only known, online bot sessions are excluded from the player count.
+    std::size_t players = m_memberSlots.size();
+    bool groupHasBot = false;
     for (GroupReference const& itr : GetMembers())
-        if (!itr.GetSource()->GetSession()->IsBot())
-            ++players;
-    return BotGroupRules::QuestRaidRuleApplies(isRaidGroup(), players, MAX_GROUP_SIZE);
+        if (itr.GetSource()->GetSession()->IsBot())
+        {
+            --players;
+            groupHasBot = true;
+        }
+    return BotGroupRules::QuestRaidRuleApplies(isRaidGroup(), players, MAX_GROUP_SIZE, groupHasBot);
 }
 
 bool Group::isBGGroup() const

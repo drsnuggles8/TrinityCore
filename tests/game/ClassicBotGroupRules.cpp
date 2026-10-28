@@ -29,12 +29,28 @@ LooterCandidate Bot(bool inRange = true) { return { inRange, true }; }
 TEST_CASE("A raid made of one player and companions still takes and progresses normal quests", "[ClassicBotGroupRules]")
 {
     // player + 9 companions: a raid, one player
-    REQUIRE_FALSE(QuestRaidRuleApplies(true, 1, 5));
-    REQUIRE_FALSE(QuestRaidRuleApplies(true, 5, 5));
+    REQUIRE_FALSE(QuestRaidRuleApplies(true, 1, 5, true));
+    REQUIRE_FALSE(QuestRaidRuleApplies(true, 5, 5, true));
     // a raid of six players keeps the vanilla rule
-    REQUIRE(QuestRaidRuleApplies(true, 6, 5));
+    REQUIRE(QuestRaidRuleApplies(true, 6, 5, true));
     // a party is never a raid
-    REQUIRE_FALSE(QuestRaidRuleApplies(false, 5, 5));
+    REQUIRE_FALSE(QuestRaidRuleApplies(false, 5, 5, true));
+}
+
+TEST_CASE("Human-only raids retain Classic quest restrictions at every size", "[ClassicBotGroupRules]")
+{
+    REQUIRE(QuestRaidRuleApplies(true, 1, 5, false));
+    REQUIRE(QuestRaidRuleApplies(true, 5, 5, false));
+    REQUIRE(QuestRaidRuleApplies(true, 6, 5, false));
+    REQUIRE_FALSE(QuestRaidRuleApplies(false, 5, 5, false));
+}
+
+TEST_CASE("Offline humans still count toward the player limit in a mixed raid", "[ClassicBotGroupRules]")
+{
+    // Seven saved member slots, one connected bot, five connected humans and one offline human: six humans.
+    REQUIRE(QuestRaidRuleApplies(true, 7 - 1, 5, true));
+    // With only five saved human members the bot exception applies.
+    REQUIRE_FALSE(QuestRaidRuleApplies(true, 6 - 1, 5, true));
 }
 
 TEST_CASE("A bot in another subgroup tags for the players of its group", "[ClassicBotGroupRules]")

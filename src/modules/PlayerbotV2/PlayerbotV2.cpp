@@ -62,6 +62,7 @@
 #include "SpellMgr.h"
 #include "Group/GroupSnapshotBuilder.h"
 #include "Group.h"
+#include "BotGroupRules.h"
 #include "GitRevision.h"
 #include <filesystem>
 #include <fstream>
@@ -1117,6 +1118,36 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
         {
             last_hint_check = total;
             SendDueAddonHints();
+        }
+    }
+    {
+        // The helper from upstream #189 needs this caller from #190 to restore parties after companions leave.
+        static std::chrono::milliseconds last_raid_check{0};
+        if (total - last_raid_check >= std::chrono::milliseconds(5000))
+        {
+            last_raid_check = total;
+            std::vector<Group*> to_party;
+            for (auto const& [guid, p] : ObjectAccessor::GetPlayers())
+            {
+                Group* g = p ? p->GetGroup() : nullptr;
+                if (!g || !g->isRaidGroup() || p->GetSession()->IsBot() || std::ranges::find(to_party, g) != to_party.end())
+                    continue;
+                bool any_bot = false, any_on_raid_map = false;
+                for (GroupReference const& ref : g->GetMembers())
+                {
+                    Player const* m = ref.GetSource();
+                    any_bot = any_bot || m->GetSession()->IsBot();
+                    any_on_raid_map = any_on_raid_map || (m->GetMap() && m->GetMap()->IsRaid());
+                }
+                if (BotGroupRules::RevertBotRaidToParty(true, g->isBGGroup() || g->isBFGroup() || g->isLFGGroup(), g->GetMembersCount(),
+                    MAX_GROUP_SIZE, any_bot, true, any_on_raid_map))
+                    to_party.push_back(g);
+            }
+            for (Group* g : to_party)
+            {
+                TC_LOG_INFO("playerbot.v2", "[raid_to_party] leader={} members={}", g->GetLeaderName(), g->GetMembersCount());
+                g->ConvertToGroup();
+            }
         }
     }
     ::Playerbot::Diagnostics::Scenario::Tick(std::uint32_t(diff.count()));   // bot scenario tests (.playerbot scenario)

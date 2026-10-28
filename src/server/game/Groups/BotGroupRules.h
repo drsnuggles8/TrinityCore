@@ -27,10 +27,11 @@
 namespace BotGroupRules
 {
     // Calling a fifth companion turns the party into a raid, and a raid group cannot progress or take normal quests. That rule is
-    // for raids of players: it holds only while the raid has more players than a party has room for.
-    inline bool QuestRaidRuleApplies(bool raidGroup, std::size_t playerMembers, std::size_t partySize)
+    // for groups with bots it holds only while the raid has more players than a party has room for. Human-only raids
+    // retain the Classic restriction even when they have five or fewer members.
+    inline bool QuestRaidRuleApplies(bool raidGroup, std::size_t playerMembers, std::size_t partySize, bool groupHasBot)
     {
-        return raidGroup && playerMembers > partySize;
+        return raidGroup && (!groupHasBot || playerMembers > partySize);
     }
 
     // A tap outside raid maps covers the tapper's subgroup only. In a group with bots every player of the group is covered too, so

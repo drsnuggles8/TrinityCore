@@ -302,7 +302,7 @@ class TC_GAME_API Group
         bool isLFGGroup()  const;
         bool isRaidGroup() const;
         bool HasBotMember() const;
-        // a raid that blocks normal quests: one with more players than a party holds (bots alone do not make a raid for quests)
+        // Human-only raids keep Classic quest restrictions; companions alone do not make a mixed group a quest raid.
         bool IsRaidForQuests() const;
         bool isBGGroup()   const;
         bool isBFGroup()   const;
