@@ -1612,8 +1612,12 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
     // Decide serial vs. parallel for THIS tick. Read the kill-switch every
     // tick so the operator can flip it live. The pool is created + started
     // lazily on first parallel tick (a box that never enables pays nothing).
+    // A crowded map is split across the workers too (kSnapMinChunk bots and more per task), so a launch crowd on one
+    // continent is no longer built on a single worker.
+    constexpr size_t kSnapMinChunk = 48;
     const bool want_parallel =
-        Services::Config().parallel_snapshot_build() && build_order.size() > 1 && by_map.size() > 1;
+        Services::Config().parallel_snapshot_build() && build_order.size() > 1 &&
+        (by_map.size() > 1 || build_order.size() >= 2 * kSnapMinChunk);
     if (want_parallel && !snapshot_build_pool_)
     {
         snapshot_build_pool_ = std::make_unique<Playerbot::SnapshotBuildPool>(
@@ -1647,8 +1651,15 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
         // FreezeDetector abort (observed 2026-06-16 after a chunking experiment
         // split one map across workers; reverted). Keeping all of a map's bots on
         // one worker serializes that map's pathfinding, which is the invariant the
-        // shared query requires. (start/end kept as params for the serial path;
-        // the parallel path always passes the full range.)
+        // shared query requires.
+        //
+        // 2026-10-28: no longer load-bearing. Since 2026-06-27 PathGenerator serializes
+        // the node-pool-mutating A* per map itself (NavExecLock, PathGenerator.cpp), and
+        // the builder's shared caches are call_once / mutex guarded, so a crowded map is
+        // split into chunks over several lanes: with a 5000-bot launch crowd ~3100 bots
+        // stood on Eastern Kingdoms and their snapshots were built on ONE worker while the
+        // world thread waited (snap ~25-30 ms of a ~100 ms tick). Pathfinding probes of
+        // one map still queue on the lock; everything else runs in parallel.
         auto build_chunk =
             [&](std::vector<size_t> const& slots, size_t start, size_t end)
         {
@@ -1675,11 +1686,12 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
             // Fan out ONE task per Map* on that map's STABLE sticky lane
             // (map_worker_slot_) so the builder's thread_local recycle/LoS pools
             // stay warm via ping-pong reuse AND each map-instance's shared
-            // dtNavMeshQuery is only ever touched by one thread per batch. Do NOT
-            // split a single map across lanes — see the build_chunk note above
-            // (concurrent findPath on the shared per-instance query → freeze).
+            // dtNavMeshQuery is only ever touched by one thread per batch. A crowded
+            // map is split over consecutive lanes (see the build_chunk note above:
+            // the PathGenerator NavExecLock serializes the shared query since 2026-06-27).
             std::vector<Playerbot::SnapshotBuildPool::LaneTask> tasks;
-            tasks.reserve(by_map.size());
+            tasks.reserve(by_map.size() + build_order.size() / kSnapMinChunk);
+            const size_t lanes = snapshot_build_pool_->worker_count() + 1;
             for (auto& [m, slots] : by_map)
             {
                 if (slots.empty()) continue;
@@ -1698,10 +1710,17 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
                 // run_and_wait), NOT a reference to the per-iteration `slots`
                 // binding — that would dangle once the loop iteration ends. by_map
                 // is not mutated during the batch, so &slots is stable for the run.
-                tasks.push_back({ lane,
-                    [&build_chunk, sp = &slots]() {
-                        build_chunk(*sp, 0, sp->size());
-                    } });
+                // One task per chunk of the map's bots, on consecutive lanes from the map's sticky one.
+                const size_t chunks = std::clamp<size_t>(slots.size() / kSnapMinChunk, 1, lanes);
+                const size_t per = (slots.size() + chunks - 1) / chunks;
+                for (size_t c = 0, start = 0; start < slots.size(); ++c, start += per)
+                {
+                    const size_t end = std::min(slots.size(), start + per);
+                    tasks.push_back({ uint32(lane + c),
+                        [&build_chunk, sp = &slots, start, end]() {
+                            build_chunk(*sp, start, end);
+                        } });
+                }
             }
             snapshot_build_pool_->run_and_wait(tasks);
         }
