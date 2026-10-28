@@ -63,6 +63,7 @@
 #include "Group/GroupSnapshotBuilder.h"
 #include "Group.h"
 #include "BotGroupRules.h"
+#include "Fleet/TrainingPlayer.h"
 #include "GitRevision.h"
 #include <filesystem>
 #include <fstream>
@@ -1302,12 +1303,19 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
             if (!p) continue;
             // BotSession reuses real account ids, so account-id alone can't
             // distinguish a bot from a human; check the V2 registry instead.
-            if (Services::Lifecycle().is_bot(p->GetGUID().GetCounter()))
+            if (!Fleet::IsPlayerForPopulation(p))
                 continue;
             human_present = true;
             break;
         }
 
+        // Headless training players are in the bot registry, not World::GetAllSessions().
+        if (!human_present)
+            Services::Registry().for_each([&](BotId id, BotRegistryEntry const&)
+            {
+                Player* player = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(id));
+                if (player && player->IsInWorld() && Fleet::IsTrainingPlayer(player)) human_present = true;
+            });
         if (human_present || since_first_tick_ms >= kBootGraceMs)
         {
             boot_gate_open_ = true;
@@ -1510,25 +1518,32 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
     std::unordered_set<ObjectGuid> real_player_groups;
     {
         const uint32 rp_t0 = getMSTime();
-        auto& lifecycle = Services::Lifecycle();
+        auto stamp_player = [&](Player* rp)
+        {
+            if (!rp || !rp->IsInWorld()) return;
+            const uint32 rp_map = rp->GetMapId();
+            const int32 rp_cx = PlayerCellCoord(rp->GetPositionX());
+            const int32 rp_cy = PlayerCellCoord(rp->GetPositionY());
+            for (int32 dx = -1; dx <= 1; ++dx)
+                for (int32 dy = -1; dy <= 1; ++dy)
+                    real_player_cells.insert(PackPlayerCellKey(rp_map, rp_cx + dx, rp_cy + dy));
+            if (Group const* group = rp->GetGroup()) real_player_groups.insert(group->GetGUID());
+        };
         for (auto const& kv : ::World::instance()->GetAllSessions())
         {
             WorldSession* session = kv.second;
             if (!session) continue;
             Player* rp = session->GetPlayer();
             if (!rp) continue;
-            if (lifecycle.is_bot(rp->GetGUID().GetCounter()))
+            if (!Fleet::IsPlayerForPopulation(rp))
                 continue;   // a V2 bot, not a real human
-            const uint32 rp_map = rp->GetMapId();
-            const int32  rp_cx  = PlayerCellCoord(rp->GetPositionX());
-            const int32  rp_cy  = PlayerCellCoord(rp->GetPositionY());
-            for (int32 dx = -1; dx <= 1; ++dx)
-                for (int32 dy = -1; dy <= 1; ++dy)
-                    real_player_cells.insert(
-                        PackPlayerCellKey(rp_map, rp_cx + dx, rp_cy + dy));
-            if (Group const* rg = rp->GetGroup())
-                real_player_groups.insert(rg->GetGUID());
+            stamp_player(rp);
         }
+        Services::Registry().for_each([&](BotId id, BotRegistryEntry const&)
+        {
+            Player* player = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(id));
+            if (Fleet::IsTrainingPlayer(player)) stamp_player(player);
+        });
         t_snap_setup_ms += getMSTimeDiff(rp_t0, getMSTime());
     }
     // ---------------------------------------------------------------------
@@ -1624,7 +1639,7 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
                 // the BuiltSlot. Build workers MUST NOT call Registry().ai()
                 // (unlocked map lookup races a concurrent rehash → garbage
                 // pointer → AV). Same pointer GlobalStuckRescue used before.
-                if (BotAI* ai = e.ai.get())
+                if (BotAI* ai = e.ai.get(); ai && !Fleet::IsTrainingPlayer(p))
                     GlobalStuckRescue(p, ai);
             }
 
@@ -2584,6 +2599,9 @@ void Module::OnPlayerLogin(Player* p)
 {
     if (!initialized_ || !p) return;
     const BotId id = p->GetGUID().GetCounter();
+    // A training player's actual login starts/resumes the crowd even though its session is headless.
+    if (Fleet::IsPlayerForPopulation(p))
+        Fleet::LaunchSim::Instance().OnRealPlayerLogin(p);
 
     // Real players are not driven by V2 but DO get owner-login greetings
     // from any of their currently-online bots. Bots queue a one-shot
@@ -2597,7 +2615,6 @@ void Module::OnPlayerLogin(Player* p)
         {
             const uint32 owner_account = sess->GetAccountId();
             // An armed launch simulation starts the moment a real player enters the world.
-            V2::Fleet::LaunchSim::Instance().OnRealPlayerLogin(p);
             // Bots bound to the whole account treat this character as their owner while it is online.
             Services::Owners().NoteOwnerCharacterOnline(owner_account, id);
             if (Services::Config().addon_hint_enabled())
@@ -2691,13 +2708,14 @@ void Module::OnPlayerLogin(Player* p)
     // raised with the level (companions of an older build, world bots) otherwise keeps the skill-ups it happened to earn (a
     // warrior at Defense 181, a paladin at 52) and takes crushing blows on most swings from a boss.
     // A launch bot keeps the skills its character starts with and the ones it trains.
-    if (!V2::Fleet::LaunchSim::Instance().IsLaunchBot(p->GetGUID().GetCounter()))
+    if (!V2::Fleet::LaunchSim::Instance().IsLaunchBot(p->GetGUID().GetCounter()) && !Fleet::IsTrainingPlayer(p))
         ::Playerbot::API(p).learn_weapon_skills_free();
 
     // Take off anything the client cannot draw BEFORE other players get a
     // chance to inspect this bot. Without it a bot that logs in wearing such an
     // item stays a client-crash hazard until the next 5-min gear-backfill pass.
-    Services::Population().HealUnrenderableGear(p);
+    if (!Fleet::IsTrainingPlayer(p))
+        Services::Population().HealUnrenderableGear(p);
 
     // Cross-map travel on-ramp (2026-06-16): ensure the bot KNOWS its faction's
     // flight paths. The travel graph prunes every taxi edge to a flight master
@@ -2712,7 +2730,7 @@ void Module::OnPlayerLogin(Player* p)
     // login repairs the whole fleet. (Sub-10 bots stay same-map via the relocation
     // band gate regardless, so a full mask doesn't send them cross-continent.)
     // A launch-simulation bot is a fresh character and discovers flight paths like a player (none at login).
-    if (uint32 fp = V2::Fleet::LaunchSim::Instance().IsLaunchBot(id) ? 0u : ::Playerbot::V2::World::LearnAllFactionFlightpaths(p))
+    if (uint32 fp = (V2::Fleet::LaunchSim::Instance().IsLaunchBot(id) || Fleet::IsTrainingPlayer(p)) ? 0u : ::Playerbot::V2::World::LearnAllFactionFlightpaths(p))
         TC_LOG_INFO("playerbot.v2",
             "[FlightLearn] {} learned {} flight paths on login (taxi network now routable)",
             p->GetName(), fp);
@@ -2743,7 +2761,7 @@ void Module::OnPlayerLogin(Player* p)
     // (re-)pushed — paces 1:1 with the re-push, which the idle-rule path alone
     // could not keep up with (2026-06-15: online holders grew faster than the
     // throttled rule cleared them). Bounded drain; one resolvable quest/call.
-    for (int guard = 0; guard < 40; ++guard)
+    for (int guard = 0; !Fleet::IsTrainingPlayer(p) && guard < 40; ++guard)
         if (V2::Fleet::JunkQuestResolver::RunFor(p).done)
             break;
 
@@ -2861,12 +2879,13 @@ void Module::OnPlayerLogout(Player* p)
 {
     if (!initialized_ || !p) return;
     const BotId id = p->GetGUID().GetCounter();
+    if (Fleet::IsPlayerForPopulation(p))
+        Fleet::LaunchSim::Instance().OnRealPlayerLogout(p);
     if (WorldSession const* sess = p->GetSession(); sess && !sess->IsBot())
     {
         Services::Owners().NoteOwnerCharacterOffline(sess->GetAccountId(), id);
         g_addon_hints.Logout(id);
         // Playerbot.Launch.AutoRun: the last real player out stops the crowd and makes it again at level 1.
-        V2::Fleet::LaunchSim::Instance().OnRealPlayerLogout(p);
     }
     if (!Services::Registry().has(id)) return;     // not one of ours
     // Speak queued chat (the `.bot dismiss` goodbye) while the bot is still in the world.
@@ -2888,6 +2907,7 @@ void Module::OnPlayerLogout(Player* p)
 void Module::OnLevelUp(Player* p, uint8 new_level)
 {
     if (!initialized_ || !p) return;
+    if (Fleet::IsTrainingPlayer(p)) return; // ordinary character progression; no free trainer/quest/weapon/riding grants
     // A bot that gains a level by XP learns what its trainer would teach at the new level (all ranks the level opens), the
     // class quest abilities and weapon skills, as the setup pipeline does for a bot it levels. Without this a questing bot
     // only trains when it happens to stand beside a trainer with a gold in its bag and keeps rank 1 for dozens of levels.

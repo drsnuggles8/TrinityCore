@@ -3,6 +3,7 @@
 #include "BotPopulationManager.h"
 #include "ClassicSpec.h"
 #include "SoakAnchors.h"
+#include "TrainingPlayer.h"
 #include "CompanionRole.h"
 #include "BotQueueFiller.h"
 #include "InstanceGroupCap.h"
@@ -1125,6 +1126,7 @@ void BotPopulationManager::RunGearBackfill(uint32 now_ms)
 
 void BotPopulationManager::CompanionUpkeep(BotId id, Player* p)
 {
+    if (IsTrainingPlayer(p)) return;
     if (Services::Owners().OwnerCharacter(id) == 0 || IsPlayersOwnCharacter(p))
         return;
     ::Playerbot::API api(p);
@@ -2277,6 +2279,7 @@ static int32 OwnedGearScore(ItemTemplate const* tpl, Gear::GearGenerationContext
 
 void BotPopulationManager::BackfillOne(BotId id, Player* p, uint32 now_ms, uint32& regear_count, bool ignore_cooldown)
 {
+    if (IsTrainingPlayer(p)) return;
     // Unrenderable gear would be a client crash rather than a gearing
     // quality question, so it is checked for every online bot regardless of
     // level and BEFORE the under-gear gate below: a bot in a full high-ilvl
@@ -3470,7 +3473,7 @@ bool BotPopulationManager::IsAmbientBot(BotId id, Player const* p) const
     auto it = pipeline_row_cache_.find(uint64(id));
     // A battleground JIT bot (jit tag still set) belongs to the queue filler, not to the world spawner.
     return it != pipeline_row_cache_.end() && it->second.dist_level > 0 && it->second.jit_tag.empty()
-        && !IsPlayerOwnedAlt(id, p) && !(p && IsSoakAnchor(p->GetName()));   // a soak anchor stands in for a player, it is not a resident
+        && !IsPlayerOwnedAlt(id, p) && !(p && IsSoakAnchor(p->GetName())) && !IsTrainingPlayer(p);
 }
 
 bool BotPopulationManager::AmbientFleetEnabled()
@@ -3889,7 +3892,7 @@ void BotPopulationManager::DriveSetupPipelines()
         if (setup_done_cache_.contains(id)) continue;
         ObjectGuid g = ObjectGuid::Create<HighGuid::Player>(id);
         Player* p = ObjectAccessor::FindConnectedPlayer(g);
-        if (!p) continue;  // not in-world yet — re-check next tick
+        if (!p || IsTrainingPlayer(p)) continue;  // training characters follow ordinary progression, not setup grants
         // Cold-resolve the row state for this bot — same logic as the
         // general pass but without the cap. Cheap because priority set is
         // small (smoketest count, typically <50).
@@ -3959,7 +3962,7 @@ void BotPopulationManager::DriveSetupPipelines()
         if (getMSTimeDiff(pass_start_ms, getMSTime()) >= kPassBudgetMs) break;
         ObjectGuid g = ObjectGuid::Create<HighGuid::Player>(id);
         Player* p = ObjectAccessor::FindConnectedPlayer(g);
-        if (!p) continue;
+        if (!p || IsTrainingPlayer(p)) continue;
         // In-memory short-circuit: if RunFor returned true earlier for this
         // bot, skip the DB roundtrip entirely. Without this, the async
         // PersistState write hasn't committed by the time we re-read state

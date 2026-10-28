@@ -12,6 +12,7 @@
 #include "StrandedWatch.h"
 #include "DayRhythm.h"
 #include "SoakAnchors.h"
+#include "TrainingPlayer.h"
 #include "../Travel/TownNpcIndex.h"
 #include "../Travel/ReachMemory.h"
 #include "../Travel/UnifiedTravelGraph.h"
@@ -367,7 +368,7 @@ void WorldBotSpawner::CollectAnchors(std::vector<Anchor>& out)
         if (!session) continue;
         Player* p = session->GetPlayer();
         if (!p || !p->IsInWorld() || p->IsBeingTeleported()) continue;
-        if (lifecycle.is_bot(p->GetGUID().GetCounter())) continue;   // a bot, not a real person
+        if (lifecycle.is_bot(p->GetGUID().GetCounter()) && !IsTrainingPlayer(p)) continue;
         add(p);
     }
     // Bots play in headless sessions that the list above does not hold. A configured soak anchor (Fleet/SoakAnchors.h) stands in for a
@@ -375,7 +376,7 @@ void WorldBotSpawner::CollectAnchors(std::vector<Anchor>& out)
     Services::Registry().for_each([&](BotId id, BotRegistryEntry const&)
     {
         Player* p = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(id));
-        if (!p || !p->IsInWorld() || p->IsBeingTeleported() || !IsSoakAnchor(p->GetName())) return;
+        if (!p || !p->IsInWorld() || p->IsBeingTeleported() || (!IsSoakAnchor(p->GetName()) && !IsTrainingPlayer(p))) return;
         ++soak_anchors_;
         add(p);
     });

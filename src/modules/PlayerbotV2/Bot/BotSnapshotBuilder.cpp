@@ -14,6 +14,7 @@
 #include "StatPriority.h"
 #include "Gear/BotGearGenerator.h"   // RaidGearActive / RaidEquipUpgrade (raid-gear upgrade test)
 #include "../Services.h"
+#include "../Fleet/TrainingPlayer.h"
 #include "../Util/ConfigReader.h"     // ConfigReader full type — Services::Config() use below
 #include "../Fleet/BotGuildMgr.h"
 #include "../Fleet/CraftOrderBoard.h"
@@ -2600,7 +2601,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         snap->social_events.duel_initiator = initiator->GetGUID();
         snap->social_events.duel_initiator_name = initiator->GetName();
         snap->social_events.duel_initiator_level = initiator->GetLevel();
-        snap->social_events.duel_initiator_is_real = !(initiator->GetSession() && initiator->GetSession()->IsBot());
+        snap->social_events.duel_initiator_is_real = V2::Fleet::IsPlayerForPopulation(initiator);
         // "Friend" = same group/raid OR same guild OR on the bot's social
         // friend list. Same-group is the most common case for owner-driven
         // bots (the owner duels their own bot to test combat); the friend
@@ -2630,7 +2631,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         if (Player* trader = td->GetTrader())
         {
             snap->social_events.trade_partner_name    = trader->GetName();
-            snap->social_events.trade_partner_is_real = !(trader->GetSession() && trader->GetSession()->IsBot());
+            snap->social_events.trade_partner_is_real = V2::Fleet::IsPlayerForPopulation(trader);
             snap->social_events.trade_partner_guid    = trader->GetGUID();
             snap->social_events.trade_partner_in_my_group = p->GetGroup() && p->GetGroup() == trader->GetGroup();
         }
@@ -2980,8 +2981,8 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         {
             snap->social_events.group_invite_leader_name    = leader->GetName();
             snap->social_events.group_invite_leader_level   = leader->GetLevel();
-            snap->social_events.group_invite_leader_is_real = !(leader->GetSession() && leader->GetSession()->IsBot());
-            if (WorldSession const* ls = leader->GetSession(); ls && !ls->IsBot())
+            snap->social_events.group_invite_leader_is_real = V2::Fleet::IsPlayerForPopulation(leader);
+            if (WorldSession const* ls = leader->GetSession(); ls && V2::Fleet::IsPlayerForPopulation(leader))
                 snap->social_events.group_invite_leader_privileged =
                     ls->GetSecurity() >= SEC_GAMEMASTER || !Services::Owners().BotsOwnedBy(ls->GetAccountId()).empty();
         }
@@ -3548,7 +3549,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             {
                 Player const* m = itr.GetSource();
                 if (!m || m == p) continue;
-                members.push_back({ m->GetGUID(), !(m->GetSession() && m->GetSession()->IsBot()) });
+                members.push_back({ m->GetGUID(), V2::Fleet::IsPlayerForPopulation(m) });
             }
             ObjectGuid const controller = GroupControl::ResolveController(g->GetLeaderGUID(), members);
             if (!controller.IsEmpty())
@@ -7979,7 +7980,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     if (slot.guid == p->GetGUID()) continue;
                     Player const* mp = ObjectAccessor::FindConnectedPlayer(slot.guid);
                     if (mp && mp->IsInWorld() && mp->GetMap() == p->GetMap()
-                        && mp->GetSession() && !mp->GetSession()->IsBot())
+                        && V2::Fleet::IsPlayerForPopulation(mp))
                         humans.push_back(mp);
                 }
         auto human_would_want = [](Player const* human, ItemTemplate const* tmpl)

@@ -1,4 +1,5 @@
 #include "LaunchSim.h"
+#include "TrainingPlayer.h"
 
 #include "BotCharacterFactory.h"
 #include "BotComposition.h"
@@ -249,7 +250,7 @@ uint32 RealPlayersOnline(Player const* except)
     uint32 n = 0;
     std::shared_lock<std::shared_mutex> lock(*HashMapHolder<Player>::GetLock());
     for (auto const& [guid, pl] : ObjectAccessor::GetPlayers())
-        if (pl && pl != except && pl->IsInWorld() && pl->GetSession() && !pl->GetSession()->IsBot())
+        if (pl && pl != except && pl->IsInWorld() && IsPlayerForPopulation(pl))
             ++n;
     return n;
 }
@@ -712,7 +713,7 @@ bool LaunchSim::OnAskInvite(Player* asker, ObjectGuid target)
     if (!asker || !t || t == asker)
         return false;
     uint32 const now = GameTime::GetGameTimeMS();
-    bool const bot_asker = asker->GetSession() && asker->GetSession()->IsBot();
+    bool const bot_asker = !IsPlayerForPopulation(asker);
     // A real player hears at most one bot asking every three minutes, whichever bot it is: each bot's own limit (one ask per
     // tagger in 5 minutes) let every bot at a camp ask in turn (playtest 28 Oct: five whispers during the boar quest).
     if (bot_asker && !t->IsClientless())
