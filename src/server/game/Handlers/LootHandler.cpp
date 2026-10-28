@@ -313,8 +313,6 @@ void WorldSession::DoLootRelease(Loot* loot)
 
                 go->SetLootState(allOpensConsumed ? GO_JUST_DEACTIVATED : GO_READY);
             }
-            else if (go->RestockForNextOpen())
-                return;
             else if (go->GetGoType() != GAMEOBJECT_TYPE_GATHERING_NODE && go->IsFullyLooted())
             {
                 // Classic 1.60: mining veins can be looted several times (copper veins 2-4) before they despawn

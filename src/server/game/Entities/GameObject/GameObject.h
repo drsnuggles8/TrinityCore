@@ -123,11 +123,6 @@ private:
 
 union GameObjectValue
 {
-    //3 GAMEOBJECT_TYPE_CHEST
-    struct
-    {
-        uint32 MaxOpens;
-    } Chest;
     //6 GAMEOBJECT_TYPE_TRAP
     struct
     {
@@ -329,7 +324,6 @@ class TC_GAME_API GameObject : public WorldObject, public GridObject<GameObject>
         void RemoveLootMode(uint16 lootMode) { m_LootMode &= ~lootMode; }
         void ResetLootMode() { m_LootMode = LOOT_MODE_DEFAULT; }
         void ClearLoot();
-        bool RestockForNextOpen();
         bool IsFullyLooted() const;
         void OnLootRelease(Player* looter);
 
