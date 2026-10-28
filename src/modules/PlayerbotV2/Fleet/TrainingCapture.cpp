@@ -95,6 +95,12 @@ public:
         }
         if (stopping_) return;
         queue_.emplace_back(buffer.GetString(), buffer.GetSize());
+        if (++enqueued_ >= max_rows_)
+        {
+            accepting_.store(false, std::memory_order_relaxed);
+            stopping_ = true;
+            budget_ = true;
+        }
         lock.unlock();
         ready_.notify_one();
     }
@@ -128,7 +134,12 @@ private:
                 {
                     std::unique_lock lock(queue_mutex_);
                     ready_.wait(lock, [&] { return stopping_ || !queue_.empty(); });
-                    if (queue_.empty() && stopping_) { if (error_) reason = "capture_error"; break; }
+                    if (queue_.empty() && stopping_)
+                    {
+                        if (error_) reason = "capture_error";
+                        else if (budget_) reason = "budget";
+                        break;
+                    }
                     line = std::move(queue_.front()); queue_.pop_front();
                 }
                 if (rows >= max_rows_ || bytes + line.size() + 1 > max_bytes_)
@@ -162,10 +173,11 @@ private:
     std::unordered_map<std::uint64_t, Actor> actors_;
     bool stopping_ = false;
     bool error_ = false;
+    bool budget_ = false;
     std::thread thread_;
     std::filesystem::path path_;
     std::string capture_, environment_, source_revision_;
-    std::uint64_t episode_ = 0, max_rows_ = 0, max_bytes_ = 0;
+    std::uint64_t episode_ = 0, max_rows_ = 0, max_bytes_ = 0, enqueued_ = 0;
     int realm_ = 0;
 };
 
