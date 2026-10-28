@@ -915,10 +915,10 @@ bool QuestPursueGoalFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
     if (dist < 1.0f) return false;
     // A place that has just killed several bots (DeathHotspots) is off limits for a bot well below the killers' level:
     // blacklist the objective for 20 minutes so the picker takes another quest.
-    // Not for launch bots: a launch crowd makes every starter camp a hotspot (idle:leave_death_hotspot).
-    if (!ai.launch().active &&
-        ::Playerbot::DeathHotspots::Instance().Dangerous(poi.map_id, poi.x, poi.y, uint8(s.level()),
-                                                         uint64(GameTime::GetGameTime())))
+    // A launch bot only for killers far above it: its crowd makes every starter camp a hotspot (idle:leave_death_hotspot).
+    if (::Playerbot::DeathHotspots::Instance().Looping(s.raw().guid.GetCounter(), poi.map_id, poi.x, poi.y, uint64(GameTime::GetGameTime())) ||
+        ::Playerbot::DeathHotspots::Instance().Dangerous(poi.map_id, poi.x, poi.y, uint8(s.level()), uint64(GameTime::GetGameTime()),
+            ai.launch().active ? ::Playerbot::DeathHotspots::kLaunchLevelMargin : ::Playerbot::DeathHotspots::kLevelMargin))
     {
         ai.blacklist_current_objective(now_ms + 20u * 60u * 1000u);
         ai.set_last_rule_fired("idle:pursue_quest_goal_death_hotspot");

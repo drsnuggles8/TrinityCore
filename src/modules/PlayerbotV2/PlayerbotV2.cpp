@@ -2997,7 +2997,7 @@ void Module::OnDeath(Unit* victim, Unit* killer)
         if (vai && killer && killer != vp && killer->GetTypeId() == TYPEID_UNIT && vp->GetMap() && !vp->GetMap()->IsDungeon()
             && !vp->GetMap()->IsBattlegroundOrArena())
             DeathHotspots::Instance().NoteDeath(vp->GetMapId(), vp->GetPositionX(), vp->GetPositionY(),
-                                                uint8(killer->GetLevel()), uint64(GameTime::GetGameTime()));
+                                                uint8(killer->GetLevel()), uint64(GameTime::GetGameTime()), vp->GetGUID().GetCounter());
         LogPlayerDeath(vp, killer, vai);
         return;
     }

@@ -697,12 +697,13 @@ bool LeaveHotspotGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView con
     if (!s.is_alive() || s.in_combat() || s.is_casting() || s.raw().movement.is_mounted) return false;
     if (s.in_group() || s.is_in_dungeon() || s.in_battleground()) return false;
     if (ai.in_post_rescue_grace(now_ms) || ai.in_charter_grace(now_ms)) return false;
-    // A launch crowd dies all over its starter camps (pulls stolen, adds, respawns into the crowd): every camp reads as a
-    // hotspot, and leaving it would empty Coldridge. Launch bots go back in, as players do.
-    if (ai.launch().active) return false;
+    // A launch crowd dies all over its starter camps (pulls stolen, adds, respawns into the crowd): with the usual margin every
+    // camp read as a hotspot and leaving it would empty Coldridge. A launch bot leaves only killers far above it.
     float bx, by, bz; s.position(bx, by, bz);
-    return ::Playerbot::DeathHotspots::Instance().Dangerous(s.map_id(), bx, by, uint8(s.level()),
-                                                            uint64(GameTime::GetGameTime()));
+    uint64 const now_s = uint64(GameTime::GetGameTime());
+    return ::Playerbot::DeathHotspots::Instance().Looping(s.raw().guid.GetCounter(), s.map_id(), bx, by, now_s) ||
+        ::Playerbot::DeathHotspots::Instance().Dangerous(s.map_id(), bx, by, uint8(s.level()), now_s,
+            ai.launch().active ? ::Playerbot::DeathHotspots::kLaunchLevelMargin : ::Playerbot::DeathHotspots::kLevelMargin);
 }
 
 bool LeaveHotspotFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32 now_ms)
@@ -711,7 +712,8 @@ bool LeaveHotspotFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView con
     if (!hub || hub->mapId != s.map_id()) return false;
     float const hx = hub->location.GetPositionX(), hy = hub->location.GetPositionY(), hz = hub->location.GetPositionZ();
     uint64 const t = uint64(GameTime::GetGameTime());
-    if (::Playerbot::DeathHotspots::Instance().Dangerous(s.map_id(), hx, hy, uint8(s.level()), t))
+    if (::Playerbot::DeathHotspots::Instance().Dangerous(s.map_id(), hx, hy, uint8(s.level()), t,
+            ai.launch().active ? ::Playerbot::DeathHotspots::kLaunchLevelMargin : ::Playerbot::DeathHotspots::kLevelMargin))
         return false;   // the hub is a hotspot too: nowhere better to go
     if (States::ChunkedWalkToward(s, ai, emit, hx, hy, hz, "idle:leave_death_hotspot", now_ms))
         return true;
