@@ -5016,7 +5016,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         // FRIEND, so it lives in nearby_friends — and the distance-sorted 12-cap
         // below can evict it when the bot is surrounded by closer friendlies,
         // starving the use-on-friend / talk-credit rules in State_Idle. Before
-        // the cap, stable_partition any friend whose entry matches an INCOMPLETE
+        // the cap, move any friend whose entry matches an INCOMPLETE
         // friendly objective to the FRONT so it survives the truncate. The
         // entry set MUST mirror what the consumers check: the use-on-friend rule
         // (idle:quest_use_item_on_friend) and quest_talk rule both key on the
@@ -5053,11 +5053,21 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                         obj_friendly_entries.insert(a);
                 }
             }
-            if (!obj_friendly_entries.empty())
-                std::stable_partition(by_dist.begin(), by_dist.end(),
-                    [&](std::pair<float, Unit*> const& pr) {
-                        return pr.second && obj_friendly_entries.count(pr.second->GetEntry()) != 0;
-                    });
+            // Quest givers come right after the objective friendlies: at a launch the 12 nearest friends at a start
+            // camp are all players, the giver dropped out, and only the 800 ms hub scan below brought it back (Coldridge,
+            // 79 bots: half the questers had taken no quest after 5 minutes, median wait 56 s against 12 s without the
+            // crowd). Ranks 0 objective, 1 quest giver, 2 other; distance order within a rank.
+            auto const rank = [&](Unit const* u) -> int
+            {
+                if (!u) return 2;
+                if (!obj_friendly_entries.empty() && obj_friendly_entries.count(u->GetEntry()) != 0) return 0;
+                if (u->GetTypeId() == TYPEID_UNIT && (uint32(u->GetNpcFlags()) & uint32(UNIT_NPC_FLAG_QUESTGIVER))) return 1;
+                return 2;
+            };
+            std::stable_sort(by_dist.begin(), by_dist.end(),
+                [&](std::pair<float, Unit*> const& a, std::pair<float, Unit*> const& b) {
+                    return rank(a.second) < rank(b.second);
+                });
         }
 
         if (by_dist.size() > MAX_FRIENDS) by_dist.resize(MAX_FRIENDS);
