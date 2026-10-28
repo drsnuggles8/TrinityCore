@@ -9,12 +9,12 @@
 #include "Player.h"
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+#include <boost/lockfree/queue.hpp>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
-#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -59,7 +59,12 @@ public:
         path_ = directory / ("PlutoCapture-" + capture_ + ".jsonl");
         thread_ = std::thread([this] { Run(); });
     }
-    ~Sink() { Stop(); }
+    ~Sink()
+    {
+        Stop();
+        std::string* pending = nullptr;
+        while (queue_.pop(pending)) delete pending;
+    }
     bool Accepting() const { return accepting_.load(std::memory_order_relaxed); }
     Actor Context(std::uint64_t guid, bool reset = false, bool died = false)
     {
@@ -87,34 +92,41 @@ public:
     void Push(Buffer const& buffer)
     {
         if (!Accepting()) return;
-        std::unique_lock lock(queue_mutex_, std::try_to_lock);
-        if (!lock.owns_lock() || queue_.size() >= 512)
+        active_producers_.fetch_add(1, std::memory_order_acq_rel);
+        struct ProducerGuard
+        {
+            std::atomic<std::uint64_t>& count;
+            std::condition_variable& ready;
+            ~ProducerGuard() { count.fetch_sub(1, std::memory_order_acq_rel); ready.notify_one(); }
+        } guard{active_producers_, ready_};
+        if (!Accepting()) return;
+        auto line = std::make_unique<std::string>(buffer.GetString(), buffer.GetSize());
+        if (!queue_.push(line.get()))
         {
             dropped_.fetch_add(1, std::memory_order_relaxed);
             return;
         }
-        if (stopping_) return;
-        queue_.emplace_back(buffer.GetString(), buffer.GetSize());
-        if (++enqueued_ >= max_rows_)
+        line.release();
+        if (enqueued_.fetch_add(1, std::memory_order_relaxed) + 1 >= max_rows_)
         {
             accepting_.store(false, std::memory_order_relaxed);
-            stopping_ = true;
-            budget_ = true;
+            budget_.store(true, std::memory_order_release);
+            stopping_.store(true, std::memory_order_release);
         }
-        lock.unlock();
         ready_.notify_one();
     }
     void Stop()
     {
         accepting_.store(false, std::memory_order_relaxed);
-        { std::lock_guard lock(queue_mutex_); stopping_ = true; }
+        stopping_.store(true, std::memory_order_release);
         ready_.notify_one();
         if (thread_.joinable()) thread_.join();
     }
     void Abort()
     {
         accepting_.store(false, std::memory_order_relaxed);
-        { std::lock_guard lock(queue_mutex_); stopping_ = true; error_ = true; }
+        error_.store(true, std::memory_order_release);
+        stopping_.store(true, std::memory_order_release);
         ready_.notify_one();
     }
 private:
@@ -130,28 +142,40 @@ private:
             std::string reason = "shutdown";
             while (true)
             {
-                std::string line;
+                std::string* pending = nullptr;
+                if (!queue_.pop(pending))
                 {
-                    std::unique_lock lock(queue_mutex_);
-                    ready_.wait(lock, [&] { return stopping_ || !queue_.empty(); });
-                    if (queue_.empty() && stopping_)
+                    if (stopping_.load(std::memory_order_acquire) && active_producers_.load(std::memory_order_acquire) == 0)
                     {
-                        if (error_) reason = "capture_error";
-                        else if (budget_) reason = "budget";
-                        break;
+                        // A producer can finish between the first empty pop and the count read.
+                        if (queue_.pop(pending)) { /* consume its final row below */ }
+                        else
+                        {
+                            if (error_.load(std::memory_order_acquire)) reason = "capture_error";
+                            else if (budget_.load(std::memory_order_acquire)) reason = "budget";
+                            break;
+                        }
                     }
-                    line = std::move(queue_.front()); queue_.pop_front();
+                    else
+                    {
+                        std::unique_lock lock(wait_mutex_);
+                        // Producers never wait on this mutex; timeout also covers a notification before wait starts.
+                        ready_.wait_for(lock, std::chrono::milliseconds(10));
+                        continue;
+                    }
                 }
-                if (rows >= max_rows_ || bytes + line.size() + 1 > max_bytes_)
+                std::unique_ptr<std::string> line(pending);
+                if (rows >= max_rows_ || bytes + line->size() + 1 > max_bytes_)
                 {
                     accepting_.store(false, std::memory_order_relaxed);
-                    std::lock_guard lock(queue_mutex_);
-                    dropped_.fetch_add(queue_.size() + 1, std::memory_order_relaxed);
-                    queue_.clear(); reason = "budget"; break;
+                    budget_.store(true, std::memory_order_release);
+                    stopping_.store(true, std::memory_order_release);
+                    dropped_.fetch_add(1, std::memory_order_relaxed);
+                    continue;
                 }
-                output << line << '\n';
+                output << *line << '\n';
                 if (!output) throw std::runtime_error("capture write failed");
-                ++rows; bytes += line.size() + 1;
+                ++rows; bytes += line->size() + 1;
             }
             Buffer end; Writer w(end); w.StartObject(); Text(w, "kind", "capture_end");
             Text(w, "capture_id", capture_); Text(w, "reason", reason);
@@ -167,17 +191,16 @@ private:
     }
     std::atomic<bool> accepting_{true};
     std::atomic<std::uint64_t> dropped_{0};
-    std::mutex queue_mutex_, actors_mutex_;
+    std::mutex wait_mutex_, actors_mutex_;
     std::condition_variable ready_;
-    std::deque<std::string> queue_;
+    boost::lockfree::queue<std::string*, boost::lockfree::capacity<512>> queue_;
     std::unordered_map<std::uint64_t, Actor> actors_;
-    bool stopping_ = false;
-    bool error_ = false;
-    bool budget_ = false;
+    std::atomic<bool> stopping_{false}, error_{false}, budget_{false};
+    std::atomic<std::uint64_t> active_producers_{0}, enqueued_{0};
     std::thread thread_;
     std::filesystem::path path_;
     std::string capture_, environment_, source_revision_;
-    std::uint64_t episode_ = 0, max_rows_ = 0, max_bytes_ = 0, enqueued_ = 0;
+    std::uint64_t episode_ = 0, max_rows_ = 0, max_bytes_ = 0;
     int realm_ = 0;
 };
 
