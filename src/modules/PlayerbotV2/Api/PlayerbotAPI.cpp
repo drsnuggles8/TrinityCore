@@ -3199,8 +3199,10 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
             // OOR and leaves only Auto Shot-less wand-range idling. Spec
             // check instead of class check; pre-L10 (spec None) hunters
             // default to ranged, which matches their Steady Shot kit.
-            is_pure_caster =
-                ::Playerbot::Classic::EffectiveSpecId(p_) != uint32(ChrSpecialization::HunterSurvival);
+            // And only while it can shoot (ranged_hunter_engage: the spec, a usable ranged weapon, out of the dead zone). A hunter
+            // whose bow is broken fights in melee and must close in; kept at 28 y it never hit anything (LatvjuAvs e4890f9512:
+            // level 2-3 hunters with a broken bow and no money to repair gave up ~20 times each in half an hour at 18-29 y).
+            is_pure_caster = ranged_hunter_engage;
             break;
         case CLASS_EVOKER:
             // Evoker is pure-caster like Mage/Hunter (no melee spec â
