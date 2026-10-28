@@ -17353,7 +17353,10 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                 // the 80y/5y vendor rules above + idle:vendor_visit handle the sale.
                 // Gated on a HARD-full bag (<=2 free) so a merely-low bot keeps
                 // questing. The graph route composes walk/flight/elevator to the town.
-                if (!vendor && (vv_phases & kVvBagFull) && s.bag_free_slots() <= 2)
+                // Not a launch guide follower either: it drops greys instead (the 40 y rule above), and this town walk took
+                // racers back to Anvilmar instead (racer45 build47: four idle-watch strikes on travel_to_vendor after that rule).
+                if (!vendor && (vv_phases & kVvBagFull) && s.bag_free_slots() <= 2 &&
+                    !(ai.launch().active && ai.launch().route != V2::Fleet::LaunchRoutes::kNoRoute))
                 {
                     if (auto const* hub = Services::Hubs().GetNearestQuestHub(s.raw()))
                         if (hub->mapId == s.map_id() &&
