@@ -1310,7 +1310,7 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
         }
 
         // Headless training players are in the bot registry, not World::GetAllSessions().
-        if (!human_present)
+        if (!human_present && Fleet::HasTrainingPlayers())
             Services::Registry().for_each([&](BotId id, BotRegistryEntry const&)
             {
                 Player* player = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(id));
@@ -1539,11 +1539,12 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
                 continue;   // a V2 bot, not a real human
             stamp_player(rp);
         }
-        Services::Registry().for_each([&](BotId id, BotRegistryEntry const&)
-        {
-            Player* player = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(id));
-            if (Fleet::IsTrainingPlayer(player)) stamp_player(player);
-        });
+        if (Fleet::HasTrainingPlayers())
+            Services::Registry().for_each([&](BotId id, BotRegistryEntry const&)
+            {
+                Player* player = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(id));
+                if (Fleet::IsTrainingPlayer(player)) stamp_player(player);
+            });
         t_snap_setup_ms += getMSTimeDiff(rp_t0, getMSTime());
     }
     // ---------------------------------------------------------------------

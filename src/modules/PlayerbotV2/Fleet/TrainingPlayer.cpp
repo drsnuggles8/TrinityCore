@@ -5,11 +5,23 @@
 
 namespace Playerbot::V2::Fleet
 {
-bool IsTrainingPlayer(Player const* player)
+namespace
+{
+auto const& TrainingGuids()
 {
     // Immutable during a server run, thread-safe initialization and reads. Checkpoint renames keep the GUID.
     static auto const guids = ParseTrainingPlayerGuids(
         sConfigMgr->GetStringDefault("Playerbot.Training.PlayerGuids", "", true));
+    return guids;
+}
+}
+
+bool HasTrainingPlayers() { return !TrainingGuids().empty(); }
+
+bool IsTrainingPlayer(Player const* player)
+{
+    auto const& guids = TrainingGuids();
+    if (guids.empty()) return false;
     return player && player->GetSession() && player->GetSession()->IsBot() && guids.contains(player->GetGUID().GetCounter());
 }
 

@@ -37,4 +37,5 @@ inline bool CountsAsPopulationPlayer(bool hasSession, bool botSession, bool conf
 
 bool IsTrainingPlayer(Player const* player);
 bool IsPlayerForPopulation(Player const* player);
+bool HasTrainingPlayers();
 }
