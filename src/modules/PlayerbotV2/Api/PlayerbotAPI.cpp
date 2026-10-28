@@ -2986,10 +2986,18 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
         if (p_->GetClass() != CLASS_HUNTER) return;
         // A running Auto Shot only waits while its target is out of range: it fires nothing and moves no one (a level-1 hunter
         // in racers6 stood until the opener gave up, 46 times, with no refusal logged). Out of range, it takes the refusal's cue.
-        Spell const* const running = p_->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL);
+        Spell const* running = p_->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL);
+        // An Auto Shot still running on the previous target is not this one's: it kept the new target from ever being shot
+        // (LatvjuAvs 5610fd6b01: hunters gave up ~10 times each per half hour, in range, in sight, the target untouched).
+        // Retarget it, as a player's new Auto Shot does.
+        if (running && running->GetSpellInfo()->Id == AUTO_SHOT && running->m_targets.GetUnitTargetGUID() != victim->GetGUID())
+        {
+            p_->InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
+            running = nullptr;
+        }
         if (running)
         {
-            if (running->GetSpellInfo()->Id != AUTO_SHOT || running->m_targets.GetUnitTargetGUID() != victim->GetGUID())
+            if (running->GetSpellInfo()->Id != AUTO_SHOT)
                 return;
             float const d = p_->GetDistance(victim);   // between the bounding radii, as the range check measures
             if (d >= running->GetSpellInfo()->GetMinRange(false) && d <= running->GetSpellInfo()->GetMaxRange(false, p_))
