@@ -3,7 +3,7 @@
 //   .playerbot launch prepare [bots] [late]   create the roster offline (dwarves and gnomes, starting in Coldridge Valley)
 //   .playerbot launch arm                     the run starts (T0) when the next real player enters the world
 //   .playerbot launch start                   start now
-//   .playerbot launch stop                    log every launch bot out, keep the roster
+//   .playerbot launch stop                    log every launch bot out, keep the roster (and the run's clock: start resumes)
 //   .playerbot launch reset                   log out, delete and recreate the roster fresh at level 1 (new personas)
 //   .playerbot launch status
 //
@@ -46,8 +46,8 @@ public:
     // A real (non-bot) player entered the world: T0 of an armed run, or with Playerbot.Launch.AutoRun of a ready one when
     // nobody else is online.
     void OnRealPlayerLogin(Player* p);
-    // A real player left the world. With Playerbot.Launch.AutoRun, when nobody is left the run stops and the roster is made
-    // again at level 1 for the next login.
+    // A real player left the world. With Playerbot.Launch.AutoRun, when nobody is left the run pauses (the bots log out, the
+    // clock stops) and the next login resumes it.
     void OnRealPlayerLogout(Player* p);
     // A bot logged in: when it is a launch bot, give its BotAI the persona's LaunchProfile. True for a launch bot.
     bool OnBotLogin(Player* p, BotAI* ai);
@@ -107,6 +107,10 @@ private:
     bool               auto_init_done_ = false;   // AutoRun: the roster was reset once after the server started
     bool               auto_start_pending_ = false;   // AutoRun: a real player logged in while the roster was being made
     uint32             asks_ = 0, grants_ = 0;   // this run, for the report
+    // The run's clock when it was stopped or paused (playerbot_launch_run, kept across restarts): Start resumes at it, 0 = a
+    // fresh run. The bots that ended their session are kept in playerbot_launch_done.
+    uint32             resume_elapsed_s_ = 0;
+    void SaveClock(uint32 elapsed_s);
 };
 
 } // namespace Playerbot::V2::Fleet

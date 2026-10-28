@@ -225,9 +225,10 @@ uint8 PickRoute(Persona const& p, uint32 seed, uint8 race)
 }
 
 
-// Playerbot.Launch.AutoRun = 1 (Olo's always-on server): the crowd starts at level 1 when a real player logs in and nobody else
-// is online, and when the last real player logs out the run stops and the roster is made again at level 1 for the next login.
-// After a server start the roster is reset once, so a run cut off by a restart never carries on.
+// Playerbot.Launch.AutoRun = 1 (Olo's always-on server): the crowd starts when a real player logs in and nobody else is online.
+// When the last real player logs out the run pauses (the bots log out, the clock stops), and a server restart keeps it too: the
+// next login resumes it with the bots at their levels (playtest 28 Oct: a restart that reset the bots to level 1 left the
+// players alone). `.playerbot launch reset` starts over at level 1.
 bool AutoRun()
 {
     return sConfigMgr->GetBoolDefault("Playerbot.Launch.AutoRun", false, true);
@@ -368,6 +369,25 @@ bool LaunchSim::CreateOne(Entry& e)
     return false;
 }
 
+// The run's clock and the bots that ended their session, kept across restarts (created here: no SQL update needed).
+static void EnsureRunTables()
+{
+    static bool done = false;
+    if (done)
+        return;
+    done = true;
+    CharacterDatabase.DirectExecute("CREATE TABLE IF NOT EXISTS playerbot_launch_run (id TINYINT UNSIGNED NOT NULL PRIMARY KEY, "
+                                    "elapsed_s INT UNSIGNED NOT NULL DEFAULT 0)");
+    CharacterDatabase.DirectExecute("CREATE TABLE IF NOT EXISTS playerbot_launch_done (character_guid_low BIGINT UNSIGNED NOT NULL PRIMARY KEY)");
+}
+
+void LaunchSim::SaveClock(uint32 elapsed_s)
+{
+    EnsureRunTables();
+    resume_elapsed_s_ = elapsed_s;
+    CharacterDatabase.PExecute("REPLACE INTO playerbot_launch_run (id, elapsed_s) VALUES (1, {})", elapsed_s);
+}
+
 void LaunchSim::SaveRow(Entry const& e)
 {
     CharacterDatabase.PExecute(
@@ -431,8 +451,18 @@ void LaunchSim::LoadRoster()
         CharacterDatabase.PExecute("UPDATE characters c JOIN playerbot_launch_bot b ON b.character_guid_low = c.guid "
             "SET c.surname = ELT(b.persona + 1{}) WHERE b.persona < {}", elt, uint32(kPersonaSurnames.size()));
     }
+    EnsureRunTables();
+    if (QueryResult run = CharacterDatabase.Query("SELECT elapsed_s FROM playerbot_launch_run WHERE id = 1"))
+        resume_elapsed_s_ = run->Fetch()[0].GetUInt32();
+    if (QueryResult done = CharacterDatabase.Query("SELECT character_guid_low FROM playerbot_launch_done"))
+        do
+        {
+            auto const it = by_guid_.find(done->Fetch()[0].GetUInt64());
+            if (it != by_guid_.end())
+                roster_[it->second].state = BotState::Done;
+        } while (done->NextRow());
     phase_ = Phase::Ready;
-    TC_LOG_INFO("playerbot.v2", "[launch] roster loaded: {} bots", roster_.size());
+    TC_LOG_INFO("playerbot.v2", "[launch] roster loaded: {} bots (clock T0+{} min)", roster_.size(), resume_elapsed_s_ / 60u);
 }
 
 std::string LaunchSim::Prepare(uint32 bots, uint32 late)
@@ -494,10 +524,23 @@ std::string LaunchSim::Start()
     LoadRoster();
     if (phase_ != Phase::Ready && phase_ != Phase::Armed)
         return std::string("Cannot start: the run is ") + PhaseName(int(phase_)) + " (needs ready or armed).";
-    t0_ms_ = GameTime::GetGameTimeMS();
+    // Resume a stopped or paused run at its clock (the bots that were playing log in again at once: their arrival has passed);
+    // a fresh run brings back the bots that ended their session.
+    t0_ms_ = GameTime::GetGameTimeMS() - resume_elapsed_s_ * 1000u;
     asks_ = grants_ = 0;
     replies_.clear();
     phase_ = Phase::Running;
+    if (resume_elapsed_s_)
+    {
+        TC_LOG_INFO("playerbot.v2", "[launch] the run resumes at T0+{} min", resume_elapsed_s_ / 60u);
+        return "Launch resumed at T0 + " + std::to_string(resume_elapsed_s_ / 60u) + " min.";
+    }
+    EnsureRunTables();
+    CharacterDatabase.Execute("DELETE FROM playerbot_launch_done");
+    for (Entry& e : roster_)
+        if (e.guid_low && e.state == BotState::Done)
+            e.state = BotState::Offline;
+    SaveClock(0);
     TC_LOG_INFO("playerbot.v2", "[launch] T0: {} bots arrive over the next hours", roster_.size());
     return "Launch started: " + std::to_string(roster_.size()) + " bots arrive from now on.";
 }
@@ -507,9 +550,11 @@ std::string LaunchSim::Stop()
     LoadRoster();
     if (roster_.empty())
         return "No roster.";
+    if (phase_ == Phase::Running)
+        SaveClock((GameTime::GetGameTimeMS() - t0_ms_) / 1000u);
     phase_ = Phase::Stopping;
     recreate_after_delete_ = false;
-    return "Stopping: every launch bot logs out.";
+    return "Stopping: every launch bot logs out; start resumes at T0 + " + std::to_string(resume_elapsed_s_ / 60u) + " min.";
 }
 
 std::string LaunchSim::Reset(uint32 bots, uint32 late)
@@ -519,6 +564,8 @@ std::string LaunchSim::Reset(uint32 bots, uint32 late)
         return "No roster: use `.playerbot launch prepare`.";
     if (bots + late > 2000)
         return "Bots must be 1-2000 in total.";
+    SaveClock(0);
+    CharacterDatabase.Execute("DELETE FROM playerbot_launch_done");
     phase_ = Phase::Stopping;
     recreate_after_delete_ = true;
     resize_bots_ = bots;
@@ -551,6 +598,8 @@ std::string LaunchSim::Status()
       << ", done " << by_state[4];
     if (phase_ == Phase::Running)
         o << "; T0 + " << (GameTime::GetGameTimeMS() - t0_ms_) / 60000u << " min";
+    else if (resume_elapsed_s_)
+        o << "; resumes at T0 + " << resume_elapsed_s_ / 60u << " min";
     o << "\nOnline by zone:";
     {
         std::array<uint32, LaunchPlaces::kZoneCount> by_zone{};
@@ -680,10 +729,8 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
         auto_init_done_ = true;
         LoadRoster();
         if (!roster_.empty())
-        {
-            TC_LOG_INFO("playerbot.v2", "[launch] AutoRun: the roster is made again at level 1 after the server start");
-            Reset(0, 0);
-        }
+            TC_LOG_INFO("playerbot.v2", "[launch] AutoRun: the run resumes at T0+{} min when a real player logs in",
+                resume_elapsed_s_ / 60u);
     }
     if (!replies_.empty())
         SendReplies(now_ms);
@@ -691,6 +738,7 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
     {
         last_report_ms_ = now_ms;
         TC_LOG_INFO("playerbot.v2", "[launch] report {}", Report());
+        SaveClock((now_ms - t0_ms_) / 1000u);   // a crash or a restart resumes within a minute of where it was
     }
     switch (phase_)
     {
@@ -743,6 +791,7 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                         {
                             Services::SessionMgr().LogoutBot(g);
                             e.state = BotState::Done;
+                            CharacterDatabase.PExecute("REPLACE INTO playerbot_launch_done (character_guid_low) VALUES ({})", e.guid_low);
                             TC_LOG_INFO("playerbot.v2", "[launch] {} ({}) ends its session after {} min", e.name,
                                 kPersonas[e.persona].key, e.session_s / 60u);
                         }
@@ -764,7 +813,7 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                     any_online = true;
                     Services::SessionMgr().LogoutBot(g);
                 }
-                if (e.guid_low)
+                if (e.guid_low && e.state != BotState::Done)
                     e.state = BotState::Offline;
             }
             if (!any_online)
@@ -838,9 +887,11 @@ void LaunchSim::OnRealPlayerLogout(Player* p)
     auto_start_pending_ = false;
     if (phase_ != Phase::Running && phase_ != Phase::Armed)
         return;
-    TC_LOG_INFO("playerbot.v2", "[launch] {} left, nobody is online: the run stops and the roster is made again at level 1 (AutoRun)",
-        p->GetName());
-    Reset(0, 0);
+    TC_LOG_INFO("playerbot.v2", "[launch] {} left, nobody is online: the run pauses until the next login (AutoRun)", p->GetName());
+    if (phase_ == Phase::Running)
+        Stop();
+    else
+        phase_ = Phase::Ready;   // armed, never started
 }
 
 

@@ -60,10 +60,13 @@ Without a client the commands go through SOAP (`~/forever/tc-cmd.py <command>` o
 World bots should be off during a launch run (`Playerbot.World.Enable = 0`) so only the launch crowd is in Coldridge.
 
 `Playerbot.Launch.AutoRun = 1` (Olo's always-on realm): when a real player enters the world and nobody else is online, a
-ready roster starts (T0 = that login; one still being made starts once ready); when the last real player leaves, the run
-stops and the roster is made again at level 1 (same names, races and classes, new personas and arrivals). After a server
-start the roster is reset once, so a run cut off by a restart never carries on. A second player joining a running crowd
-changes nothing.
+ready roster starts (T0 = that login; one still being made starts once ready). The run persists: when the last real player
+leaves it pauses (the bots log out, the clock stops), and a server restart keeps it too; the next login resumes it at its
+clock, the bots that were playing log in again at once at their levels and the rest keep arriving on schedule. The clock is
+saved every minute in `playerbot_launch_run`, the bots whose session ended in `playerbot_launch_done` (characters
+database; both created at load). `.playerbot launch stop` keeps the clock as well; only `.playerbot launch reset` starts
+over at level 1. A second player joining a running crowd changes nothing. (Until 28 Oct the last logout and every server
+start reset the roster to level 1, so a restart left the players alone among level-1 bots.)
 
 For comparing builds, `Playerbot.Launch.RosterSeed = N` (N > 0) makes `prepare` (and `reset` with a size) roll the same
 roster again: zones, races, classes, genders, personas, the bots' seeds and arrivals (names still vary). The racer bench
