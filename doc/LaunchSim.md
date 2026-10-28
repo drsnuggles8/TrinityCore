@@ -194,12 +194,32 @@ at 28.2 (Olo-Route-Findings, `validate`).
 | 27 Oct | build40 | 3.15 / 3.83 / 4.32 | 21 | kill objectives in a shared POI polygon head for their own creature; Olo's opportunistic trogg steps no longer imported as route steps; loot walk clock paused in fights |
 | 28 Oct | build41 | 3.51 / 4.47 / 5.11 | 31 (170 completed by 4 of 6) | in-range loot clock paused in fights; open-world loot walks do not wait for idle mobs; given-up mobs stay given up, stop_attack ends Auto Shot; guide followers train only near their route; no hub walks under level 6. Loot give-ups in range 10 -> 0 |
 | 28 Oct | build43, roster seed 1 (2 warlocks, warrior, rogue, 2 shamans) | 3.43 / 4.36 / 5.14 | 33 | the 27 Oct upstream merge; a grey is dropped for a quest's starting item; host busy with CI builds (the worldserver's CPU 16-18% instead of 8-9%). Loot walk give-ups 8, opener give-ups 12, idle-watch strikes 5. The baseline for later builds (same seed) |
+| 28 Oct | build44, seed 1 | 3.50 / 4.34 / 4.90 | 29 | quest objects: planar reach, walk lockout 15 s (the shared WanderToNode lockout: racers detoured to ore veins, idle-watch strikes 5 -> 21; split off in build45) |
+| 28 Oct | build45, seed 1 | 3.56 / 4.36 / 4.93 | 27 | cast-at-focus objectives; QuestGoWalk lockout. Strikes 16, five of them racers walking back to Anvilmar's vendor with one free slot (build47: guide followers sell only within 40 y) |
 | 28 Oct | build42 | 3.36 / 4.11 / 4.73 | 28 | the far quest walk no longer interrupts a loot walk (loot walk give-ups 49 -> 6, idle-watch strikes 36 -> 10); another class mix (three shamans and a hunter, build41 none): not comparable, hence the roster seed |
 
 Brakes found in build40's run: Dwarven Outfitters (8 Tough Wolf Meat) took 10-16 minutes (42 wolf corpses given up: the
 loot walk waited for idle mobs beside the corpse and the in-range loot clock counted fights); trainer walks of up to
 350 y at every even level from 4; the idle watch walking level-3 racers toward Kharanos; a hunter re-engaging an
 unreachable trogg every 10 s.
+
+Run-to-run spread with the same seed and build is not measured yet; builds 43-45 (5.14, 4.90, 4.93) differ by about that
+much, so changes under ~0.3 levels need repeated runs.
+
+### The census crowd (crowd43)
+
+build43, 616 bots (200 in Coldridge, the other zones by the census), default personas, 45 minutes (`~/forever/crowd.sh`):
+529 online at 45 minutes, average level 3.98 (levels: 29 L1, 34 L2, 136 L3, 277 L4, 53 L5), 2314 quests turned in, RSS
+1.50-1.90 GB, the worldserver at about one core (the host's CI runners compiled at the same time). By zone: Coldridge
+dwarves 3.59 / 4.0 quests per bot, gnomes 3.42 / 3.3, Northshire 3.63 / 4.7, Shadowglen 3.26 / 3.4, Zephras 2.99 / 4.7.
+Stack profile at t=30 (`~/forever/pmp.sh`, 20 gdb samples): the busy thread is mostly `Map::Update` (70% of busy stacks:
+creature updates, visibility, relocation notifies); the bot module's snapshot build and intent drain ~15%.
+
+Quests many bots held and none finished: Reading the Ley Lines (Zephras, 86 holders: a criteria-tree objective, cast Read
+Ley Line at a ley line; build45 handles such objectives: 12 turned in of 31 in the zones test), Harvesting Windstones (50),
+Falling With Style (65, another criteria tree, not a cast: open), A Refugee's Quandary (55), The Stolen Journal (39: the
+picker always found a nearer objective than Grik'nir in the cave), Iverron's Antidote (16). Quest-object uses: 3 in 45
+minutes (build44-46 fix the reach, the walk lockout and the walk being overridden; still open in the build45 zones test).
 
 ## Capacity and performance
 
