@@ -527,6 +527,9 @@ bool WalkToKnownHubGate(BotSnapshotView const& s, BotAI& ai,
         return false;
     if (s.is_in_dungeon() || s.in_battleground()) return false;
     if (ai.in_profession_mode(s.published_at_ms())) return false;
+    // A launch grinder stays at its camp until its grind level (live 28 Oct: troll grinders walked off to the hub whenever
+    // no whelp was free, and the camp steering pulled them back: rabbits on the way, few kills).
+    if (s.raw().identity.launch_camp) return false;
     // (Bag-full handling lives in idle:bags_full_recover@710, which preempts.)
     // FIX 6 (group/owner exclusion): never pull a grouped bot toward a hub —
     // covers owner-following bots (owner's group) and all-bot groups alike.

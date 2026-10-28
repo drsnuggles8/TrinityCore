@@ -17708,7 +17708,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
         // all-bot group) must NOT be pulled to a hub by this rule — it would
         // scatter the group. Solo autonomous bots (ungrouped) still relocate.
         if (!_prof_mode && !has_same_map_turnin && !s.objective_is_relocation() &&
-            !s.in_group() &&
+            !s.in_group() && !s.raw().identity.launch_camp &&   // a launch grinder stays at its camp (walk_to_known_hub)
             (s.raw().quest_log.quests.empty() || nothing_local))
         {
             // Pick the nearest hub the bot hasn't already tried unproductively

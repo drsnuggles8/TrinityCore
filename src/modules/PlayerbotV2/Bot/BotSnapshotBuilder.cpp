@@ -1846,6 +1846,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     snap->guid    = p->GetGUID();
     snap->identity.name    = p->GetName();
     snap->identity.level   = p->GetLevel();
+    snap->identity.launch_camp = bot_ai && bot_ai->launch().active && bot_ai->launch().strategy == LaunchStrategy::TrollGrinder &&
+        LaunchPlaces::Exists(LaunchPlaces::kZones[LaunchPlaces::ZoneForRace(p->GetRace())].grind) &&
+        p->GetLevel() < LaunchPlaces::kZones[LaunchPlaces::ZoneForRace(p->GetRace())].grind_until;
     snap->identity.launch_zone = bot_ai && bot_ai->launch().active && p->GetLevel() < 10
         ? uint8(1 + LaunchPlaces::ZoneForRace(p->GetRace())) : uint8(0);
     snap->identity.xp            = p->GetXP();

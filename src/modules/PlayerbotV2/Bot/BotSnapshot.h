@@ -1007,6 +1007,9 @@ struct IdentityState
     // quest hubs (QuestHub::IsAppropriateFor); from 10 the routes fan out (tram to Elwynn and Westfall, boat to Auberdine,
     // Loch Modan). 0 = no restriction. Set by the builder every build.
     uint8       launch_zone = 0;
+    // A launch grinder below its zone's grind level (LaunchStrategy::TrollGrinder): it farms the zone's camp and takes no
+    // quests, so the questless hub walks (walk_to_known_hub, travel_to_hub) leave it alone. Set by the builder every build.
+    bool        launch_camp = false;
     // Experience progress at the current level. xp / xp_for_level give the
     // raw counters; rest_bonus_xp is the rested xp pool (>0 in inns/cities).
     // All zero for max-level bots since GetXP returns 0 there.
