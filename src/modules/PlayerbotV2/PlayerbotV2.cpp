@@ -188,7 +188,7 @@ void DriveTeleportAck(Player* p)
     // permanently (live 2026-06-11: user's selfbot LFG-ported into Ragefire
     // Chasm, server completed the transfer, client stuck on the loading
     // screen forever).
-    if (!Services::SessionMgr().IsHeadless(p->GetGUID()))
+    if (!p->IsClientless())   // = BotSessionMgr::IsHeadless, without its lock and lookup on every bot every tick
         return;
 
     // Far teleport: fully synchronous server-side. The intermediate
@@ -306,7 +306,7 @@ void SnapToGroundIfDrifted(Player* p)
     // Selfbot guard: a real client's Z is authoritative from its own
     // movement packets — server-side relocation rubber-bands the player.
     // Only headless sessions need the drift rescue.
-    if (!Services::SessionMgr().IsHeadless(p->GetGUID())) return;
+    if (!p->IsClientless()) return;   // = BotSessionMgr::IsHeadless, without its lock and lookup
     if (p->IsBeingTeleported()) return;
     if (p->isMoving()) return;
     if (p->GetMotionMaster()->GetCurrentMovementGeneratorType() != IDLE_MOTION_TYPE)
@@ -1057,14 +1057,17 @@ static void DrivePetSnap(uint32 now_ms)
     static std::unordered_map<uint64, Fleet::PetSnapState> state;
     Services::Registry().for_each([&](BotId id, BotRegistryEntry const&)
     {
+        // Due first: every bot, pet or not, is looked up once per kPetSnapCheckMs instead of every tick (5000 player lookups a
+        // tick at the 5000-bot test).
+        Fleet::PetSnapState& st = state[uint64(id)];
+        if (!Fleet::PetSnapDue(st, now_ms))
+            return;
+        st.next_check_ms = now_ms + Fleet::kPetSnapCheckMs;
         Player* owner = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(id));
         if (!owner || !owner->IsInWorld() || !owner->IsAlive() || !owner->GetMap() || owner->IsBeingTeleported() || owner->IsInFlight())
             return;
         Pet* pet = owner->GetPet();
         if (!pet || !pet->IsInWorld() || !pet->IsAlive() || pet->GetMap() != owner->GetMap() || pet->IsInCombat())
-            return;
-        Fleet::PetSnapState& st = state[uint64(id)];
-        if (!Fleet::PetSnapDue(st, now_ms))
             return;
         if (pet->GetExactDist(owner) <= Fleet::kPetSnapMinGap)
         {
@@ -1085,9 +1088,14 @@ static void DrivePetSnap(uint32 now_ms)
         TC_LOG_INFO("playerbot.v2", "[pet_snap] {}'s pet {} had no way to its owner at ({:.0f},{:.0f},{:.0f}), set down next to {}",
                     owner->GetName(), pet->GetName(), owner->GetPositionX(), owner->GetPositionY(), owner->GetPositionZ(), owner->GetName());
     });
-    if (state.size() > 2048u)
+    // Logged-out bots leave their entry behind: swept once a minute (every bot has one now, so a size limit would sweep each tick).
+    static uint32 last_sweep_ms = 0;
+    if (now_ms - last_sweep_ms >= 60000u)
+    {
+        last_sweep_ms = now_ms;
         for (auto it = state.begin(); it != state.end();)
             it = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(it->first)) ? std::next(it) : state.erase(it);
+    }
 }
 
 void Module::OnWorldUpdate(std::chrono::milliseconds diff)
