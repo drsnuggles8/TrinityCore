@@ -23,6 +23,7 @@
 #include "Transport.h"
 #include "UpdateData.h"
 #include "WorldPacket.h"
+#include "WorldSession.h"
 
 using namespace Trinity;
 
@@ -139,6 +140,12 @@ inline void CreatureUnitRelocationWorker(Creature* c, Unit* u)
     }
 }
 
+bool Trinity::IsClientlessObserver(Player const& player)
+{
+    WorldSession const* session = player.GetSession();
+    return session && session->IsBot();
+}
+
 void PlayerRelocationNotifier::Visit(PlayerMapType &m)
 {
     for (PlayerMapType::iterator iter = m.begin(); iter != m.end(); ++iter)
@@ -147,9 +154,15 @@ void PlayerRelocationNotifier::Visit(PlayerMapType &m)
 
         vis_guids.erase(player->GetGUID());
 
-        i_player.UpdateVisibilityOf(player, i_data, i_visibleNow);
+        if (!i_clientless)
+            i_player.UpdateVisibilityOf(player, i_data, i_visibleNow);
 
         if (player->m_seer->isNeedNotify(NOTIFY_VISIBILITY_CHANGED))
+            continue;
+
+        // Bots near the mover keep no visibility list (the n x n cost of a crowded start zone: 30% of the map update with
+        // 1000 bots, 28 Oct profile).
+        if (player->m_seer == player && IsClientlessObserver(*player))
             continue;
 
         player->UpdateVisibilityOf(&i_player);
@@ -166,7 +179,8 @@ void PlayerRelocationNotifier::Visit(CreatureMapType &m)
 
         vis_guids.erase(c->GetGUID());
 
-        i_player.UpdateVisibilityOf(c, i_data, i_visibleNow);
+        if (!i_clientless)
+            i_player.UpdateVisibilityOf(c, i_data, i_visibleNow);
 
         if (relocated_for_ai && !c->isNeedNotify(NOTIFY_VISIBILITY_CHANGED))
             CreatureUnitRelocationWorker(c, &i_player);
@@ -179,7 +193,7 @@ void CreatureRelocationNotifier::Visit(PlayerMapType &m)
     {
         Player* player = iter->GetSource();
 
-        if (!player->m_seer->isNeedNotify(NOTIFY_VISIBILITY_CHANGED))
+        if (!player->m_seer->isNeedNotify(NOTIFY_VISIBILITY_CHANGED) && !(player->m_seer == player && IsClientlessObserver(*player)))
             player->UpdateVisibilityOf(&i_creature);
 
         CreatureUnitRelocationWorker(&i_creature, player);

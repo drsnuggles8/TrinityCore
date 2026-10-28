@@ -74,13 +74,19 @@ namespace Trinity
         void Visit(DynamicObjectMapType &);
     };
 
+    // A bot (WorldSession::IsBot) has no client: what it sees is never sent anywhere, and the bot logic searches the grid
+    // itself. Its own visibility list is not kept on relocation; others still see the bot, and creatures still notice it.
+    TC_GAME_API bool IsClientlessObserver(Player const& player);
+
     struct TC_GAME_API PlayerRelocationNotifier : public VisibleNotifier
     {
-        PlayerRelocationNotifier(Player &player) : VisibleNotifier(player) { }
+        PlayerRelocationNotifier(Player &player) : VisibleNotifier(player), i_clientless(IsClientlessObserver(player)) { }
 
-        template<class T> void Visit(GridRefManager<T> &m) { VisibleNotifier::Visit(m); }
+        template<class T> void Visit(GridRefManager<T> &m) { if (!i_clientless) VisibleNotifier::Visit(m); }
         void Visit(CreatureMapType &);
         void Visit(PlayerMapType &);
+
+        bool i_clientless;
     };
 
     struct TC_GAME_API CreatureRelocationNotifier
