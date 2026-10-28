@@ -254,7 +254,9 @@ bool BotIntentEmitter::start_attack(ObjectGuid target)
         // A mob the opener gave up on (combat:opener_give_up, shielded for minutes) stays given up for every rule unless it
         // attacks this bot. Only a few rules read the shield: the hub walk's path-threat pull re-engaged a level-1 hunter's
         // unreachable Burly Rockjaw Trogg every 10 s, and the opener gave up on it again each second (racer45: 91 give-ups).
-        if (school_snap_ && ai_->last_engage_shield_ms() >= 60000u && ai_->engage_shielded(target, now_ms))
+        // Only the opener's 5 minute give-up: the 60 s shields of the solo flee and other rules are no give-up, and refusing
+        // those targets left fleeing bots unable to fight back (a fork measured flee deaths 33 -> 65 with the 60 s threshold).
+        if (school_snap_ && ai_->last_engage_shield_ms() >= 5u * 60u * 1000u && ai_->engage_shielded(target, now_ms))
         {
             bool attacks_me = false;
             for (NearbyUnit const& u : school_snap_->combat.nearby_enemies)
