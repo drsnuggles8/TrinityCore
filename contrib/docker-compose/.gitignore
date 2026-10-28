@@ -4,3 +4,4 @@ soap.env
 certs/
 data/
 worldserver.env
+worldserver-test.env

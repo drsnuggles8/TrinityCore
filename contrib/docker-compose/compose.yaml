@@ -135,6 +135,66 @@ services:
       retries: 3
       start_period: 1h
 
+  # A second worldserver for bot tests (profile "test": `docker compose --profile test up -d worldserver-test`). Its own login
+  # and character databases (auth_test, characters_test: its bot accounts and launch roster never touch the players' realm),
+  # the shared world, hotfixes and playerbot databases, its own logs volume, no client port (the bots need none) and SOAP on
+  # this machine's port 7879. Create the two databases once (mysql-init/02-test-databases.sql on a new volume); the first
+  # start fills them. Test settings go to worldserver-test.env (git-ignored), not worldserver.env.
+  worldserver-test:
+    <<: *trinitycore
+    profiles: [test]
+    command: ["worldserver"]
+    working_dir: /opt/trinitycore/tdb
+    stdin_open: true
+    tty: true
+    stop_grace_period: 1m
+    env_file:
+      - path: worldserver.env
+        required: false
+      - path: worldserver-test.env
+        required: false
+    environment:
+      TC_LOGIN_DATABASE_INFO: "db;3306;trinity;${DB_PASSWORD};auth_test"
+      TC_WORLD_DATABASE_INFO: "db;3306;trinity;${DB_PASSWORD};world"
+      TC_CHARACTER_DATABASE_INFO: "db;3306;trinity;${DB_PASSWORD};characters_test"
+      TC_HOTFIX_DATABASE_INFO: "db;3306;trinity;${DB_PASSWORD};hotfixes"
+      TC_REALM_ID: "${TEST_REALM_ID:-72}"
+      TC_WORLD_SERVER_PORT: "${TEST_WORLD_PORT:-8096}"
+      TC_GAME_TYPE: "0"
+      TC_NETWORK_SKIP_BUILD_AUTH_KEY_CHECK: "1"
+      TC_NETWORK_ENTER_ENCRYPTED_MODE_REGION_GROUP: "8"
+      TC_REALM_CFG_CONTENT_SET_ID: "${CONTENT_SET_ID:-137}"
+      TC_REALM_SUPER_DISTRICT_ID: "${SUPER_DISTRICT_ID:-2}"
+      TC_CLASSIC_HARDCORE: "0"
+      # Login and characters only: the players' worldserver applies the world and hotfix updates (two servers updating the
+      # shared databases at once would race).
+      TC_UPDATES_ENABLE_DATABASES: "3"
+      TC_UPDATES_AUTO_SETUP: "1"
+      TC_MMAP_ENABLE_PATH_FINDING: "${MMAP_PATHFINDING:-0}"
+      TC_LOGGER_SQL_SQL: "5,DBErrors"
+      TC_RA_ENABLE: "0"
+      TC_SOAP_ENABLED: "1"
+      TC_SOAP_IP: "0.0.0.0"
+      TC_CLASSIC_GUILD_FINDER: "1"
+      TC_CLASSIC_SHOP_ENABLED: "1"
+      TC_ACCOUNT_INSTANCES_PER_HOUR: "5"
+      TC_PLAYER_SAVE_STATS_MIN_LEVEL: "1"
+    volumes:
+      - ${DATA_DIR:-./data}:/opt/trinitycore/data:ro,z
+      - tdb:/opt/trinitycore/tdb:ro
+      - logs_test:/opt/trinitycore/logs
+    ports:
+      - "127.0.0.1:7879:7878"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q \":$$(printf '%04X' $$TC_WORLD_SERVER_PORT) 00000000:0000 0A\" /proc/net/tcp"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 1h
+
   # One-shot: points the realm at the address players connect to.
   realm:
     image: mysql:8.4
@@ -210,3 +270,4 @@ volumes:
   db:
   tdb:
   logs:
+  logs_test:
