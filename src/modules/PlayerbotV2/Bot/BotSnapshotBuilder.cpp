@@ -91,6 +91,7 @@
 #include "DatabaseEnv.h"   // WorldDatabase — questitem reverse-index (cave POI Z fix)
 #include "RestMgr.h"
 #include "SocialMgr.h"
+#include "Trainer.h"
 #include "Cell.h"
 #include "CellImpl.h"
 #include "GridNotifiers.h"
@@ -1067,6 +1068,19 @@ std::vector<::CreatureData const*> const& CreatureSpawnsOfEntry(uint32 entry)
 // ~5y from Slaghammer), so anchoring the POI there routes the bot UP the (navmesh-
 // verified) stairs. Lazily builds a cell-keyed spatial index ONCE (100y cells) —
 // the same one-time-cost pattern as the entry indexes above.
+// A class trainer spell the player may learn at its level, does not know and can pay for (the level-2 trainer visit of a launch bot).
+bool LaunchTrainerHasNew(Player const* p, Creature const* trainer)
+{
+    Trainer::Trainer const* t = sObjectMgr->GetTrainer(trainer->GetTrainerId());
+    if (!t)
+        return false;
+    for (Trainer::Spell const& sp : t->GetSpells())
+        if (sp.ReqLevel <= p->GetLevel() && !sp.ReqSkillLine && sp.MoneyCost <= p->GetMoney() && !p->HasSpell(sp.SpellId) &&
+            p->IsSpellFitByClassAndRace(sp.SpellId))
+            return true;
+    return false;
+}
+
 ::CreatureData const* NearestCreatureSpawnToPoint(float x, float y, uint32 map_id, float maxDist)
 {
     constexpr float kCell = 100.0f;
@@ -10073,7 +10087,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             }
         }
     }
-    // ---- Launch: a visit to the class trainer after each even level from 4 (idle:launch_train) ----
+    // ---- Launch: a visit to the class trainer after each even level from 4, and at 2 when it has something new (idle:launch_train) ----
     // Launch bots learn nothing for free on a level-up (Module::OnLevelUp); they walk to their class trainer when it is within
     // 350 y, as players do between quests. A trainer farther away waits until the bot passes one. A guide follower trains
     // when its route passes the trainer (60 y): the guide plans those visits, and the 350 y walk took racers off the wolf
@@ -10081,14 +10095,17 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     if (bot_ai && bot_ai->launch().active)
     {
         uint8 const lvl = p->GetLevel();
-        uint8 const due = lvl >= 4 ? uint8(lvl & ~1u) : uint8(0);
+        // Level 2-3: only when the trainer has a spell the bot can learn and pay for (Olo: a shaman trains Rockbiter Weapon at 2,
+        // 10 copper; launch bots learn nothing for free, so it swung bare-handed until its level-4 visit). Checked below.
+        uint8 const due = lvl >= 4 ? uint8(lvl & ~1u) : lvl >= 2 ? uint8(2) : uint8(0);
         float const reach = bot_ai->launch().route != V2::Fleet::LaunchRoutes::kNoRoute ? 60.f : 350.f;
         if (due > bot_ai->launch_trained_level())
             if (V2::Fleet::ClassTrainer const* t = V2::Fleet::LaunchRoutes::Instance().NearestTrainer(p->GetMapId(), p->GetClass(), p->GetPositionX(), p->GetPositionY()))
             {
                 float const dx = t->x - p->GetPositionX(), dy = t->y - p->GetPositionY();
                 if (dx * dx + dy * dy < reach * reach)
-                    if (Creature const* c = p->GetMap()->GetCreatureBySpawnId(t->spawn_id); c && c->IsAlive())
+                    if (Creature const* c = p->GetMap()->GetCreatureBySpawnId(t->spawn_id); c && c->IsAlive() &&
+                        (due >= 4 || LaunchTrainerHasNew(p, c)))
                     {
                         snap->launch_trainer = c->GetGUID();
                         snap->launch_trainer_x = c->GetPositionX();
