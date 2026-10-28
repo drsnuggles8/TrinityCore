@@ -24,6 +24,7 @@
 #include "DB2Stores.h"
 #include "Group.h"
 #include "InstanceScript.h"
+#include "GameTime.h"
 #include "Log.h"
 #include "Map.h"
 #include "ObjectMgr.h"
@@ -31,6 +32,7 @@
 #include "PetPackets.h"
 #include "PhasingHandler.h"
 #include "Player.h"
+#include <unordered_map>
 #include "QueryHolder.h"
 #include "Spell.h"
 #include "SpellAuraEffects.h"
@@ -652,6 +654,23 @@ void Pet::Update(uint32 diff)
 
     if (m_loading)
         return;
+
+    // Playtest 28 Oct: "pets don't regen at all". Every 15 s, while a real player's pet is short of health or power, the states that
+    // gate Creature::Update's regeneration ([pet_regen] in Server.log).
+    if (Player const* owner = GetOwner(); owner && !owner->IsClientless() && IsAlive())
+    {
+        static thread_local std::unordered_map<uint64, uint32> s_lastLog;
+        uint32& last = s_lastLog[GetGUID().GetCounter()];
+        uint32 const now = GameTime::GetGameTimeMS();
+        if ((GetHealth() < GetMaxHealth() || GetPower(GetPowerType()) < GetMaxPower(GetPowerType())) && now - last >= 15000u)
+        {
+            last = now;
+            TC_LOG_INFO("server", "[pet_regen] {}'s {}: hp {}/{} power {}/{} (type {}) combat {} engaged {} evade {} owner combat {} "
+                "regen_hp {} regen_power_flag {}", owner->GetName(), GetName(), GetHealth(), GetMaxHealth(), GetPower(GetPowerType()),
+                GetMaxPower(GetPowerType()), int32(GetPowerType()), IsInCombat(), IsEngaged(), IsInEvadeMode(), owner->IsInCombat(),
+                CanRegenerateHealth(), HasUnitFlag2(UNIT_FLAG2_REGENERATE_POWER));
+        }
+    }
 
     switch (m_deathState)
     {
