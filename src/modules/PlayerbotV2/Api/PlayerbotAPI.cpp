@@ -1170,6 +1170,12 @@ Result API::move_to(float x, float y, float z, bool run, bool direct, bool drop,
     if (!p_->IsAlive() && !p_->HasPlayerFlag(PLAYER_FLAGS_GHOST))
         return Result::Locked;
 
+    // A sitting or kneeling bot stands up before it walks, as a client does when its player moves: the core's move splines leave
+    // the stand state alone (the moving ends a food or drink aura, Unit::InterruptMovementBasedAuras, not the pose), so a bot
+    // that sat down glided off seated (playtest 2026-10-28: bots "sliding").
+    if (p_->IsSitState() || p_->GetStandState() == UNIT_STAND_STATE_KNEEL)
+        p_->SetStandState(UNIT_STAND_STATE_STAND);
+
     // A battleground goal outside the playable area is refused (WSG 2026-10-09: a mage walked 330 y west out of the Horde base, off the
     // map, in a straight line of 35-70 y steps and sat in the void for the rest of the match). Boxes are the recorded route data of each
     // map plus a margin, so a flag stand, a start room or a graveyard is always inside.
@@ -7712,9 +7718,13 @@ Result API::restock_class_supplies()
     uint32 added = 0;
     bool full = false;
     uint8 const level = uint8(p_->GetLevel());
+    // A launch bot gets its ammo only (idle:classic_supplies asks for nothing else for it).
+    bool const ammo_only = V2::Fleet::LaunchSim::Instance().IsLaunchBot(p_->GetGUID().GetCounter());
     // The party versions of the class buffs, which no Forever trainer sells.
     for (uint32 const spell : Classic::GroupBuffSpells(p_->GetClass()))
     {
+        if (ammo_only)
+            break;
         if (p_->HasSpell(spell))
             continue;
         if (!Classic::LearnableGroupBuff(spell, level))
@@ -7737,6 +7747,7 @@ Result API::restock_class_supplies()
     };
     for (Classic::SupplyFamily const& f : Classic::GetSupplyFamilies())
     {
+        if (ammo_only) break;
         if (!Classic::SupplyFamilyForClass(f, p_->GetClass())) continue;
         if (Classic::MageConjuresFamily(p_->GetClass(), f.name, [this](uint32 id) { return p_->HasSpell(id); })) continue;
         uint32 const entry = Classic::BestSupplyRank(f, level);

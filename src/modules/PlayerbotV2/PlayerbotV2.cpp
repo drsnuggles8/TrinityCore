@@ -2630,7 +2630,9 @@ void Module::OnPlayerLogin(Player* p)
     // Defense and the weapon skills at the level's maximum on every login: a bot created or levelled before the skills were
     // raised with the level (companions of an older build, world bots) otherwise keeps the skill-ups it happened to earn (a
     // warrior at Defense 181, a paladin at 52) and takes crushing blows on most swings from a boss.
-    ::Playerbot::API(p).learn_weapon_skills_free();
+    // A launch bot keeps the skills its character starts with and the ones it trains.
+    if (!V2::Fleet::LaunchSim::Instance().IsLaunchBot(p->GetGUID().GetCounter()))
+        ::Playerbot::API(p).learn_weapon_skills_free();
 
     // Take off anything the client cannot draw BEFORE other players get a
     // chance to inspect this bot. Without it a bot that logs in wearing such an
@@ -2834,11 +2836,12 @@ void Module::OnLevelUp(Player* p, uint8 new_level)
         return;
     ::Playerbot::API api(p);
     api.purge_foreign_class_spells();
-    uint32 const quest_spells = api.learn_class_quest_spells_free();
-    // A launch bot walks to its trainer instead (idle:launch_train).
+    // A launch bot walks to its trainer instead (idle:launch_train) and gets class quest abilities (Defensive Stance, the
+    // Voidwalker, Bear Form, ...) and weapon skills only the way a player does.
     bool const launch = V2::Fleet::LaunchSim::Instance().IsLaunchBot(p->GetGUID().GetCounter());
+    uint32 const quest_spells = launch ? 0u : api.learn_class_quest_spells_free();
     uint32 const spells = launch ? 0u : api.learn_trainer_spells_free();
-    uint32 const weapon_skills = api.learn_weapon_skills_free();
+    uint32 const weapon_skills = launch ? 0u : api.learn_weapon_skills_free();
     // Riding (vanilla: apprentice and the race's mount at 40, journeyman and the swift mount at 60). The call does nothing below 40 and
     // when the skill and mount are already there, so a level past 40 (or a jump over it) is safe to hand to it.
     uint32 const riding = new_level >= 40 ? api.learn_riding_free() : 0;

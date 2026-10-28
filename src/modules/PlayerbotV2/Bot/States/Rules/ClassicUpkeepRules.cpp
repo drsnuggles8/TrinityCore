@@ -74,7 +74,9 @@ bool SuppliesGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& 
     if (!(Services::Config().classic_class_supplies() || Services::Config().behavior_ammo_supply()) || !UpkeepWindow(s, g))
         return false;
     thread_local std::vector<uint32> shortItems;
-    Classic::ShortClassSupplies(s, shortItems);
+    // A launch bot gets its ammo only (no rule buys it yet); totems come from the class quests, food, water, potions and
+    // bandages from vendors, loot and First Aid, as for a player.
+    Classic::ShortClassSupplies(s, shortItems, ai.launch().active);
     for (uint32 item : shortItems)
         if (!ai.action_recently_tried(BotAI::ActionKind::ClassSupply, item, now_ms))
             return true;
@@ -86,7 +88,7 @@ bool SuppliesFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&,
     // the bot can't take (bags full, no Poisons skill yet) waits 5 minutes
     // without hiding the families behind it.
     thread_local std::vector<uint32> shortItems;
-    Classic::ShortClassSupplies(s, shortItems);
+    Classic::ShortClassSupplies(s, shortItems, ai.launch().active);
     if (shortItems.empty() || !emit.restock_class_supplies())
         return false;
     for (uint32 item : shortItems)

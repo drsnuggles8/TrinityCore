@@ -769,7 +769,7 @@ uint32 HealRank(BotSnapshotView const& s, GroupSnapshotView const& g, uint32 spe
     return 0;
 }
 
-void ShortClassSupplies(BotSnapshotView const& s, std::vector<uint32>& out)
+void ShortClassSupplies(BotSnapshotView const& s, std::vector<uint32>& out, bool ammo_only)
 {
     out.clear();
     // Ammo for the equipped bow / crossbow / gun: short under 30% of the target (the entry is the
@@ -777,7 +777,7 @@ void ShortClassSupplies(BotSnapshotView const& s, std::vector<uint32>& out)
     if (Services::Config().behavior_ammo_supply() && s.ammo_kind() != 0 && s.ammo_count() < AmmoLowBelow())
         if (uint32 const ammo = BestAmmo(s.ammo_kind(), s.level()))
             out.push_back(ammo);
-    if (!Services::Config().classic_class_supplies())
+    if (!Services::Config().classic_class_supplies() || ammo_only)
         return;
     // A party buff spell the bot's level allows and it has not learned: the restock teaches it.
     for (uint32 spell : GroupBuffSpells(s.cls()))

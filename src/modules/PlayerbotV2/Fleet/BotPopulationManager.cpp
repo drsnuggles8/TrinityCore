@@ -9,6 +9,7 @@
 #include "InstanceEntry.h"
 #include "RaidSubgroupPlan.h"
 #include "BotSetupPipeline.h"
+#include "LaunchSim.h"   // IsLaunchBot: launch bots wear what they loot, buy or earn
 #include "WorldBotSpawner.h"
 #include "BotAccountMgr.h"
 #include "BotCharacterFactory.h"
@@ -2290,6 +2291,11 @@ void BotPopulationManager::BackfillOne(BotId id, Player* p, uint32 now_ms, uint3
     // corrupted packet serializer, fixed separately. This is defence in
     // depth against a condition that has not actually been observed.
     HealUnrenderableGear(p);
+
+    // A launch bot plays like a player: no generated gear and no free thrown weapon (from 10 every empty neck, ring or
+    // trinket slot counted as under-geared and the pass handed out items of level+5).
+    if (LaunchSim::Instance().IsLaunchBot(p->GetGUID().GetCounter()))
+        return;
 
     // Thrown weapon for the pull-back opener, every pass (cheap pre-checks), whatever the under-gear gate below says.
     EnsureThrownRanged(p);

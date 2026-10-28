@@ -254,7 +254,7 @@ uint32 HealRank(BotSnapshotView const& s, GroupSnapshotView const& g, uint32 spe
 // Every supply item (ClassicSupplies: class tools and reagents, food, water,
 // potions, bandages) the bot is short of: the best rank for its level of each
 // family it holds less than half its target of.
-void ShortClassSupplies(BotSnapshotView const& s, std::vector<uint32>& out);
+void ShortClassSupplies(BotSnapshotView const& s, std::vector<uint32>& out, bool ammo_only = false);
 
 // Raid consumables (flask, elixirs, stat food; ClassicSupplies kits by role). Inside a raid instance only.
 // PickRaidConsumable: the kit item in the bags whose buff is missing, to use now (0 = none).
