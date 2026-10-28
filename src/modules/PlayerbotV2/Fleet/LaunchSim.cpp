@@ -63,17 +63,17 @@ struct Persona
 //                                                                     N   F   G   L   Gr
 constexpr std::array<Persona, 13> kPersonas = { {
     { "racer",     6, LaunchStrategy::GuideRoute,   0.95f, 1.10f, { 25,  5, 60, 10,  0 },   0,  30, 0.0f,  0.5f,   0,   0,   0,   0,   0, 0 },
-    { "rxp",      45, LaunchStrategy::GuideRoute,   1.00f, 1.30f, { 45, 10, 35, 10,  0 },  10, 120, 0.3f,  1.5f,  90,  60, 180,   0,   0,   0 },
+    { "rxp",      45, LaunchStrategy::GuideRoute,   1.00f, 1.30f, { 45, 10, 35, 10,  0 },   5,  60, 0.3f,  1.5f,  90,  60, 180,   0,   0,   0 },
     { "trolls",    3, LaunchStrategy::TrollGrinder, 1.00f, 1.20f, { 20,  0, 50, 30,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
     { "skipper",   2, LaunchStrategy::Skipper,      1.00f, 1.20f, { 40,  0, 40, 20,  0 },   0,  60, 0.2f,  1.0f,   0,   0,   0,   0,   0,   0 },
-    { "questie",  20, LaunchStrategy::Quester,      1.60f, 2.40f, { 53, 30, 10,  4,  3 },  30, 150, 2.0f,  8.0f,  45,  60, 300, 120, 600,   0 },
-    { "friends",  12, LaunchStrategy::Quester,      1.20f, 1.60f, { 50, 50,  0,  0,  0 },  20,  90, 1.0f,  5.0f,  60,  60, 240,   0,   0,   0 },
-    { "grinder",   6, LaunchStrategy::CrowdGrinder, 1.20f, 1.60f, { 45,  0, 20, 25, 10 },  30, 120, 0.5f,  3.0f,  60,  60, 180,   0,   0,   0 },
-    { "gatherer",  6, LaunchStrategy::Gatherer,     2.00f, 2.60f, { 50, 50,  0,  0,  0 },  30, 150, 2.0f,  8.0f,  45,  60, 300, 120, 480,   0 },
-    { "casual",   12, LaunchStrategy::Casual,       3.00f, 4.00f, { 40, 50,  0, 10,  0 },  60, 300, 8.0f, 40.0f,  20, 120, 600,  30, 180,   0 },
-    { "partylead", 3, LaunchStrategy::PartyBuilder, 1.30f, 1.70f, { 40, 60,  0,  0,  0 },  30, 120, 1.0f,  4.0f,  60,  60, 180,   0,   0,   0 },
-    { "idle",      6, LaunchStrategy::Idle,         4.00f, 4.00f, { 50, 20,  0, 30,  0 }, 300,1500,10.0f, 60.0f,  10, 180, 900,   5,  30,   0 },
-    { "leaver",    2, LaunchStrategy::Leaver,       1.10f, 1.30f, { 50, 20, 20, 10,  0 },  10,  90, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
+    { "questie",  20, LaunchStrategy::Quester,      1.60f, 2.40f, { 53, 30, 10,  4,  3 },  15,  60, 2.0f,  8.0f,  45,  60, 300, 120, 600,   0 },
+    { "friends",  12, LaunchStrategy::Quester,      1.20f, 1.60f, { 50, 50,  0,  0,  0 },  10,  45, 1.0f,  5.0f,  60,  60, 240,   0,   0,   0 },
+    { "grinder",   6, LaunchStrategy::CrowdGrinder, 1.20f, 1.60f, { 45,  0, 20, 25, 10 },  15,  60, 0.5f,  3.0f,  60,  60, 180,   0,   0,   0 },
+    { "gatherer",  6, LaunchStrategy::Gatherer,     2.00f, 2.60f, { 50, 50,  0,  0,  0 },  15,  60, 2.0f,  8.0f,  45,  60, 300, 120, 480,   0 },
+    { "casual",   12, LaunchStrategy::Casual,       3.00f, 4.00f, { 40, 50,  0, 10,  0 },  30,  90, 8.0f, 40.0f,  20, 120, 600,  30, 180,   0 },
+    { "partylead", 3, LaunchStrategy::PartyBuilder, 1.30f, 1.70f, { 40, 60,  0,  0,  0 },  15,  60, 1.0f,  4.0f,  60,  60, 180,   0,   0,   0 },
+    { "idle",      6, LaunchStrategy::Idle,         4.00f, 4.00f, { 50, 20,  0, 30,  0 },  60, 180,10.0f, 60.0f,  10, 180, 900,   5,  30,   0 },
+    { "leaver",    2, LaunchStrategy::Leaver,       1.10f, 1.30f, { 50, 20, 20, 10,  0 },   5,  45, 0.3f,  2.0f,  90,  60, 180,   0,   0,   0 },
     // explorer: weight 0 since 27 Oct - without the real routes' steps (the Rothie / mafsen exploration routes live in the
     // LevelForge guide service) the hand-made subzone tours led level-1 bots through mobs far above them. The code stays;
     // Playerbot.Launch.PersonaWeights = "explorer:2" brings them back once real routes are imported.
