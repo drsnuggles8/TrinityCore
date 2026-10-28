@@ -32,6 +32,8 @@
 #include <algorithm>
 #include <array>
 #include <map>
+#include <optional>
+#include <random>
 #include <sstream>
 
 namespace Playerbot::V2::Fleet {
@@ -149,12 +151,22 @@ bool PushIntent(Player const* bot, T body)
 float Lerp(float lo, float hi, float t) { return lo + (hi - lo) * t; }
 
 template <typename Weights>
+// Playerbot.Launch.RosterSeed > 0: Prepare rolls the same roster again (zones, races, classes, genders, personas, the bots'
+// seeds and arrivals; the names still vary), so two builds can be benched on the same class mix (racer45 build41 had no
+// hunter or shaman, build42 three shamans and a hunter, and their pace differed more than the change between them).
+// Only Prepare's rolls use it, on the world thread.
+std::optional<std::mt19937> gRollRng;
+uint32 RollRand(uint32 lo, uint32 hi)
+{
+    return gRollRng ? std::uniform_int_distribution<uint32>(lo, hi)(*gRollRng) : urand(lo, hi);
+}
+
 size_t PickWeighted(Weights const& w)
 {
     uint32 total = 0;
     for (auto v : w) total += v;
     if (!total) return 0;
-    uint32 roll = urand(0, total - 1);
+    uint32 roll = RollRand(0, total - 1);
     for (size_t i = 0; i < w.size(); ++i)
     {
         if (roll < w[i]) return i;
@@ -264,7 +276,7 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
         break;
     }
     Persona const& p = kPersonas[e.persona];
-    e.seed = urand(1, 0x7FFFFFFF);
+    e.seed = RollRand(1, 0x7FFFFFFF);
 
     if (!keep_identity)
     {
@@ -281,7 +293,7 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
         {
             RaceClassShare const& rc = *pairs[PickWeighted(weights)];
             uint8 const race = rc.race, cls = rc.cls;
-            BotComposition::Pick const pick = BotComposition::Roll(race, cls, uint8(urand(0, 1)), "");
+            BotComposition::Pick const pick = BotComposition::Roll(race, cls, uint8(RollRand(0, 1)), "");
             if (!pick.race) continue;
             e.race = pick.race; e.cls = pick.cls; e.gender = pick.gender; e.name = pick.name;
             break;
@@ -293,15 +305,15 @@ void LaunchSim::Roll(Entry& e, bool keep_identity, bool late, uint8 zone)
     // Playerbot.Launch.ArrivalMaxS > 0: everyone arrives within that many seconds (tests: "5 racers starting together").
     uint32 const arrival_max = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("Playerbot.Launch.ArrivalMaxS", 0, true)));
     if (late)
-        e.arrival_s = urand(3600, 6 * 3600);
+        e.arrival_s = RollRand(3600, 6 * 3600);
     else if (arrival_max)
-        e.arrival_s = urand(1, std::max<uint32>(arrival_max, 1));
+        e.arrival_s = RollRand(1, std::max<uint32>(arrival_max, 1));
     else
     {
-        uint32 const r = urand(0, 99);
-        e.arrival_s = r < 35 ? urand(5, 180) : r < 70 ? urand(180, 900) : urand(900, 3600);
+        uint32 const r = RollRand(0, 99);
+        e.arrival_s = r < 35 ? RollRand(5, 180) : r < 70 ? RollRand(180, 900) : RollRand(900, 3600);
     }
-    e.session_s = p.session_hi_min ? urand(p.session_lo_min, p.session_hi_min) * 60u : 0u;
+    e.session_s = p.session_hi_min ? RollRand(p.session_lo_min, p.session_hi_min) * 60u : 0u;
 }
 
 bool LaunchSim::CreateOne(Entry& e)
@@ -430,12 +442,15 @@ std::string LaunchSim::Prepare(uint32 bots, uint32 late)
     if (total > 2000)
         return "Bots must be 1-2000 in total (all zones).";
     roster_.resize(total);
+    if (int32 const roster_seed = sConfigMgr->GetIntDefault("Playerbot.Launch.RosterSeed", 0, true); roster_seed > 0)
+        gRollRng.emplace(uint32(roster_seed));
     size_t i = 0;
     for (uint8 z = 0; z < LaunchPlaces::kZoneCount; ++z)
         for (uint32 k = 0; k < per_zone[z]; ++k, ++i)
             Roll(roster_[i], /*keep_identity*/ false, /*late*/ false, z);
     for (; i < roster_.size(); ++i)
         Roll(roster_[i], /*keep_identity*/ false, /*late*/ true, LaunchPlaces::kZoneColdridge);
+    gRollRng.reset();
     late_count_ = late;
     phase_ = Phase::Creating;
     return "Creating " + std::to_string(bots) + " launch bots in Coldridge + " + std::to_string(per_zone[1]) + " Northshire + " +

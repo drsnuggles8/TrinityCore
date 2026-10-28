@@ -52,6 +52,10 @@ Without a client the commands go through SOAP (`~/forever/tc-cmd.py <command>` o
 
 World bots should be off during a launch run (`Playerbot.World.Enable = 0`) so only the launch crowd is in Coldridge.
 
+For comparing builds, `Playerbot.Launch.RosterSeed = N` (N > 0) makes `prepare` (and `reset` with a size) roll the same
+roster again: zones, races, classes, genders, personas, the bots' seeds and arrivals (names still vary). The racer bench
+(`~/forever/racer45.sh`) sets it; a random class mix moved the 45-minute level by more than a change did.
+
 ## How a launch bot is put together
 
 | Piece | Where | What |
@@ -178,6 +182,24 @@ in the home server's worldserver.env) switches it on: with N players in Dun Moro
 least 10 s. Set it to 0 to practise against normal respawn timers. Without it 260 bots shared a few dozen wolves and boars
 and the average level after 45 minutes was 2.8.
 
+## Racer pace
+
+Six racers alone in Coldridge (`~/forever/racer45.sh`: `PERSONA_WEIGHTS racer:1`, the other zones at 0), 45 minutes, on
+Olo's route. Real pace for comparison: Olo's measured medians on a quiet server are level 4 at 11.6 minutes, 5 at 18.6, 6
+at 28.2 (Olo-Route-Findings, `validate`).
+
+| Date | Build | Avg level 15 / 30 / 45 min | Quests turned in (6 racers) | What changed |
+|---|---|---|---|---|
+| 27 Oct | build38 (q170, 25 min) | 3.6 at 25 min | 17 | baseline: 170's Rockjaw objective 0-4 of 6, Burly 6/6 |
+| 27 Oct | build40 | 3.15 / 3.83 / 4.32 | 21 | kill objectives in a shared POI polygon head for their own creature; Olo's opportunistic trogg steps no longer imported as route steps; loot walk clock paused in fights |
+| 28 Oct | build41 | 3.51 / 4.47 / 5.11 | 31 (170 completed by 4 of 6) | in-range loot clock paused in fights; open-world loot walks do not wait for idle mobs; given-up mobs stay given up, stop_attack ends Auto Shot; guide followers train only near their route; no hub walks under level 6. Loot give-ups in range 10 -> 0 |
+| 28 Oct | build42 | 3.36 / 4.11 / 4.73 | 28 | the far quest walk no longer interrupts a loot walk (loot walk give-ups 49 -> 6, idle-watch strikes 36 -> 10); another class mix (three shamans and a hunter, build41 none): not comparable, hence the roster seed |
+
+Brakes found in build40's run: Dwarven Outfitters (8 Tough Wolf Meat) took 10-16 minutes (42 wolf corpses given up: the
+loot walk waited for idle mobs beside the corpse and the in-range loot clock counted fights); trainer walks of up to
+350 y at every even level from 4; the idle watch walking level-3 racers toward Kharanos; a hunter re-engaging an
+unreachable trogg every 10 s.
+
 ## Capacity and performance
 
 Measurements go here, each with the build, bot count and what changed.
@@ -237,10 +259,9 @@ Fixed in our fork; candidates for upstream (forever-bots) once Olo says so.
 
 ## Open items
 
-- **Racer pace** (mix31): 2-6 quests turned in per racer in 45 minutes. A racer on "A New Threat" (170) attacked 42
-  troggs in 30 minutes without finishing it, and 30 loot walks timed out ("unreachable" at 32-57 y: the walk deadline
-  runs out while new pulls keep it fighting on the trogg slope). Next: why the kills do not complete 170 (tags lost? no
-  kill credit?) and whether loot walks should pause the deadline during combat.
+- **Racer pace:** see [Racer pace](#racer-pace) for the runs. Real racers skip "A New Threat" (170) and "A Refugee's
+  Quandary" (3361, Felix's box, chest and bucket) as noob traps (Olo); Olo's route takes 170 only opportunistically and
+  the racers now do too.
 - **Explorer persona off** until the real routes (Rothie's, mafsen's LevelForge guides) can be imported; the stop,
   give-up, spirit-healer and route-check machinery stays (`~/forever/routecheck.sh` checks every leg in 15 s).
 - **Questie review list** (contrib/launch-sim/questie/prequests-review-2026-10-27.txt): pre-quests not taken over,
