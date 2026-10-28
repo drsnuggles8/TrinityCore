@@ -18070,6 +18070,40 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
             }
         }
 
+        // ---- Quest spell-cast objective (CRITERIA_TREE asking for a cast, idle:quest_cast_at_focus) ----
+        // Zephras' "Reading the Ley Lines": cast Read Ley Line next to a ley line (the builder resolved the spell, the focus
+        // and the nearest focus object as the POI). At the focus the bot stands and casts, one try per 15 s; closer than
+        // 80 y it walks there (idle:pursue_quest_goal takes the far band). crowd43: 86 Skyborne held it, none finished.
+        if (s.has_current_objective() && s.current_objective().type == /*CRITERIA_TREE*/ 14 &&
+            s.current_objective().cast_spell != 0)
+        {
+            auto const& obj = s.current_objective();
+            auto const& poi = s.current_objective_poi();
+            const uint32 now_ms = s.published_at_ms();
+            const float pdx = poi.x - bx, pdy = poi.y - by;
+            const float pd2 = pdx * pdx + pdy * pdy;
+            const bool at_focus = !obj.cast_focus || (poi.valid && poi.map_id == s.map_id() && pd2 <= 4.0f * 4.0f);
+            const uint64 retry_key = (uint64(1) << 63) | obj.id;   // WanderToNode's 15 s, kept apart from object guids
+            if (at_focus)
+            {
+                if (s.is_moving())
+                    emit.stop_movement();
+                else if (!ai.action_recently_tried(BotAI::ActionKind::WanderToNode, retry_key, now_ms) &&
+                         emit.cast(obj.cast_spell, s.guid()))
+                    ai.note_action_retry(BotAI::ActionKind::WanderToNode, retry_key, now_ms);
+                ai.set_last_rule_fired("idle:quest_cast_at_focus");
+                return true;
+            }
+            if (poi.valid && poi.map_id == s.map_id() && pd2 <= 80.0f * 80.0f &&
+                !ai.action_recently_tried(BotAI::ActionKind::WanderToNode, retry_key ^ 1u, now_ms) &&
+                emit.move_to(poi.x, poi.y, poi.z, /*run*/ true))
+            {
+                ai.note_action_retry(BotAI::ActionKind::WanderToNode, retry_key ^ 1u, now_ms);
+                ai.set_last_rule_fired("idle:quest_cast_walk");
+                return true;
+            }
+        }
+
         // ---- Quest TALKTO objective execution rule (2-phase) ----
         // For QUEST_OBJECTIVE_TALKTO (type=3): emit InteractWithNpc to open
         // the gossip menu. Most NPCs credit on Hello (the OnGossipHello

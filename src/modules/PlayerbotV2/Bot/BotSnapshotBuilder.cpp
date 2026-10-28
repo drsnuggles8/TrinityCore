@@ -48,6 +48,8 @@
 #include "SpellInfo.h"
 #include "SpellMgr.h"
 #include "SpellHistory.h"
+#include "CriteriaHandler.h"
+#include <functional>
 #include "Map.h"
 #include "InstanceScript.h"
 #include "PhaseShift.h"
@@ -538,6 +540,8 @@ QuestImmutable BuildQuestImmutable(uint32 qid, Player const* p)
                 auto const& labeled = CreaturesWithLabel(oe.object_id);
                 oe.labeled_target_entries.assign(labeled.begin(), labeled.end());
             }
+            if (oe.type == QUEST_OBJECTIVE_CRITERIA_TREE && oe.object_id > 0)
+                CriteriaTreeCastSpell(uint32(oe.object_id), oe.cast_spell, oe.cast_focus);
             im.objectives.push_back(std::move(oe));
         }
     }
@@ -1063,6 +1067,53 @@ void CopyCooldowns(Player const* p, std::vector<CooldownEntry>& out)
     return best ? best : it->second.front();
 }
 
+// The nearest spawned spell focus object (GAMEOBJECT_TYPE_SPELL_FOCUS) of a focus type on the map (a ley line for Read Ley Line).
+static ::GameObjectData const* NearestSpellFocusSpawn(uint32 focus, float x, float y, uint32 map_id)
+{
+    static std::once_flag s_once;
+    static std::unordered_map<uint32, std::vector<::GameObjectData const*>> s_by_focus;
+    std::call_once(s_once, []() {
+        for (auto const& [spawn_id, gd] : sObjectMgr->GetAllGameObjectData())
+            if (GameObjectTemplate const* t = sObjectMgr->GetGameObjectTemplate(gd.id))
+                if (t->type == GAMEOBJECT_TYPE_SPELL_FOCUS && t->spellFocus.spellFocusType)
+                    s_by_focus[t->spellFocus.spellFocusType].push_back(&gd);
+    });
+    auto it = s_by_focus.find(focus);
+    if (it == s_by_focus.end())
+        return nullptr;
+    ::GameObjectData const* best = nullptr;
+    float bestSq = std::numeric_limits<float>::max();
+    for (::GameObjectData const* gd : it->second)
+    {
+        if (gd->mapId != map_id) continue;
+        const float dx = gd->spawnPoint.GetPositionX() - x, dy = gd->spawnPoint.GetPositionY() - y;
+        if (dx * dx + dy * dy < bestSq) { bestSq = dx * dx + dy * dy; best = gd; }
+    }
+    return best;
+}
+
+// A CRITERIA_TREE quest objective that asks for a spell cast: the first CastSpell criteria of the tree (children included),
+// its spell and the spell focus the spell needs (0 = anywhere). False for any other tree.
+static bool CriteriaTreeCastSpell(uint32 tree_id, uint32& spell, uint32& focus)
+{
+    std::function<bool(CriteriaTree const*, int)> walk = [&](CriteriaTree const* t, int depth) -> bool
+    {
+        if (!t || depth > 6) return false;
+        if (t->Criteria && t->Criteria->Entry && CriteriaType(t->Criteria->Entry->Type) == CriteriaType::CastSpell &&
+            t->Criteria->Entry->Asset.SpellID > 0)
+        {
+            spell = uint32(t->Criteria->Entry->Asset.SpellID);
+            SpellInfo const* si = sSpellMgr->GetSpellInfo(spell, DIFFICULTY_NONE);
+            focus = si ? si->RequiresSpellFocus : 0u;
+            return true;
+        }
+        for (CriteriaTree const* c : t->Children)
+            if (walk(c, depth + 1)) return true;
+        return false;
+    };
+    return walk(sCriteriaMgr->GetCriteriaTree(tree_id), 0);
+}
+
 // Reverse questitem index: a quest ITEM objective stores the item entry, but
 // the bot needs to reach the GAMEOBJECT (chest/herb) or CREATURE that grants
 // it. quest_poi for such objectives carries the SURFACE Z over a cave (the
@@ -1267,6 +1318,10 @@ bool EstimateObjectivePlanarPos(QuestPOIData const* quest_poi,
                 if (!gs)
                     cs = QuestItemCreatureSpawnNearest(uint32(obj.object_id), bot_x, bot_y, bot_map);
             }
+            break;
+        case QUEST_OBJECTIVE_CRITERIA_TREE:
+            if (obj.cast_focus)
+                gs = NearestSpellFocusSpawn(obj.cast_focus, bot_x, bot_y, bot_map);
             break;
         default:
             break;
@@ -5804,6 +5859,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                         case QUEST_OBJECTIVE_KILL_WITH_LABEL:
                             actionable = true;
                             break;
+                        case QUEST_OBJECTIVE_CRITERIA_TREE:   // a spell cast (idle:quest_cast_at_focus)
+                            actionable = o.cast_spell != 0 && p->HasSpell(o.cast_spell);
+                            break;
                         default:
                             break;
                     }
@@ -6553,6 +6611,20 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         // nearest-spawn resolvers for objectives the index does not cover
         // (synthesized turn-in objectives, id 0).
         bool poi_from_spawn_fallback = false;
+        // A spell cast at a spell focus (idle:quest_cast_at_focus): the nearest focus object is the place, over a quest POI that
+        // only outlines the area (Reading the Ley Lines: the ley lines lie across the island).
+        if (snap->quest_log.current_objective.type == QUEST_OBJECTIVE_CRITERIA_TREE && snap->quest_log.current_objective.cast_focus)
+            if (::GameObjectData const* fs = NearestSpellFocusSpawn(snap->quest_log.current_objective.cast_focus,
+                    p->GetPositionX(), p->GetPositionY(), p->GetMapId()))
+            {
+                auto& cp = snap->quest_log.current_objective_poi;
+                cp.map_id = fs->mapId;
+                cp.x = fs->spawnPoint.GetPositionX();
+                cp.y = fs->spawnPoint.GetPositionY();
+                cp.z = fs->spawnPoint.GetPositionZ();
+                cp.radius = 0.f;
+                cp.valid = true;
+            }
         if (!snap->quest_log.current_objective_poi.valid)
         {
             auto const& fobj = snap->quest_log.current_objective;
