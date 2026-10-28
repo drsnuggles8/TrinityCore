@@ -436,17 +436,49 @@ bool LootDrainFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&
     return emitted;
 }
 
+// The next corpse is close (30 y): loot it before any errand, as a player does. At 222 alone the drain lost to every quest walk
+// (~700), so a bot walked off to a quest giver or the hub after the kill and came back for the corpse later: 7% of kills were
+// looted 20 s or more after the death, up to 73 s (crowd61, 28 Oct).
+bool LootNearGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32 now_ms)
+{
+    if (!LootDrainGate(s, ai, g, now_ms))
+        return false;
+    Player* p = ObjectAccessor::FindConnectedPlayer(s.raw().guid);
+    if (!p)
+        return false;
+    float bx, by, bz; s.position(bx, by, bz);
+    bool near = false;
+    Services::Registry().with_loot(s.bot_id(), [&](std::deque<ObjectGuid>& q)
+    {
+        if (!q.empty())
+            if (Creature const* c = ObjectAccessor::GetCreature(*p, q.front()))
+                near = (c->GetPositionX() - bx) * (c->GetPositionX() - bx) + (c->GetPositionY() - by) * (c->GetPositionY() - by)
+                    <= 30.0f * 30.0f;
+    });
+    return near;
+}
+
 } // anonymous namespace
 
 void RegisterLootDrainRules(IdleRuleRegistry& r)
 {
-    IdleRule rule;
-    rule.name     = "idle:loot_drain";   // /whyidle name; per-tick fire
-                                          // reports loot_corpse / move_to_corpse.
-    rule.priority = 222;
-    rule.gate     = &LootDrainGate;
-    rule.fire     = &LootDrainFire;
-    r.register_rule(std::move(rule));
+    {
+        IdleRule rule;
+        rule.name     = "idle:loot_drain";   // /whyidle name; per-tick fire
+                                              // reports loot_corpse / move_to_corpse.
+        rule.priority = 222;
+        rule.gate     = &LootDrainGate;
+        rule.fire     = &LootDrainFire;
+        r.register_rule(std::move(rule));
+    }
+    {
+        IdleRule rule;
+        rule.name     = "idle:loot_near";   // the same drain while the corpse is within 30 y: above the quest walks (~700)
+        rule.priority = 780;
+        rule.gate     = &LootNearGate;
+        rule.fire     = &LootDrainFire;
+        r.register_rule(std::move(rule));
+    }
 }
 
 namespace States {
