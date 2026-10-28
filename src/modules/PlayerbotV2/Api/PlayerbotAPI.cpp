@@ -3118,6 +3118,19 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
             p_->Attack(tu, /*meleeAttack*/ false);
         else if (melee_swing && !p_->HasUnitState(UNIT_STATE_MELEE_ATTACKING))
             p_->Attack(tu, /*meleeAttack*/ true);
+        // A standing melee bot whose chase another move replaced (a loot or quest walk after the engage) stays where that move
+        // ended, facing wherever it went: no swing lands and the mob never notices (racer45 build44: a warrior 3-5 y from an
+        // idle trogg until the opener gave up, mob_victim=none, moving=0). Face it, and chase again when out of reach.
+        // Melee classes only: a caster standing at range to cast keeps its spot (the low-level Classic shaman fights in melee).
+        uint8 const cls = p_->GetClass();
+        bool const melee_class = cls == CLASS_WARRIOR || cls == CLASS_ROGUE || cls == CLASS_PALADIN || cls == CLASS_SHAMAN;
+        if (melee_swing && melee_class && !p_->isMoving())
+        {
+            if (!p_->HasInArc(float(M_PI), tu))
+                FaceUnitForCast(p_, tu);
+            if (!p_->IsWithinMeleeRange(tu) && p_->GetMotionMaster()->GetCurrentMovementGeneratorType() != CHASE_MOTION_TYPE)
+                p_->GetMotionMaster()->MoveChase(tu);
+        }
         holdAvoidedAutoRepeat(tu);
         ensureAutoShot(tu);
         return Result::Ok;
