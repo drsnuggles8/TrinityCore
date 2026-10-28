@@ -150,7 +150,6 @@ bool PushIntent(Player const* bot, T body)
 }
 float Lerp(float lo, float hi, float t) { return lo + (hi - lo) * t; }
 
-template <typename Weights>
 // Playerbot.Launch.RosterSeed > 0: Prepare rolls the same roster again (zones, races, classes, genders, personas, the bots'
 // seeds and arrivals; the names still vary), so two builds can be benched on the same class mix (racer45 build41 had no
 // hunter or shaman, build42 three shamans and a hunter, and their pace differed more than the change between them).
@@ -161,6 +160,7 @@ uint32 RollRand(uint32 lo, uint32 hi)
     return gRollRng ? std::uniform_int_distribution<uint32>(lo, hi)(*gRollRng) : urand(lo, hi);
 }
 
+template <typename Weights>
 size_t PickWeighted(Weights const& w)
 {
     uint32 total = 0;
