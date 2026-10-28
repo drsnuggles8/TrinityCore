@@ -32997,14 +32997,17 @@ void Player::ExecutePendingSpellCastRequest()
     // Also check targets! target may have changed and we need to interrupt current spell
     if (spellInfo->IsAutoRepeatRangedSpell())
     {
-        if (Spell* spell = castingUnit->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL))
+        Spell* spell = castingUnit->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL);
+        if (spell && spell->m_spellInfo == spellInfo && spell->m_targets.GetUnitTargetGUID() == targets.GetUnitTargetGUID())
         {
-            if (spell->m_spellInfo == spellInfo && spell->m_targets.GetUnitTargetGUID() == targets.GetUnitTargetGUID())
-            {
-                CancelPendingCastRequest();
-                return;
-            }
+            CancelPendingCastRequest();
+            return;
         }
+
+        // Which Auto Shot casts a client sends after a kill (playtest: "other monsters got shot" without targeting them)
+        if (!IsClientless())
+            TC_LOG_INFO("server", "[auto_shot] {} casts {} at {} (selection {}, running {})", GetName(), spellInfo->Id,
+                targets.GetUnitTargetGUID().ToString(), GetTarget().ToString(), spell ? spell->m_targets.GetUnitTargetGUID().ToString() : "none");
     }
 
     // auto-selection buff level base at target level (in spellInfo)

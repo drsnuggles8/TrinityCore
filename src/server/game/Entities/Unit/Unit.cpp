@@ -3093,6 +3093,28 @@ void Unit::_UpdateAutoRepeatSpell()
 {
     SpellInfo const* autoRepeatSpellInfo = m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_spellInfo;
 
+    // CheckCast below reads the explicit target pointer: resolve it again from its GUID, as Spell::update does,
+    // and stop when the target is gone (a stale pointer crashed in WorldObject::CanSeeOrDetect).
+    // Checked before the movement and casting returns below: a hunter walking to the corpse kept Auto Shot on with the
+    // dead target, and the client turned it on the next mob it selected (playtests 28 Oct: "other monsters got shot").
+    if (Spell* autoRepeatSpell = m_currentSpells[CURRENT_AUTOREPEAT_SPELL]; autoRepeatSpell->getState() != SPELL_STATE_PREPARING)
+    {
+        ObjectGuid const targetGuid = autoRepeatSpell->m_targets.GetObjectTargetGUID();
+        if (!autoRepeatSpell->UpdatePointers() || (!targetGuid.IsEmpty() && !autoRepeatSpell->m_targets.GetObjectTarget()))
+        {
+            InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
+            return;
+        }
+        // Classic: Auto Shot stops when its target dies
+        if (Unit const* target = autoRepeatSpell->m_targets.GetUnitTarget(); target && !target->IsAlive())
+        {
+            if (Player const* player = ToPlayer(); player && !player->IsClientless())
+                TC_LOG_INFO("server", "[auto_shot] {} stops: target {} died (moving {})", player->GetName(), target->GetName(), isMoving());
+            InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
+            return;
+        }
+    }
+
     if (HasAuraType(SPELL_AURA_DISABLE_AUTOATTACK))
         return;
 
@@ -3104,25 +3126,6 @@ void Unit::_UpdateAutoRepeatSpell()
         if (autoRepeatSpellInfo->Id != 75)
             InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
         return;
-    }
-
-    // CheckCast below reads the explicit target pointer: resolve it again from its GUID, as Spell::update does,
-    // and stop when the target is gone (a stale pointer crashed in WorldObject::CanSeeOrDetect)
-    if (Spell* autoRepeatSpell = m_currentSpells[CURRENT_AUTOREPEAT_SPELL]; autoRepeatSpell->getState() != SPELL_STATE_PREPARING)
-    {
-        ObjectGuid const targetGuid = autoRepeatSpell->m_targets.GetObjectTargetGUID();
-        if (!autoRepeatSpell->UpdatePointers() || (!targetGuid.IsEmpty() && !autoRepeatSpell->m_targets.GetObjectTarget()))
-        {
-            InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
-            return;
-        }
-        // Classic: Auto Shot stops when its target dies. It stayed on with the dead target, and the client turned it on the
-        // next mob it selected (playtest 28 Oct: "other monsters got shot" after a kill).
-        if (Unit const* target = autoRepeatSpell->m_targets.GetUnitTarget(); target && !target->IsAlive())
-        {
-            InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
-            return;
-        }
     }
 
     // castroutine
