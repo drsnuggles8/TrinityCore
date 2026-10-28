@@ -2803,6 +2803,8 @@ void Module::OnPlayerLogout(Player* p)
     {
         Services::Owners().NoteOwnerCharacterOffline(sess->GetAccountId(), id);
         g_addon_hints.Logout(id);
+        // Playerbot.Launch.AutoRun: the last real player out stops the crowd and makes it again at level 1.
+        V2::Fleet::LaunchSim::Instance().OnRealPlayerLogout(p);
     }
     if (!Services::Registry().has(id)) return;     // not one of ours
     // Speak queued chat (the `.bot dismiss` goodbye) while the bot is still in the world.

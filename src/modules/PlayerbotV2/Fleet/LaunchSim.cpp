@@ -34,6 +34,7 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <shared_mutex>
 #include <sstream>
 
 namespace Playerbot::V2::Fleet {
@@ -221,6 +222,26 @@ uint8 PickRoute(Persona const& p, uint32 seed, uint8 race)
     if (!others.empty())
         return others[Mix(seed, 12) % others.size()];
     return olo;   // only Olo's route is imported (dwarves and gnomes), or none for this race
+}
+
+
+// Playerbot.Launch.AutoRun = 1 (Olo's always-on server): the crowd starts at level 1 when a real player logs in and nobody else
+// is online, and when the last real player logs out the run stops and the roster is made again at level 1 for the next login.
+// After a server start the roster is reset once, so a run cut off by a restart never carries on.
+bool AutoRun()
+{
+    return sConfigMgr->GetBoolDefault("Playerbot.Launch.AutoRun", false, true);
+}
+
+// Real (non-bot) players in the world, `except` left out.
+uint32 RealPlayersOnline(Player const* except)
+{
+    uint32 n = 0;
+    std::shared_lock<std::shared_mutex> lock(*HashMapHolder<Player>::GetLock());
+    for (auto const& [guid, pl] : ObjectAccessor::GetPlayers())
+        if (pl && pl != except && pl->IsInWorld() && pl->GetSession() && !pl->GetSession()->IsBot())
+            ++n;
+    return n;
 }
 
 } // anonymous namespace
@@ -653,6 +674,16 @@ void LaunchSim::SendReplies(uint32 now_ms)
 
 void LaunchSim::OnWorldTick(uint32 now_ms)
 {
+    if (!auto_init_done_ && AutoRun())
+    {
+        auto_init_done_ = true;
+        LoadRoster();
+        if (!roster_.empty())
+        {
+            TC_LOG_INFO("playerbot.v2", "[launch] AutoRun: the roster is made again at level 1 after the server start");
+            Reset(0, 0);
+        }
+    }
     if (!replies_.empty())
         SendReplies(now_ms);
     if (phase_ == Phase::Running && now_ms - last_report_ms_ >= 60000u)
@@ -674,6 +705,12 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
             }
             phase_ = Phase::Ready;
             TC_LOG_INFO("playerbot.v2", "[launch] roster ready: {} bots", roster_.size());
+            if (auto_start_pending_ && AutoRun() && RealPlayersOnline(nullptr) > 0)
+            {
+                auto_start_pending_ = false;
+                TC_LOG_INFO("playerbot.v2", "[launch] a real player is waiting: the launch starts (AutoRun)");
+                Start();
+            }
             return;
         }
         case Phase::Running:
@@ -770,13 +807,41 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
     }
 }
 
+
 void LaunchSim::OnRealPlayerLogin(Player* p)
 {
-    if (phase_ != Phase::Armed || !p)
+    if (!p)
+        return;
+    if (AutoRun() && RealPlayersOnline(p) == 0)
+    {
+        LoadRoster();
+        if (phase_ == Phase::Ready || phase_ == Phase::Armed)
+        {
+            TC_LOG_INFO("playerbot.v2", "[launch] {} entered the world alone: the launch starts (AutoRun)", p->GetName());
+            Start();
+        }
+        else if (phase_ != Phase::Running)
+            auto_start_pending_ = true;   // the roster is being made: it starts once ready
+        return;
+    }
+    if (phase_ != Phase::Armed)
         return;
     TC_LOG_INFO("playerbot.v2", "[launch] {} entered the world: launch starts", p->GetName());
     Start();
 }
+
+void LaunchSim::OnRealPlayerLogout(Player* p)
+{
+    if (!p || !AutoRun() || RealPlayersOnline(p) != 0)
+        return;
+    auto_start_pending_ = false;
+    if (phase_ != Phase::Running && phase_ != Phase::Armed)
+        return;
+    TC_LOG_INFO("playerbot.v2", "[launch] {} left, nobody is online: the run stops and the roster is made again at level 1 (AutoRun)",
+        p->GetName());
+    Reset(0, 0);
+}
+
 
 bool LaunchSim::IsLaunchBot(uint64 guid_low) const
 {

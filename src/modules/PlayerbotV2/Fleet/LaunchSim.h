@@ -43,8 +43,12 @@ public:
     std::string Report() const;
 
     void OnWorldTick(uint32 now_ms);
-    // A real (non-bot) player entered the world: T0 of an armed run.
+    // A real (non-bot) player entered the world: T0 of an armed run, or with Playerbot.Launch.AutoRun of a ready one when
+    // nobody else is online.
     void OnRealPlayerLogin(Player* p);
+    // A real player left the world. With Playerbot.Launch.AutoRun, when nobody is left the run stops and the roster is made
+    // again at level 1 for the next login.
+    void OnRealPlayerLogout(Player* p);
     // A bot logged in: when it is a launch bot, give its BotAI the persona's LaunchProfile. True for a launch bot.
     bool OnBotLogin(Player* p, BotAI* ai);
     bool IsLaunchBot(uint64 guid_low) const;
@@ -100,6 +104,8 @@ private:
     bool               recreate_after_delete_ = false;
     uint32             resize_bots_ = 0, resize_late_ = 0;
     std::vector<Reply> replies_;
+    bool               auto_init_done_ = false;   // AutoRun: the roster was reset once after the server started
+    bool               auto_start_pending_ = false;   // AutoRun: a real player logged in while the roster was being made
     uint32             asks_ = 0, grants_ = 0;   // this run, for the report
 };
 
