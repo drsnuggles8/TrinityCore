@@ -859,6 +859,10 @@ bool QuestPursueGoalGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
         lr && (std::strcmp(lr, "idle:move_to_corpse") == 0 || std::strcmp(lr, "idle:loot_corpse") == 0) &&
         Services::Registry().peek_loot_size(s.bot_id()) > 0)
         return false;
+    // The same for a walk to a quest object (idle:quest_loot_go): the objects lie across the POI area, and from beyond 80 y
+    // this rule turned the bot back toward the area's middle (zones-build45: windstones walked to from 83-105 y, never reached).
+    if (char const* lr = ai.last_rule_fired(); lr && std::strcmp(lr, "idle:quest_loot_go") == 0 && s.is_moving())
+        return false;
     auto const& poi = s.current_objective_poi();
     if (!poi.valid || poi.map_id != s.map_id()) return false;          // cross-map = autoact travel cascade
     float bx, by, bz; s.position(bx, by, bz);

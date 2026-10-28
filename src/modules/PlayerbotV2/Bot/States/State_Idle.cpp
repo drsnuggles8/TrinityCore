@@ -18024,6 +18024,13 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                     // GO so repeated re-paths (blocked / LOS) don't spam.
                     const uint64 go_low = best_far_go->guid.GetCounter();
                     const float far_dist = std::sqrt(best_far_distSq);
+                    // A walk order under way: hold the tick while the bot walks, or idle:wander took it elsewhere and the next
+                    // order started farther out (zones-build45: windstones walked to from 35-105 y, 2 uses in 35 minutes).
+                    if (ai.action_recently_tried(BotAI::ActionKind::QuestGoWalk, go_low, now_ms) && s.is_moving())
+                    {
+                        ai.set_last_rule_fired("idle:quest_loot_go");
+                        return true;
+                    }
                     if (!ai.action_recently_tried(BotAI::ActionKind::QuestGoWalk, go_low, now_ms) &&
                         ai.go_walk_stalled(go_low, far_dist))
                     {
