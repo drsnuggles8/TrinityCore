@@ -1,0 +1,304 @@
+Quest audit 28 Oct 2026: pre-quest differences between the world DB and the Forever QuestieDB that were NOT changed.
+Questie's chains have been wrong before; take one only when Wowhead's series list or the game confirms it.
+Format: quest name | Questie all-of / any-of | ours (PrevQuestID, or the quests whose NextQuestID leads here) | giver spawned
+
+== Questie has a pre-quest, the DB has none (not covered by any NextQuestID)
+11 Riverpaw Gnoll Bounty | all [] any [76] | - | spawned
+207 Kurzen's Mystery | all [204, 203] any [] | - | spawned
+233 Coldridge Valley Mail Delivery | all [] any [179] | - | spawned
+473 Report to Captain Stoutfist | all [] any [455] | - | spawned
+533 Infiltration | all [] any [498] | - | spawned
+566 WANTED: Baron Vardus | all [] any [549] | - | spawned
+664 Drowned Sorrows | all [] any [663] | - | spawned
+665 Sunken Treasure | all [] any [663] | - | spawned
+1080 Covert Ops - Beta | all [1077, 1074] any [] | - | spawned
+1148 Parts of the Swarm | all [] any [1146] | - | spawned
+1252 Lieutenant Paval Reethe | all [] any [1302, 1282] | - | spawned
+1253 The Black Shield | all [] any [1302, 1282] | - | spawned
+1284 Suspicious Hoofprints | all [] any [1282, 1302] | - | spawned
+1364 Mazen's Behest | all [] any [1363] | - | spawned
+1516 Call of Earth | all [] any [1516, 1519, 92466] | - | spawned
+1519 Call of Earth | all [] any [1516, 1519, 92466] | - | spawned
+1705 Burning Blood | all [] any [1782] | - | spawned
+1708 Iron Coral | all [] any [1782] | - | spawned
+1710 Sunscorched Shells | all [] any [1782] | - | spawned
+1842 Satyr Hooves | all [] any [1848] | - | spawned
+1844 Chimaeric Horn | all [] any [1848] | - | spawned
+1846 Dragonmaw Shinbones | all [] any [1848] | - | spawned
+2206 Snatch and Grab | all [] any [2205] | - | spawned
+2238 Simple Subterfugin' | all [] any [2218] | - | spawned
+2242 Destiny Calls | all [] any [2241] | - | spawned
+2851 Wild Leather Boots | all [2848, 2849, 2850] any [] | - | spawned
+2852 Wild Leather Leggings | all [2848, 2849, 2850] any [] | - | spawned
+2858 Wild Leather Boots | all [2855, 2856, 2857] any [] | - | spawned
+2859 Wild Leather Leggings | all [2855, 2856, 2857] any [] | - | spawned
+3791 The Mystery of Morrowgrain | all [] any [3781] | - | spawned
+4022 A Taste of Flame | all [] any [3481] | - | spawned
+4024 A Taste of Flame | all [] any [4022, 4023] | - | spawned
+4281 Thalanaar Delivery | all [] any [4131] | - | spawned
+4490 Summon Felsteed | all [] any [3631, 4487, 4488, 4489] | - | spawned
+4493 March of the Silithid | all [] any [162] | - | spawned
+4494 March of the Silithid | all [] any [32, 7732] | - | spawned
+4734 Egg Freezing | all [] any [4810] | - | spawned
+4882 Guarding Secrets | all [] any [4741] | - | spawned
+5125 Aurius' Reckoning | all [] any [5122] | - | spawned
+5218 Felstone Field Cauldron | all [] any [5217, 5230] | - | spawned
+5221 Dalson's Tears Cauldron | all [] any [5220, 5232] | - | spawned
+5224 Writhing Haunt Cauldron | all [] any [5223, 5234] | - | spawned
+5227 Gahrron's Withering Cauldron | all [] any [5226, 5236] | - | spawned
+5402 Minion's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5403 Invader's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5404 Corruptor's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5406 Corruptor's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5407 Invader's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5408 Minion's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5508 Corruptor's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5509 Invader's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5510 Minion's Scourgestones | all [] any [5401, 5503, 5405] | - | spawned
+5627 Stars of Elune | all [] any [5628, 5629, 5630, 5631, 5632, 5633] | - | spawned
+6135 Duskwing, Oh How I Hate Thee... | all [6022, 6042, 6133] any [] | - | spawned
+6136 The Corpulent One | all [6022, 6042, 6133] any [] | - | spawned
+6144 The Call to Command | all [6135, 6136] any [] | - | spawned
+6163 Ramstein | all [6135, 6136] any [] | - | spawned
+6382 The Ashenvale Hunt | all [] any [882] | - | spawned
+6564 Allegiance to the Old Gods | all [] any [6562] | - | spawned
+7490 Victory for the Horde | all [] any [6602] | - | spawned
+7495 Victory for the Alliance | all [] any [6502] | - | spawned
+7641 The Work of Grimand Elmore | all [] any [7640] | - | spawned
+7643 Ancient Equine Spirit | all [] any [7642] | - | spawned
+7735 Pristine Yeti Hide | all [] any [2821] | - | spawned
+7738 Perfect Yeti Hide | all [] any [2822] | - | spawned
+8544 Conqueror's Spaulders | all [] any [8579] | - | spawned
+8559 Conqueror's Greaves | all [] any [8579] | - | spawned
+8560 Conqueror's Legguards | all [] any [8579] | - | spawned
+8561 Conqueror's Crown | all [] any [8579] | - | spawned
+8562 Conqueror's Breastplate | all [] any [8579] | - | spawned
+8575 Azuregos's Magical Ledger | all [] any [8555] | - | spawned
+8592 Tiara of the Oracle | all [] any [8579] | - | spawned
+8593 Trousers of the Oracle | all [] any [8579] | - | spawned
+8594 Mantle of the Oracle | all [] any [8579] | - | spawned
+8596 Footwraps of the Oracle | all [] any [8579] | - | spawned
+8602 Stormcaller's Pauldrons | all [] any [8579] | - | spawned
+8603 Vestments of the Oracle | all [] any [8579] | - | spawned
+8621 Stormcaller's Footguards | all [] any [8579] | - | spawned
+8622 Stormcaller's Hauberk | all [] any [8579] | - | spawned
+8623 Stormcaller's Diadem | all [] any [8579] | - | spawned
+8624 Stormcaller's Leggings | all [] any [8579] | - | spawned
+8625 Enigma Shoulderpads | all [] any [8579] | - | spawned
+8626 Striker's Footguards | all [] any [8579] | - | spawned
+8627 Avenger's Breastplate | all [] any [8579] | - | spawned
+8628 Avenger's Crown | all [] any [8579] | - | spawned
+8629 Avenger's Legguards | all [] any [8579] | - | spawned
+8630 Avenger's Pauldrons | all [] any [8579] | - | spawned
+8631 Enigma Leggings | all [] any [8579] | - | spawned
+8632 Enigma Circlet | all [] any [8579] | - | spawned
+8633 Enigma Robes | all [] any [8579] | - | spawned
+8634 Enigma Boots | all [] any [8579] | - | spawned
+8637 Deathdealer's Boots | all [] any [8579] | - | spawned
+8638 Deathdealer's Vest | all [] any [8579] | - | spawned
+8639 Deathdealer's Helm | all [] any [8579] | - | spawned
+8640 Deathdealer's Leggings | all [] any [8579] | - | spawned
+8641 Deathdealer's Spaulders | all [] any [8579] | - | spawned
+8655 Avenger's Greaves | all [] any [8579] | - | spawned
+8656 Striker's Hauberk | all [] any [8579] | - | spawned
+8657 Striker's Diadem | all [] any [8579] | - | spawned
+8658 Striker's Leggings | all [] any [8579] | - | spawned
+8659 Striker's Pauldrons | all [] any [8579] | - | spawned
+8660 Doomcaller's Footwraps | all [] any [8579] | - | spawned
+8661 Doomcaller's Robes | all [] any [8579] | - | spawned
+8662 Doomcaller's Circlet | all [] any [8579] | - | spawned
+8663 Doomcaller's Trousers | all [] any [8579] | - | spawned
+8664 Doomcaller's Mantle | all [] any [8579] | - | spawned
+8665 Genesis Boots | all [] any [8579] | - | spawned
+8666 Genesis Vest | all [] any [8579] | - | spawned
+8667 Genesis Helm | all [] any [8579] | - | spawned
+8668 Genesis Trousers | all [] any [8579] | - | spawned
+8669 Genesis Shoulderpads | all [] any [8579] | - | spawned
+8830 One Commendation Signet | all [] any [8811] | - | no giver
+8831 Ten Commendation Signets | all [] any [8819] | - | no giver
+8832 One Commendation Signet | all [] any [8815] | - | no giver
+8833 Ten Commendation Signets | all [] any [8823] | - | no giver
+8834 One Commendation Signet | all [] any [8812] | - | no giver
+8835 Ten Commendation Signets | all [] any [8820] | - | no giver
+8836 One Commendation Signet | all [] any [8813] | - | no giver
+8837 Ten Commendation Signets | all [] any [8821] | - | no giver
+8838 One Commendation Signet | all [] any [8814] | - | no giver
+8839 Ten Commendation Signets | all [] any [8822] | - | no giver
+8840 One Commendation Signet | all [] any [8816] | - | no giver
+8841 Ten Commendation Signets | all [] any [8824] | - | no giver
+8842 One Commendation Signet | all [] any [8817] | - | no giver
+8843 Ten Commendation Signets | all [] any [8825] | - | no giver
+8844 One Commendation Signet | all [] any [8818] | - | no giver
+8845 Ten Commendation Signets | all [] any [8826] | - | no giver
+9120 The Fall of Kel'Thuzad | all [] any [9121, 9122, 9123] | - | spawned
+9233 Omarion's Handbook | all [] any [9121, 9122, 9123] | - | spawned
+91208 Coming to Terms | all [] any [90902] | - | spawned
+91316 Making Repairs | all [] any [91294] | - | spawned
+92515 The Problem With Prideclaws | all [] any [92514, 93461] | - | spawned
+92516 Hippogryph Harassment | all [] any [92514, 93461] | - | spawned
+92553 Restocking the Larders | all [] any [92514, 93461] | - | spawned
+92911 Harvesting the Harvesters | all [] any [92910] | - | no giver
+93165 Mercy Falls on Deaf Ears | all [] any [94484, 94493] | - | spawned
+93318 WANTED: Vulgara the Insatiable | all [] any [92514, 93461] | - | spawned
+93319 Pilfered Windstones | all [] any [92514, 93461] | - | spawned
+93951 A Little Beauty | all [] any [92514, 93461] | - | spawned
+94472 Earth Sapta | all [] any [94373] | - | spawned
+94490 Ripped Missive | all [94485, 94486, 94487] any [] | - | spawned
+96057 Camping 101: Tailoring | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | spawned
+96102 Camping 101: Tailoring | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | no giver
+96626 Camping 101: Cooking | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | spawned
+96659 The Adventurer | all [] any [757] | - | spawned
+97925 Camping 101: Tailoring | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | spawned
+97932 Camping 101: Fishing | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | no giver
+97937 Camping 101: Tailoring | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | no giver
+97950 Camping 101: Tailoring | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | no giver
+97953 Camping 101: Enchanting | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | spawned
+97955 Camping 101: First Aid | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | spawned
+97956 Camping 101: Fishing | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | spawned
+97960 Camping 101: Skinning | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | spawned
+97961 Camping 101: Tailoring | all [] any [95998, 96101, 96604, 96605, 96606, 96607, 96608] | - | spawned
+98386 Alther's Mill | all [] any [89] | - | spawned
+99052 Threat from Below | all [] any [99051] | - | no giver
+
+== Both have a pre-quest, they differ
+33 Wolves Across the Border | all [] any [] | 5261 | spawned
+122 Underbelly Scales | all [] any [119] | 118 | spawned
+124 A Baying of Gnolls | all [] any [119] | 118 | spawned
+254 Digging Through the Dirt | all [] any [] | -253 | spawned
+287 Frostmane Hold | all [] any [] | 420 | spawned
+308 Distracting Jarven | all [] any [] | 403 | spawned
+339 Chapter I | all [] any [] | -338 | spawned
+340 Chapter II | all [] any [] | -338 | spawned
+341 Chapter III | all [] any [] | -338 | spawned
+342 Chapter IV | all [] any [] | -338 | spawned
+349 Stranglethorn Fever | all [] any [] | -348 | spawned
+403 Guarded Thunderbrew Barrel | all [] any [] | -310 | spawned
+410 The Dormant Shade | all [] any [366] | -409 | spawned
+427 At War With The Scarlet Crusade | all [] any [] | 383 | spawned
+431 Candles of Beckoning | all [] any [366] | -409 | spawned
+464 War Banners | all [] any [] | 473 | spawned
+526 Lightforge Ingots | all [] any [321] | 324 | spawned
+576 Keep An Eye Out | all [] any [597] | 595 | spawned
+587 Up to Snuff | all [] any [597] | 595 | spawned
+593 Filling the Soul Gem | all [] any [] | -592 | spawned
+677 Call to Arms | all [] any [] | 676 | spawned
+753 A Humble Task | all [] any [] | 752 | spawned
+767 Rite of Vision | all [] any [] | 763 | spawned
+779 Seal of the Earth | all [] any [] | -717 | spawned
+795 Seal of the Earth | all [] any [] | -793 | spawned
+813 Finding the Antidote | all [] any [] | -812 | spawned
+926 Flawed Power Stone | all [] any [] | -924 | spawned
+940 Teldrassil | all [] any [98398] | 937 | spawned
+961 Onu is meditating | all [] any [949] | -944 | spawned
+1127 Fool's Stout | all [] any [1122] | -1119 | spawned
+1130 Melor Sends Word | all [] any [] | 882 | spawned
+1200 Blackfathom Villainy | all [] any [] | 1198 | spawned
+1365 Khan Dez'hepah | all [] any [] | 1362 | spawned
+1442 Seeking the Kor Gem | all [] any [] | -1654 | spawned
+1464 Fire Sapta | all [] any [1525] | -1526 | spawned
+1655 Bailor's Ore Shipment | all [] any [] | -1654 | spawned
+1681 Ironband's Compound | all [] any [1683, 1678, 1639] | 1680 | spawned
+1700 Grimand Elmore | all [] any [1782] | 1701 | spawned
+1703 Mathiel | all [] any [1782] | 1701 | spawned
+1704 Klockmort Spannerspan | all [] any [1782] | 1701 | spawned
+1714 Essence of the Exile | all [] any [] | -1712 | spawned
+1789 The Symbol of Life | all [] any [1779] | -1783 | spawned
+1790 The Symbol of Life | all [] any [1781] | -1786 | spawned
+1821 Agamand Heirlooms | all [] any [1498, 1819] | 1820 | spawned
+1838 Brutal Armor | all [] any [1824] | 1825 | spawned
+1839 Ula'elek and the Brutal Gauntlets | all [] any [1848] | 1838 | spawned
+1840 Orm Stonehoof and the Brutal Helm | all [] any [1848] | 1838 | spawned
+1841 Velora Nitely and the Brutal Legguards | all [] any [1848] | 1838 | spawned
+1954 The Infernal Orb | all [] any [] | 1953 | spawned
+2771 A Good Head On Your Shoulders | all [] any [2764] | 2760 | spawned
+2772 The World At Your Feet | all [] any [2764] | 2760 | spawned
+2773 The Mithril Kid | all [] any [2764] | 2760 | spawned
+2842 Chief Engineer Scooty | all [] any [] | -2841 | spawned
+2873 Stoley's Shipment | all [] any [] | 2872 | spawned
+2926 Gnogaine | all [] any [] | 2927 | spawned
+3450 An Easy Pickup | all [] any [] | 3448 | spawned
+3904 Milly's Harvest | all [] any [18] | 3903 | spawned
+4041 The Videre Elixir | all [] any [] | -3909 | spawned
+4785 Fine Gold Thread | all [] any [4783] | -4784 | spawned
+4841 Pacify the Centaur | all [] any [] | 4542 | spawned
+4964 The Completed Orb of Dar'Orahil | all [4976, -4962] any [] | 4962 | spawned
+4975 The Completed Orb of Noh'Orahil | all [4976, -4963] any [] | 4963 | spawned
+5211 Defenders of Darrowshire | all [] any [] | 5241 | spawned
+6341 The Bounty of Teldrassil | all [] any [] | 6344 | spawned
+6545 Warsong Runner Update | all [] any [] | -6543 | spawned
+6546 Warsong Outrider Update | all [] any [] | -6543 | spawned
+6547 Warsong Scout Update | all [] any [] | -6543 | spawned
+6563 The Essence of Aku'Mai | all [] any [] | 6562 | spawned
+6581 Warsong Saw Blades | all [] any [] | -6571 | spawned
+7164 Honored Amongst the Clan | all [] any [7163] | 7161 | spawned
+7563 Rage of Blood | all [] any [] | 7562 | spawned
+7622 The Balance of Light and Shadow | all [] any [] | 7621 | spawned
+7623 Lord Banehollow | all [] any [] | 7564 | spawned
+7634 Ancient Sinew Wrapped Lamina | all [] any [7632] | 7633 | no giver
+7635 A Proper String | all [] any [7632] | 7633 | no giver
+7636 Stave of the Ancients | all [] any [7632] | 7633 | spawned
+7645 Manna-Enriched Horse Feed | all [] any [] | -7643 | spawned
+8115 Control Five Bases | all [] any [] | 8114 | spawned
+8122 Take Five Bases | all [] any [] | 8121 | spawned
+8234 Sealed Azure Bag | all [] any [] | 8233 | spawned
+8251 Magic Dust | all [] any [] | 8250 | spawned
+8332 Dukes of the Council | all [] any [] | 8331 | spawned
+8341 Lords of the Council | all [] any [] | 8343 | spawned
+8348 Signet of the Dukes | all [] any [8332] | 8349 | spawned
+8352 Scepter of the Council | all [] any [8341] | 8351 | spawned
+8423 Warrior Kinship | all [] any [] | 8417 | spawned
+8508 Field Duty Papers | all [] any [] | -8507 | spawned
+8599 Love Song for Narain | all [] any [] | -8597 | spawned
+8732 Field Duty Papers | all [] any [] | -8731 | spawned
+9085 Shadows of Doom | all [] any [] | 9153 | no giver
+9419 Scouring the Desert | all [] any [] | 9415 | spawned
+90902 Rediscovering the Light | all [] any [364] | 98601 | spawned
+91209 Continue Your Training | all [] any [] | 91208 | spawned
+91743 Rascally Rodents | all [] any [92124] | 91741 | spawned
+91921 Return to Quinn (Again) | all [] any [] | 91920 | spawned
+92464 Elemental Unrest | all [] any [] | 92461 | spawned
+92465 Agitators | all [] any [] | 92464 | spawned
+92471 Aetheen of the Gales | all [] any [] | 92469 | spawned
+92514 Welcome to Shen'dar Village | all [] any [] | 92472 | spawned
+92551 Stolen Supplies | all [] any [92528] | 93318 | spawned
+93552 Harvesting Windstones | all [] any [92461] | 92462 | spawned
+93949 Bugged | all [] any [93948] | 92579 | spawned
+94373 Call of Earth | all [] any [] | 98581 | spawned
+94465 Call of Fire | all [] any [] | 94449 | spawned
+94497 Call of Water | all [] any [] | 94495 | spawned
+94499 Call of Water | all [] any [] | 94497 | spawned
+94500 Call of Water | all [] any [] | 94499 | spawned
+94501 Call of Water | all [] any [] | 94500 | spawned
+94502 Call of Water | all [] any [] | 94501 | spawned
+94503 Call of Water | all [] any [] | 94502 | no giver
+94505 Call of Water | all [] any [] | 94503 | spawned
+94913 Moonglade | all [] any [] | 94911 | spawned
+94947 Welcome to Azeroth | all [] any [] | 94946 | spawned
+95350 Welcome to Azeroth | all [] any [] | 95349 | spawned
+95495 The Hermit Tanner | all [] any [] | 95507 | spawned
+95998 The Great Outdoors | all [] any [] | 96627 | spawned
+96101 The Great Outdoors | all [] any [] | 96638 | spawned
+96392 Farsen's Watch | all [] any [] | 96408 | no giver
+96607 The Great Outdoors | all [] any [] | 96656 | spawned
+96608 The Great Outdoors | all [] any [] | 96628 | spawned
+96627 The Adventurer | all [] any [21] | 91752 | spawned
+97245 Call of Fire | all [] any [97244] | 97243 | spawned
+97249 Favorite Food | all [] any [] | 97246 | spawned
+97289 Unending Torment | all [] any [] | 97288 | spawned
+97290 Unending Torment | all [] any [] | 97289 | spawned
+97291 Unending Torment | all [] any [] | 97290 | spawned
+97292 Unending Torment | all [] any [] | 97291 | spawned
+98189 Return the Statuette | all [] any [] | 286 | spawned
+98190 A Friend of the Family | all [] any [] | 98189 | spawned
+98191 A Friend of the Family | all [] any [] | 98190 | spawned
+98298 Arugal's Folly | all [] any [] | 99 | spawned
+98322 Secure the Mountain | all [] any [] | 420 | spawned
+98341 The Great Windborne Cat Spirit | all [] any [] | 98340 | no giver
+98342 The Great Cat Spirit | all [] any [] | 98405 | spawned
+98362 To Thunder Bluff | all [] any [] | 98739 | spawned
+98405 The Great Cat Spirit | all [] any [] | 98340 | spawned
+98738 Blessings of the Great Windborne Cat Spirit | all [] any [] | 98404 | no giver
+98739 Blessings of the Great Cat Spirit | all [] any [] | 98342 | spawned
+98823 Earthen Echo | all [] any [] | 95664 | spawned
+99134 Discipline | all [] any [] | 383 | spawned
+99141 Patience | all [] any [] | 383 | spawned

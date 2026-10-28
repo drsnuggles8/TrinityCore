@@ -3,7 +3,55 @@
 What our world database lacks against live WoW Classic Forever, found 28 Oct 2026 by comparing QuestieDB's Forever data
 (the items' `questRewards`) with `world.quest_template`, and checking each quest on Wowhead Forever.
 
-## Fixed
+## Full audit, 28 Oct 2026 (afternoon)
+
+Every quest the world DB shares with the sources was compared (`contrib/launch-sim/questie/audit/`): 4614 with the
+Forever QuestieDB, 3938 with Wowhead Forever's quest list rows (Olo's page cache of 23 Oct; fixed and choice items with
+counts, levels, XP, money) and 1963 quest pages' XP multipliers, plus the XP Factoruide's collector saw on the beta.
+Wowhead's rows are the better reward source: QuestieDB's item data lacks most of Forever's new reward items.
+
+| Kind | Agree | Differ | Changed |
+|---|---|---|---|
+| Reward items (Wowhead) | 3904 | 34 | 25 (06) |
+| Quest level (Wowhead) | | 17 | 14 (07) |
+| XP at the quest's level | 2470 | 1001 | 70 (07), 912 need rounding (C++) |
+| Money (Wowhead) | 2472 | 26 + 8 | 18 (08) |
+| Givers / enders (Questie) | | 47 / 23 creature, 7 / 1 object | 20 / 12 / 5 / 1 (09) |
+| Pre-quests (Questie) | | 161 missing, 141 differ | 5 (09) |
+
+- `sql/custom/world/2026_10_28_06_world_forever_quest_rewards_wowhead.sql`: 24 quests get the Forever items Wowhead
+  lists (mostly a third choice next to the old ones; 202, 613, 682, 684, 709, 1012 turn their single fixed item into a
+  choice; 1203 moves Reedknot Ring into the choices next to Swamp Ring; 1101 gives the Quilboar Blaster instead of the
+  "Mage-Eye" Blunderbuss, and 1102 gets it too; 1371 gets its two Engineering schematics); 97275 gives 2 potions.
+- `2026_10_28_07_world_forever_quest_levels_xp.sql`: 14 quest levels (299, 472, 544, 556, 557, 614, 615, 620, 932, 952,
+  1132, 3792, 7802, 7803). 2026_10_26_25 had put them into `quest_classic_level.QuestLevel`, which the server never reads
+  (it takes the level from `quest_template_classic_level`). 66 dungeon quests get Forever's XP multiplier (1.75-2.675; the
+  collector saw the multiplied XP on all 21 it has). 100, 606, 635 and 745 get the XP difficulty that gives Wowhead's XP.
+- `2026_10_28_08_world_forever_quest_money.sql`: money for the six Forever quests added this morning (they paid nothing),
+  ten vanilla quests whose Forever level or money changed, and 0 for 234 and 752 (the profession book quests).
+- `2026_10_28_09_world_forever_quest_links_prequests.sql`: givers / enders for 26 quests that had none (Forever quests
+  such as 95494, 95495, 95507 at Vrang Wildgore, 96895 at Deathguard Terrence, 98823 at Bashana Runetotem; the wanted
+  posters for 549 and 567), and five pre-quests that Questie and a second source agree on (96393, 96897, 96898, 96899,
+  98435).
+
+**XP rounding (not data):** Forever rounds quest XP like retail (steps of 5 / 10 / 25 / 50 below 100 / 500 / 1000 /
+above): the collector's in-game XP matches the rounded value for 95 of 108 quests where ours differs only by that
+rounding (Kobold Camp Cleanup 335 -> 340, Princess Must Die! 780 -> 775). `Quest::XPValue` drops the rounding since the
+vanilla formula was ported; 912 quests are affected.
+
+**Left for review:**
+- Wild Hearts (429): Wowhead Forever shows no item reward (ours: Discolored Healing Potion and its recipe); Stealing
+  Supplies (1370): Wowhead's row gives 1 Silver Star instead of 200; Darkmoon Faire 7905 / 7926: 1 prize ticket against
+  our 5. Not changed: a removal or count drop is likelier a Wowhead gap than a Forever change.
+- 13 Forever quests whose in-game XP (collector) fits neither Wowhead nor us (91723, 91745, 96822, 96825, 96874, 96876,
+  97253, 98319, 99052, 99080, 99127, 99131, 99143); 96875 and 97914, added this morning, keep their XP (the collector's
+  figure contradicts Wowhead's row).
+- Pre-quests: `contrib/launch-sim/questie/prequests-review-2026-10-28.txt` (Questie only, no second source).
+- Giver differences where both sides have one (the Commendation Signet, Songflower and Windblossom quests are the same
+  givers in a different quest-id order; Membership Card Renewal, Seal of Ascension, Spellfire Robes similar).
+- Zul'Gurub's reputation quests: Questie says required level 60, ours (and Factoruide's Wowhead data) 58.
+
+## Fixed (morning pass)
 
 - `sql/custom/world/2026_10_28_02_world_profession_books.sql`: the three profession books (Mining for Dummies, Wild Harvest,
   Pelt Collecting for Beginners) as reward choices of each starting zone's quest (234, 458, 752, 4402, 6395, 91743; 93552
