@@ -1970,7 +1970,8 @@ public:
                              Optional<std::string> nameArg,
                              Optional<std::string> raceArg,
                              Optional<std::string> classArg,
-                             Optional<uint32>      genderArg)
+                             Optional<uint32>      genderArg,
+                             Optional<uint32>      autoLoginArg)
     {
         if (!Playerbot::Services::Initialized())
         {
@@ -1978,6 +1979,11 @@ public:
             return false;
         }
 
+        if (autoLoginArg && *autoLoginArg > 1)
+        {
+            handler->SendSysMessage("The optional auto-login flag must be 0 (keep offline) or 1 (login, default).");
+            return false;
+        }
         // ownerSession is optional. BotCharacterFactory::Create accepts a null
         // session (it spins up a temporary BotSession owned by the bot-pool
         // account to own the new character, and defaults name-validation locale
@@ -2019,6 +2025,12 @@ public:
         handler->PSendSysMessage("Created '%s' (guid %s) â race %u class %u gender %u â marked as V2 bot.",
                                  name.c_str(), r.guid.ToString().c_str(), race, cls, gender);
 
+        // A learning character's GUID must be configured before its first login, so no bot setup/free progression runs.
+        if (autoLoginArg.value_or(1) == 0)
+        {
+            handler->SendSysMessage("Kept offline. Configure its role before `.playerbot login <name>`.");
+            return true;
+        }
         // Auto-login so the GM sees the bot in-world without a second command.
         auto login = Playerbot::Services::SessionMgr().LoginBot(r.guid);
         if (!login.ok)
