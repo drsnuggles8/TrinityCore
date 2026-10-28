@@ -33,6 +33,7 @@
 #include "Util/ConfigReader.h"  // full type for Services::Config() (detour pull-gate knobs)
 #include "Travel/QuestHubDatabase.h"
 #include "Fleet/TownGatherSource.h"
+#include "Fleet/LaunchRoutes.h"   // LaunchRoutes::kNoRoute (guide followers skip far vendor trips)
 #include "Bot/World/ZonePicker.h"
 #include "MaintainHelpers.h"       // ChunkedWalkToward (idle watch)
 #include "Travel/RepairVendorIndex.h"
@@ -17297,6 +17298,16 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                 // below get a turn (mirrors idle:travel_to_hub / walk_to_taxi).
                 if (vendor && ai.goal_blacklisted(vendor->x, vendor->y, s.published_at_ms()))
                     vendor = nullptr;
+                // A launch guide follower does not leave its route to sell: it drops the cheapest grey when the bags are full
+                // (loot_corpse / accept_quest, JunkDrop.h) and sells when its route passes a vendor (40 y). The trip took a
+                // racer 20 minutes of fights on the way back to Anvilmar (racer45 build45: idle-watch strikes on
+                // travel_to_vendor 0 -> 5).
+                if (vendor && ai.launch().active && ai.launch().route != V2::Fleet::LaunchRoutes::kNoRoute)
+                {
+                    const float tdx = vendor->x - bx, tdy = vendor->y - by;
+                    if (tdx * tdx + tdy * tdy > 40.0f * 40.0f)
+                        vendor = nullptr;
+                }
                 if (vendor && ai.check_anchor_wedge("idle:travel_to_vendor",
                         s.path_blocked_count(), s.published_at_ms()))
                 {
