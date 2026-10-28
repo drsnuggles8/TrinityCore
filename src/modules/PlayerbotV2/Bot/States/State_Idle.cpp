@@ -17967,7 +17967,8 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
             const uint32 now_ms = s.published_at_ms();
             if (!ai.objective_blacklisted(s.current_quest_id(), obj.id, now_ms))
             {
-                constexpr float kInteractSq = 25.f;        // 5²
+                constexpr float kInteractSq = 5.5f * 5.5f;   // planar
+                constexpr float kInteractDz = 4.5f;
                 BotSnapshot::NearbyObject const* best_far_go = nullptr;
                 float best_far_distSq = 1e9f;
                 for (auto const& go : s.raw().world_objects.nearby_objects)
@@ -17980,20 +17981,22 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                             for (uint32 item_id : *drops)
                                 if (item_id == uint32(obj.object_id)) { match = true; break; }
                     if (!match) continue;
+                    // Used a moment ago (looted, or the use failed) or found out of reach: the next object.
+                    if (ai.action_recently_tried(BotAI::ActionKind::QuestUseGo, go.guid.GetCounter(), now_ms))
+                        continue;
                     const float dx = go.x - bx, dy = go.y - by, dz = go.z - bz;
                     const float dsq = dx*dx + dy*dy + dz*dz;
-                    if (dsq <= kInteractSq)
+                    // In reach on the plane, with some height either way: a mushroom on a slope or a windstone on its plinth
+                    // stood 5.5 y off in 3D after the walk and was never used (crowd43: 3 uses in 45 minutes).
+                    if (dx*dx + dy*dy <= kInteractSq && std::fabs(dz) <= kInteractDz)
                     {
-                        // Per-GO retry cooldown (5 min) — most-frequent
+                        // Per-GO retry cooldown (5 min, checked above) — most-frequent
                         // wedge in the watchdog log (1983 fires/session).
                         // GO use can fail silently (already looted by
                         // another player, LOS, condition mismatch); the
                         // GO stays in nearby_objects with the matching
                         // drop list, so the rule re-fires every tick.
                         const uint64 go_low = go.guid.GetCounter();
-                        if (ai.action_recently_tried(BotAI::ActionKind::QuestUseGo,
-                                                     go_low, now_ms))
-                            continue;
                         emit.use_game_object(go.guid);
                         ai.note_action_retry(BotAI::ActionKind::QuestUseGo,
                                              go_low, now_ms);
@@ -18020,11 +18023,21 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                     // tick. Same scaling as wander_to_node. Dedup walks per
                     // GO so repeated re-paths (blocked / LOS) don't spam.
                     const uint64 go_low = best_far_go->guid.GetCounter();
+                    const float far_dist = std::sqrt(best_far_distSq);
+                    if (!ai.action_recently_tried(BotAI::ActionKind::WanderToNode, go_low, now_ms) &&
+                        ai.go_walk_stalled(go_low, far_dist))
+                    {
+                        // The last walk did not get closer: out of reach from here; the next object gets a turn.
+                        ai.note_action_retry(BotAI::ActionKind::QuestUseGo, go_low, now_ms);
+                        ai.set_last_rule_fired("idle:quest_loot_go_unreachable");
+                        return true;
+                    }
                     if (!ai.action_recently_tried(BotAI::ActionKind::WanderToNode,
                                                   go_low, now_ms))
                     {
-                        const float dist = std::sqrt(best_far_distSq);
-                        const float scale = (dist > 3.5f) ? (dist - 3.5f) / dist : 0.f;
+                        const float dist = far_dist;
+                        // To 1.5 y: stopping at 3.5 y left the bot outside reach once the path ended short.
+                        const float scale = (dist > 1.5f) ? (dist - 1.5f) / dist : 0.f;
                         const float tx = bx + (best_far_go->x - bx) * scale;
                         const float ty = by + (best_far_go->y - by) * scale;
                         // Threat look-ahead before walking to a quest

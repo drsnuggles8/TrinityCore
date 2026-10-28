@@ -2711,6 +2711,12 @@ public:
                 // a second one); with the 5 s bot-side capture channel the first emit only STARTS the capture, and the 5 min
                 // lockout meant it never came back to finish it: no node was ever captured (AB test 2026-10-08, score 0/2000).
                 return 3u * 1000u;
+            case ActionKind::WanderToNode:
+                // One walk order per node or quest object. With the 5 min default a walk cut short (a fight on the way, the path
+                // ending 5.5 y off) was not resumed for minutes (crowd43: 3 quest-object uses in 45 minutes, the Shadowglen
+                // mushrooms and the Zephras windstones walked to from the same spots again and again). 15 s lets a walk resume;
+                // quest_loot_go skips an object a walk does not get closer to (go_walk_stalled).
+                return 15u * 1000u;
             case ActionKind::BgVehicleFire:
                 // Siege vehicle ramming a gate fires continuously; the real
                 // gate is the server-side seat-spell cooldown. 4s just dedups
@@ -2935,6 +2941,22 @@ public:
     void clear_action_retry(ActionKind k, uint64 target_low)
     {
         action_retry_until_ms_.erase(action_retry_key(k, target_low));
+    }
+    // A repeated walk toward the same quest object that starts no more than 2 y closer than the last one: the object is out of
+    // reach from here (on a ledge, in a trunk, across water). The first call for an object records its distance.
+    [[nodiscard]] bool go_walk_stalled(uint64 go_low, float dist)
+    {
+        auto it = go_walk_last_dist_.find(go_low);
+        if (it == go_walk_last_dist_.end())
+        {
+            if (go_walk_last_dist_.size() >= 32) go_walk_last_dist_.clear();
+            go_walk_last_dist_[go_low] = dist;
+            return false;
+        }
+        bool const stalled = dist > it->second - 2.0f;
+        if (stalled) go_walk_last_dist_.erase(it);
+        else it->second = dist;
+        return stalled;
     }
     bool action_recently_tried(ActionKind k, uint64 target_low, uint32 now_ms) const
     {
@@ -4902,6 +4924,8 @@ private:
     std::unordered_map<uint64, LootClock> loot_first_seen_;
     // Per-corpse WALK clock — see loot_corpse_walk_overdue.
     std::unordered_map<uint64, LootClock> loot_walk_first_ms_;
+    // Last walk distance per quest object — see go_walk_stalled.
+    std::unordered_map<uint64, float> go_walk_last_dist_;
     // Has the corpse's clock run `deadline_ms`? Only the time the rule keeps checking counts: a check more than 3 s after
     // the last one means the bot was busy elsewhere (a fight, a pull on the way), and the clock skips that gap.
     [[nodiscard]] static bool LootClockOverdue(std::unordered_map<uint64, LootClock>& clocks, uint64 corpse_low,
