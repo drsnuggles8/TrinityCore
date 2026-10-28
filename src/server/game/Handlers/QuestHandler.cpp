@@ -176,16 +176,46 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPackets::Quest::QuestG
         }
     }
 
+    auto launchGossip = [&](WorldObject* worldObject)
+    {
+        _player->PlayerTalkClass->ClearMenus();
+        _player->PrepareGossipMenu(worldObject, _player->GetGossipMenuForSource(worldObject), true);
+        _player->SendPreparedGossip(worldObject);
+        _player->PlayerTalkClass->GetInteractionData().IsLaunchedByQuest = true;
+    };
+
+    // Forever: a quest giver with more quests for the player shows its list again after an accept. Closing it left the
+    // client on a stale quest list whose next accept went nowhere until the window was closed and the NPC clicked again.
+    auto offersMoreQuests = [&]()
+    {
+        QuestRelationResult relations, involved;
+        if (Creature* creature = object->ToCreature())
+        {
+            relations = sObjectMgr->GetCreatureQuestRelations(creature->GetEntry());
+            involved = sObjectMgr->GetCreatureQuestInvolvedRelations(creature->GetEntry());
+        }
+        else if (GameObject* go = object->ToGameObject())
+        {
+            relations = sObjectMgr->GetGOQuestRelations(go->GetEntry());
+            involved = sObjectMgr->GetGOQuestInvolvedRelations(go->GetEntry());
+        }
+        else
+            return false;
+
+        for (uint32 questId : involved)
+            if (_player->GetQuestStatus(questId) == QUEST_STATUS_COMPLETE)
+                return true;
+
+        for (uint32 questId : relations)
+            if (Quest const* other = sObjectMgr->GetQuestTemplate(questId))
+                if (_player->GetQuestStatus(questId) == QUEST_STATUS_NONE && _player->CanTakeQuest(other, false))
+                    return true;
+
+        return false;
+    };
+
     if (quest->HasFlag(QUEST_FLAGS_LAUNCH_GOSSIP_ACCEPT) && !quest->HasFlagEx(QUEST_FLAGS_EX_SUPPRESS_GOSSIP_ACCEPT))
     {
-        auto launchGossip = [&](WorldObject* worldObject)
-        {
-            _player->PlayerTalkClass->ClearMenus();
-            _player->PrepareGossipMenu(worldObject, _player->GetGossipMenuForSource(worldObject), true);
-            _player->SendPreparedGossip(worldObject);
-            _player->PlayerTalkClass->GetInteractionData().IsLaunchedByQuest = true;
-        };
-
         if (Creature* creature = object->ToCreature())
             launchGossip(creature);
         else if (GameObject* go = object->ToGameObject())
@@ -194,6 +224,8 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPackets::Quest::QuestG
     // do not close gossip if quest accept script started a new interaction
     else if (!_player->PlayerTalkClass->GetInteractionData().IsInteractingWith(object->GetGUID(), PlayerInteractionType::QuestGiver))
         _player->PlayerTalkClass->GetInteractionData().IsLaunchedByQuest = true;
+    else if (offersMoreQuests())
+        launchGossip(object->ToWorldObject());
     else
         _player->PlayerTalkClass->SendCloseGossip();
 }
