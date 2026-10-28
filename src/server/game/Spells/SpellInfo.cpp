@@ -4193,6 +4193,12 @@ int32 SpellInfo::GetMaxDuration() const
 
 uint32 SpellInfo::CalcCastTime(Spell* spell /*= nullptr*/) const
 {
+    // WoW Forever: Auto Shot and wand Shoot wind up for 0.5 s before every shot (Blizzard, 23 Sep 2026: "the 0.5-second cast time that
+    // precedes a Hunter's auto-shot or the use of a wand"); our client data has them instant. Not hasted. Spell::update keeps the
+    // caster standing still for it, Spell::SendSpellCooldown keeps it inside the ranged swing.
+    if (IsAutoRepeatRangedSpell())
+        return 500;
+
     int32 castTime = 0;
     if (CastTimeEntry)
         castTime = std::max(CastTimeEntry->Base, CastTimeEntry->Minimum);
