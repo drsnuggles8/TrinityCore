@@ -19612,6 +19612,12 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                 {
                     for (auto const& u : s.raw().combat.nearby_enemies)
                         if (uint32(target_id) == u.entry) { any_match = true; break; }
+                    // An item that comes from objects (windstones, mushrooms, Felix's box): an object in sight that yields it is a
+                    // match too. Without it this walk marched the bot to the POI's middle and away from the object
+                    // idle:quest_loot_go was walking to (zones-build46: 604 object walks, 1 use).
+                    if (!any_match && s.current_objective().type == /*ITEM*/ 1)
+                        for (auto const& o : s.raw().world_objects.nearby_objects)
+                            if (QuestItemDropsFromGameObject(uint32(target_id), o.entry)) { any_match = true; break; }
                 }
                 else if (s.current_objective().type == /*TALKTO*/ 3)
                 {
