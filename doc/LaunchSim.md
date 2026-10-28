@@ -3,10 +3,17 @@
 <!-- SUMMARY: keep this block current. -->
 ## Summary
 
-_State 27 Oct 2026, 21:45. The server runs build38 (client 1.60.1.70634) with a fresh roster of 616 bots, prepared but
-**not armed** (Olo is testing logins: `.playerbot launch arm` starts the crowd at the next login). Measured on the home
-server (Rocky 10, rootless Podman, 32 GB host; the user slice is capped at MemoryHigh 3 GB / MemoryMax 4 GB for every
-container of the user)._
+_State 28 Oct 2026, 10:00. `olo` = `launch-sim` = 0954124f (build48, running before build49 started). The side branch
+`fork-picks-1028` holds 37 more commits (fork fixes, LatvjuAvs's bot fixes, Forever's kill XP for lower mobs, launch bags
+and money, the guide's optional hand-ins), built and benched as build49. Measured on the home server (Rocky 10, rootless
+Podman, 32 GB host; the user slice is capped at MemoryHigh 3 GB / MemoryMax 4 GB for every container of the user)._
+
+- **28 Oct, the night's work:** racers on the seeded bench from 4.32 to ~5.0 average level at 45 minutes (Racer pace);
+  A New Threat completes (kill objectives head for their own creature; Olo's opportunistic trogg steps are not route
+  steps); loot clocks pause in fights, loot and quest walks no longer pull against each other, quest objects are walked to
+  and used, criteria-tree cast objectives work (Reading the Ley Lines 0 -> 8-12 turned in); full bags drop junk instead of
+  stalling; the 27 Oct upstream batch merged; the census crowd measured (crowd43); a roster seed and bench scripts
+  (`racer45.sh`, `crowd.sh`, `zones.sh`, `pmp.sh`).
 
 - **What works:** a launch crowd in all four Alliance starting zones, sized from the Coldridge count by the end-of-beta
   census (200 in Coldridge gives 186 humans in Northshire, 112 night elves in Shadowglen, 118 Skyborne on Zephras Isle),
@@ -196,6 +203,7 @@ at 28.2 (Olo-Route-Findings, `validate`).
 | 28 Oct | build43, roster seed 1 (2 warlocks, warrior, rogue, 2 shamans) | 3.43 / 4.36 / 5.14 | 33 | the 27 Oct upstream merge; a grey is dropped for a quest's starting item; host busy with CI builds (the worldserver's CPU 16-18% instead of 8-9%). Loot walk give-ups 8, opener give-ups 12, idle-watch strikes 5. The baseline for later builds (same seed) |
 | 28 Oct | build44, seed 1 | 3.50 / 4.34 / 4.90 | 29 | quest objects: planar reach, walk lockout 15 s (the shared WanderToNode lockout: racers detoured to ore veins, idle-watch strikes 5 -> 21; split off in build45) |
 | 28 Oct | build45, seed 1 | 3.56 / 4.36 / 4.93 | 27 | cast-at-focus objectives; QuestGoWalk lockout. Strikes 16, five of them racers walking back to Anvilmar's vendor with one free slot (build47: guide followers sell only within 40 y) |
+| 28 Oct | build47, seed 1 | 3.48 / 4.41 / 4.97 | 25 | melee bots face their victim and chase again; quest-object walks hold; guide followers sell only within 40 y (still 4 strikes: the full-bag town walk took over, fixed on fork-picks-1028). 170 complete for all six, none turned in: the guide's optional hand-in was not imported (fixed on fork-picks-1028) |
 | 28 Oct | build42 | 3.36 / 4.11 / 4.73 | 28 | the far quest walk no longer interrupts a loot walk (loot walk give-ups 49 -> 6, idle-watch strikes 36 -> 10); another class mix (three shamans and a hunter, build41 none): not comparable, hence the roster seed |
 
 Brakes found in build40's run: Dwarven Outfitters (8 Tough Wolf Meat) took 10-16 minutes (42 wolf corpses given up: the
@@ -282,7 +290,18 @@ Fixed in our fork; candidates for upstream (forever-bots) once Olo says so.
 
 - **Racer pace:** see [Racer pace](#racer-pace) for the runs. Real racers skip "A New Threat" (170) and "A Refugee's
   Quandary" (3361, Felix's box, chest and bucket) as noob traps (Olo); Olo's route takes 170 only opportunistically and
-  the racers now do too.
+  the racers now do too. Quests per racer (~4-5 in 45 minutes against 8+ wanted): kill speed per class at levels 2-4
+  (about 1.6 kills a minute against 3-4 for a player) is the next brake; run-to-run spread on the same seed is unmeasured.
+- **Quest objects out of reach:** Harvesting Windstones (Zephras) stays at 0: most of its 29 windstones sit on rocks the
+  bots cannot path onto (and lock 4088 needs skill 42; fork-picks-1028 drops the lock). A Refugee's Quandary (3361) and
+  Iverron's Antidote (3521) also never finish. Counting objects as targets in idle:quest_path kept the bots at the
+  windstones and starved Reading the Ley Lines (reverted 9056f360).
+- **Hunters at range:** in Shadowglen and Zephras hunters still give up openers at 27-30 y with Auto Shot running
+  (fork-picks-1028 retargets a running Auto Shot, LatvjuAvs 5610fd6b); Falling With Style (92474) is a criteria tree that
+  is no spell cast: no rule for it.
+- **Decisions taken 28 Oct (Olo):** LatvjuAvs's bot fixes taken (cherry-picks and ports, not the branch); Forever kill XP
+  for lower mobs (mob base, forever-bugs#138) taken; Trixx34 master and Sakhwoow forever-bots-merge reviewed (two SQL
+  fixes taken, the rest is infrastructure, localisation or already in).
 - **Explorer persona off** until the real routes (Rothie's, mafsen's LevelForge guides) can be imported; the stop,
   give-up, spirit-healer and route-check machinery stays (`~/forever/routecheck.sh` checks every leg in 15 s).
 - **Questie review list** (contrib/launch-sim/questie/prequests-review-2026-10-27.txt): pre-quests not taken over,
