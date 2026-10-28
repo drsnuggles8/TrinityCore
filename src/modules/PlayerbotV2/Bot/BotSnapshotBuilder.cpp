@@ -487,6 +487,8 @@ std::shared_mutex                          g_quest_immutable_mtx;
 // Builds the immutable part for one quest. Pure function of quest_id +
 // (for talk_credit only) the bot's faction template, which is faction- not
 // bot-identity-dependent — see note above.
+static bool CriteriaTreeCastSpell(uint32 tree_id, uint32& spell, uint32& focus);   // below, with the spell focus index
+
 QuestImmutable BuildQuestImmutable(uint32 qid, Player const* p)
 {
     QuestImmutable im{};

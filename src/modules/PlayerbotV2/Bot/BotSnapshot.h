@@ -175,6 +175,12 @@ struct QuestObjectiveEntry
     // builder synthesizes this objective (object_id = the StartItem entry, POI = the
     // quest's QuestPOI centroid) and idle:quest_use_item_on_target executes it.
     bool use_start_item = false;
+    // CRITERIA_TREE objective (type 14) whose tree asks for a spell cast the bot knows (Zephras' "Reading the Ley Lines":
+    // cast Read Ley Line at a ley line): the spell and the spell focus it needs (0 = anywhere). idle:quest_cast_at_focus
+    // walks to the nearest focus object and casts. 0 = not such an objective (crowd43: 86 Skyborne held 92597, none
+    // could finish it).
+    uint32 cast_spell = 0;
+    uint32 cast_focus = 0;
 };
 
 struct QuestEntry
