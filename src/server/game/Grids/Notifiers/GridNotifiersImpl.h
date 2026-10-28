@@ -40,6 +40,10 @@ void Trinity::MessageDistDeliverer<PacketSender>::Visit(PlayerMapType& m) const
     for (PlayerMapType::iterator iter = m.begin(); iter != m.end(); ++iter)
     {
         Player* target = iter->GetSource();
+        // A bot gets no packets: skip it before the distance and the HaveAtClient look-ups (every spline and spell packet
+        // in a crowded start zone visited every bot in range, ~18% of the 5000-bot profile, 28 Oct).
+        if (!target->HasSharedVision() && IsClientlessObserver(*target))
+            continue;
         if (!target->InSamePhase(*i_phaseShift))
             continue;
 
@@ -111,6 +115,8 @@ void Trinity::MessageDistDelivererToHostile<PacketSender>::Visit(PlayerMapType& 
     for (PlayerMapType::iterator iter = m.begin(); iter != m.end(); ++iter)
     {
         Player* target = iter->GetSource();
+        if (!target->HasSharedVision() && IsClientlessObserver(*target))
+            continue;
         if (!target->InSamePhase(*i_phaseShift))
             continue;
 
