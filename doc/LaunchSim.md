@@ -201,6 +201,11 @@ in the home server's worldserver.env) switches it on: with N players in Dun Moro
 least 10 s. Set it to 0 to practise against normal respawn timers. Without it 260 bots shared a few dozen wolves and boars
 and the average level after 45 minutes was 2.8.
 
+**Off since 28 Oct (Olo):** with 120 bots in Coldridge the 180 s timers fell to ~15 s: mobs came back while players still
+fought at the spot, the named trolls and Felix's corner were impossible, and there were more mobs than a launch crowd
+leaves. `TC_RESPAWN_DYNAMIC_MODE=0` in the live worldserver.env: every creature keeps its own timer (quest objects such as
+Felix's box have 10 s timers anyway). The bots level more slowly for it; that is the launch pace to practise against.
+
 ## Racer pace
 
 Six racers alone in Coldridge (`~/forever/racer45.sh`: `PERSONA_WEIGHTS racer:1`, the other zones at 0), 45 minutes, on
@@ -252,6 +257,9 @@ Measurements go here, each with the build, bot count and what changed.
 | 27 Oct | build14 (bf5ca456) | 300 (254 online at 39 min) | 1675 MB | 1720-1850 MB | 20 ms floor | 16-26% | module tick 2.3-2.9 ms (snapshot build 1.4-1.8 ms) at 262 bots; 495 quests turned in, 323 "inv?" (193 granted), 8 rerolls; levels at 39 min L1=41 L2=98 L3=113 L4=2 (too slow: death hotspots, fixed in 0df87616) |
 | 27 Oct | build14 (bf5ca456) | 500 (370 online at 23 min) | | 1850-1890 MB | 20 ms floor | 26-28% | ~0.5 MB per online bot; 533 quests turned in at 23 min |
 | 27 Oct | build18 (018aa1e1) | 300 (279 online at 60 min) | | 1790-1870 MB | 20 ms floor | 20-32% | dynamic respawn on, all behaviour fixes: levels at 15 min L1=88 L2=75 L3=43; 30 min L1=31 L2=83 L3=75 L4=39; 45 min L4=90 L5=7; 60 min L1=31 L2=57 L3=65 L4=97 L5=29; 667 quests, 844 "inv?" (440 granted), 7 rerolls |
+| 28 Oct | build58 (24026563be) | 5000 (4980 online, fast arrival) | | 3.5 GB | ~53 ms (42-68) | | module 18 ms; snapshot build split over the workers 22 -> 9 ms; still in the profile: bot relocation (30%, every moving bot visited 533 y), the serial OnWorldUpdate loops |
+| 28 Oct | build59 (6d2f744c83) | 5000 (4980 online, fast arrival) | | 3.6 GB | ~35 ms (33-41) | | a moving bot updates only the map's real players and has creatures within 50 y check it for aggro; moving creatures check bots only within 50 y; no session lookups per bot per tick. Profile now led by the snapshot build on the workers |
+| 28 Oct | build60 (86592555f6) | 615 crowd (483 online at 12 min) | | 2.1 GB | 1-3 ms | 41-62% | no dynamic respawn: at 12 min L1=307 L2=176, 711 quests; standing at the spawn 6% / 5% / 2% at 5 / 10 / 12 min, standing still anywhere ~30% (mostly between quest-walk steps); troll whelp kills spread over 12 cells of 40 y across the camp |
 
 The bots themselves are cheap; the worldserver's own data is what fills the memory. Startup profile (RSS sampled every
 0.2 s against the timestamped Server.log, `startup-mem.sh` on the home server), biggest steps with the defaults:
