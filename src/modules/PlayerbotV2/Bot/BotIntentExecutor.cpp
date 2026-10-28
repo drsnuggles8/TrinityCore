@@ -3,6 +3,7 @@
 // shape is module-internal; the API itself stays POD.
 
 #include "BotIntent.h"
+#include "../Fleet/TrainingCapture.h"
 #include "BotAI.h"
 #include "BotRegistry.h"
 #include "FlightWait.h"
@@ -942,6 +943,7 @@ size_t V2::Module::DrainIntents()
                                           static_cast<uint32>(intent.body.index()),
                                           static_cast<uint8>(r),
                                           ihx, ihy, ihz);
+                V2::Fleet::TrainingCapture::Executed(p, intent, static_cast<uint8>(r));
             }
             catch (...)
             {
@@ -953,6 +955,7 @@ size_t V2::Module::DrainIntents()
                                           GameTime::GetGameTimeMS(),
                                           static_cast<uint32>(intent.body.index()),
                                           static_cast<uint8>(Result::Other));
+                V2::Fleet::TrainingCapture::Executed(p, intent, static_cast<uint8>(Result::Other), true);
             }
             {
                 const uint32 intent_us = static_cast<uint32>(std::chrono::duration_cast<std::chrono::microseconds>(

@@ -64,6 +64,7 @@
 #include "Group.h"
 #include "BotGroupRules.h"
 #include "Fleet/TrainingPlayer.h"
+#include "Fleet/TrainingCapture.h"
 #include "GitRevision.h"
 #include <filesystem>
 #include <fstream>
@@ -1041,6 +1042,7 @@ void Module::Shutdown()
     for (int pass = 0; pass < 10 && Services::SessionMgr().active_count() > 0; ++pass)
         Services::SessionMgr().Update(0);
 
+    Fleet::TrainingCapture::Shutdown();
     // Stop threads first; then tear down state.
     Services::Shutdown();
 
@@ -2021,6 +2023,7 @@ void Module::OnWorldUpdate(std::chrono::milliseconds diff)
             UpdateCastSpeed(p, *snap, cast_pacing_cfg);
             UpdatePvpFloor(id, p, *snap, pvp_floor_ms, total);
 
+            Fleet::TrainingCapture::Observation(p, *snap);
             pub.publish(id, std::move(snap));
             Services::Perf().record_snapshot_publish();
         }
@@ -2604,6 +2607,7 @@ void Module::OnPlayerLogin(Player* p)
     if (!initialized_ || !p) return;
     const BotId id = p->GetGUID().GetCounter();
     // A training player's actual login starts/resumes the crowd even though its session is headless.
+    Fleet::TrainingCapture::Login(p);
     if (Fleet::IsPlayerForPopulation(p))
         Fleet::LaunchSim::Instance().OnRealPlayerLogin(p);
 
@@ -2883,6 +2887,7 @@ void Module::OnPlayerLogout(Player* p)
 {
     if (!initialized_ || !p) return;
     const BotId id = p->GetGUID().GetCounter();
+    Fleet::TrainingCapture::Logout(p);
     if (Fleet::IsPlayerForPopulation(p))
         Fleet::LaunchSim::Instance().OnRealPlayerLogout(p);
     if (WorldSession const* sess = p->GetSession(); sess && !sess->IsBot())
@@ -3035,6 +3040,7 @@ void LogPlayerDeath(Player* vp, Unit* killer, BotAI const* vai)
 void Module::OnDeath(Unit* victim, Unit* killer)
 {
     if (!initialized_ || !victim) return;
+    if (Player* player = victim->ToPlayer()) Fleet::TrainingCapture::Death(player);
 
     // A bot died: stamp the real death time (world thread, the same thread
     // OrderRelease latches on). BotAI::tick's death edge, which can lag the
