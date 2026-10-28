@@ -445,11 +445,13 @@ uint32 Quest::XPValue(Player const* player, uint32 contentTuningId, uint32 xpDif
             xp = xp * contentTuning->QuestXpMultiplier;
 
         // Classic 1.60 (vanilla, VMaNGOS Quest::XPValue): full XP up to 5 levels above the quest, then 80 / 60 / 40 / 20%, then
-        // 10%, rounded up (retail started cutting 2 levels above the quest and rounded to steps of 5 / 10 / 50)
+        // 10% (retail started cutting 2 levels above the quest). Rounded to steps of 5 / 10 / 25 / 50 as retail does: the XP the
+        // Forever beta paid matched the rounded value for 95 of 108 quests where they differ (Kobold Camp Cleanup 335 -> 340,
+        // doc/ForeverQuestGaps.md).
         (void)expansion;
         int32 levelsAbove = int32(player->GetLevel()) - int32(questLevel);
         float factor = levelsAbove <= 5 ? 1.0f : levelsAbove == 6 ? 0.8f : levelsAbove == 7 ? 0.6f : levelsAbove == 8 ? 0.4f : levelsAbove == 9 ? 0.2f : 0.1f;
-        xp = uint32(std::ceil(xp * xpMultiplier * factor));
+        xp = RoundXPValue(uint32(std::lround(xp * xpMultiplier * factor)));
 
         if (sWorld->getIntConfig(CONFIG_MIN_QUEST_SCALED_XP_RATIO))
         {
