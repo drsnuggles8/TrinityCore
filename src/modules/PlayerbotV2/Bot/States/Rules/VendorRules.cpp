@@ -858,6 +858,17 @@ bool CapitalBagRunGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView co
     // the 2026-06-21 disable reason (the ~1000y cross-zone walk wedged at Durotar).
     // The "travel TO a far capital to bank" case needs flight routing (separate
     // work) and is excluded here. 800y ~ a capital's city footprint from center.
+    // Inside the city's own zone as well: Northshire Abbey is ~770y from the Stormwind entry and Kharanos ~740y from
+    // Ironforge's, so bots with full bags walked straight at the city over the mountains between and wedged for 15+
+    // minutes (live 28 Oct: humans at z 130-168 above Northshire, rule idle:capital_bag_run).
+    switch (s.zone_id())
+    {
+        case 1519: case 1537: case 1657: case 3557:   // Stormwind City, Ironforge, Darnassus, The Exodar
+        case 1637: case 1638: case 1497: case 3487:   // Orgrimmar, Thunder Bluff, Undercity, Silvermoon City
+            break;
+        default:
+            return false;
+    }
     constexpr float kInCityMaxSq = 800.0f * 800.0f;
     return dsq > (60.0f * 60.0f) && dsq <= kInCityMaxSq;
 }
