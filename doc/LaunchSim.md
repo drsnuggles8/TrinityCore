@@ -193,6 +193,7 @@ at 28.2 (Olo-Route-Findings, `validate`).
 | 27 Oct | build38 (q170, 25 min) | 3.6 at 25 min | 17 | baseline: 170's Rockjaw objective 0-4 of 6, Burly 6/6 |
 | 27 Oct | build40 | 3.15 / 3.83 / 4.32 | 21 | kill objectives in a shared POI polygon head for their own creature; Olo's opportunistic trogg steps no longer imported as route steps; loot walk clock paused in fights |
 | 28 Oct | build41 | 3.51 / 4.47 / 5.11 | 31 (170 completed by 4 of 6) | in-range loot clock paused in fights; open-world loot walks do not wait for idle mobs; given-up mobs stay given up, stop_attack ends Auto Shot; guide followers train only near their route; no hub walks under level 6. Loot give-ups in range 10 -> 0 |
+| 28 Oct | build43, roster seed 1 (2 warlocks, warrior, rogue, 2 shamans) | 3.43 / 4.36 / 5.14 | 33 | the 27 Oct upstream merge; a grey is dropped for a quest's starting item; host busy with CI builds (the worldserver's CPU 16-18% instead of 8-9%). Loot walk give-ups 8, opener give-ups 12, idle-watch strikes 5. The baseline for later builds (same seed) |
 | 28 Oct | build42 | 3.36 / 4.11 / 4.73 | 28 | the far quest walk no longer interrupts a loot walk (loot walk give-ups 49 -> 6, idle-watch strikes 36 -> 10); another class mix (three shamans and a hunter, build41 none): not comparable, hence the roster seed |
 
 Brakes found in build40's run: Dwarven Outfitters (8 Tough Wolf Meat) took 10-16 minutes (42 wolf corpses given up: the
