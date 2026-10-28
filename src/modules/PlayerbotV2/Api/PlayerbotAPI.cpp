@@ -2950,6 +2950,18 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
         return Result::InvalidTarget;
     }
 
+    // Do not chase a stale target left on the same continent after a teleport: a player cannot select a target beyond sight.
+    // Ported from Karrz1's upstream bot-module update (9df935eed5c).
+    if (!p_->IsWithinDistInMap(tu, p_->GetMap()->GetVisibilityRange()))
+    {
+        if (p_->GetVictim() == tu)
+        {
+            p_->AttackStop();
+            p_->SetSelection(ObjectGuid::Empty);
+        }
+        return Result::InvalidTarget;
+    }
+
     V2::KillCycle::Engage(p_->GetGUID().GetCounter(), target.GetCounter(), tu->GetEntry(), p_->GetDistance(tu), GameTime::GetGameTimeMS());
 
     // A mounted player cannot attack (Unit::Attack returns false), so a bot riding past an enemy emitted start_attack every
