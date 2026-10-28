@@ -648,6 +648,10 @@ std::string LaunchSim::Report() const
     std::map<uint32, uint32> levels;
     uint64 xp_levels_x100 = 0;
     std::map<std::string, uint32> rules;
+    // Standing still right now (not moving, fighting, casting or dead), and of those the ones at their race's spawn point:
+    // what a player sees as "idle bots" (Olo: ~5% at the spawn after 5 minutes).
+    uint32 still = 0, still_spawn = 0;
+    std::map<std::string, uint32> still_rules;
     for (Entry const& e : roster_)
     {
         if (e.state != BotState::Online)
@@ -662,9 +666,18 @@ std::string LaunchSim::Report() const
         quests += uint32(p->GetRewardedQuestCount());
         uint32 const need = p->GetXPForNextLevel();
         xp_levels_x100 += uint64(p->GetLevel()) * 100u + (need ? uint64(p->GetXP()) * 100u / need : 0u);
+        char const* rule = nullptr;
         if (BotAI* ai = Services::Registry().ai(e.guid_low))
-            if (char const* r = ai->last_rule_fired())
-                ++rules[r];
+            if ((rule = ai->last_rule_fired()))
+                ++rules[rule];
+        if (p->IsAlive() && !p->isMoving() && !p->IsInCombat() && !p->IsNonMeleeSpellCast(false))
+        {
+            ++still;
+            ++still_rules[rule ? rule : "-"];
+            if (PlayerInfo const* info = sObjectMgr->GetPlayerInfo(p->GetRace(), p->GetClass()))
+                if (info->createPosition.Loc.GetMapId() == p->GetMapId() && p->GetExactDist2d(&info->createPosition.Loc) < 30.f)
+                    ++still_spawn;
+        }
     }
     std::ostringstream o;
     o << "T0+" << (phase_ == Phase::Running ? (GameTime::GetGameTimeMS() - t0_ms_) / 60000u : 0u) << "min online=" << online
@@ -680,6 +693,14 @@ std::string LaunchSim::Report() const
     std::sort(top.rbegin(), top.rend());
     for (size_t i = 0; i < top.size() && i < 10; ++i)
         o << ' ' << top[i].second << '=' << top[i].first;
+    o << " | still=" << still << " (" << (online ? still * 100u / online : 0u) << "%) at_spawn=" << still_spawn << " ("
+      << (online ? still_spawn * 100u / online : 0u) << "%) still_rules:";
+    top.clear();
+    for (auto const& [r, n] : still_rules)
+        top.emplace_back(n, r);
+    std::sort(top.rbegin(), top.rend());
+    for (size_t i = 0; i < top.size() && i < 8; ++i)
+        o << ' ' << top[i].second << '=' << top[i].first;
     return o.str();
 }
 
@@ -689,11 +710,22 @@ bool LaunchSim::OnAskInvite(Player* asker, ObjectGuid target)
     if (!asker || !t || t == asker)
         return false;
     uint32 const now = GameTime::GetGameTimeMS();
+    bool const bot_asker = asker->GetSession() && asker->GetSession()->IsBot();
+    // A real player hears at most one bot asking every three minutes, whichever bot it is: each bot's own limit (one ask per
+    // tagger in 5 minutes) let every bot at a camp ask in turn (playtest 28 Oct: five whispers during the boar quest).
+    if (bot_asker && !t->IsClientless())
+    {
+        static constexpr uint32 kRealAskEveryMs = 180000;
+        uint32& last = real_asked_ms_[target.GetCounter()];
+        if (last && now - last < kRealAskEveryMs)
+            return false;
+        last = now;
+    }
     uint32 const h = Mix(uint32(asker->GetGUID().GetCounter()), uint32(target.GetCounter()) ^ (now / 1000u));
     static constexpr std::array<char const*, 8> kAsk = {"inv", "inv?", "inv pls", "invite?", "can i get an inv", "inv for the kill?",
                                                         "group?", "inv plz"};
     // A real player asking has whispered already; a bot's whisper goes out through its own intent queue.
-    if (asker->GetSession() && asker->GetSession()->IsBot())
+    if (bot_asker)
         PushIntent(asker, WhisperIntent{t->GetName(), kAsk[h % kAsk.size()]});
     ++asks_;
     BotAI* tai = IsLaunchBot(target.GetCounter()) ? Services::Registry().ai(target.GetCounter()) : nullptr;

@@ -109,6 +109,7 @@ private:
     bool               auto_init_done_ = false;   // AutoRun: the roster was reset once after the server started
     bool               auto_start_pending_ = false;   // AutoRun: a real player logged in while the roster was being made
     uint32             asks_ = 0, grants_ = 0;   // this run, for the report
+    std::unordered_map<uint64, uint32> real_asked_ms_;   // a real player's guid -> when a bot last whispered them for an invite
     // The run's clock when it was stopped or paused (playerbot_launch_run, kept across restarts): Start resumes at it, 0 = a
     // fresh run. The bots that ended their session are kept in playerbot_launch_done.
     uint32             resume_elapsed_s_ = 0;
