@@ -5,6 +5,7 @@
 #include "StateBase.h"
 #include "Util/TaxiFare.h"
 #include "Bot/BotAI.h"
+#include "Bot/MeleeReach.h"
 #include "Bot/Formation.h"                      // StableJitter / MeleeArcSpot (SpreadOut)
 #include "Bot/BotSnapshotView.h"
 #include "Bot/BotIntentEmitter.h"
@@ -3516,12 +3517,13 @@ void DispatchInCombat(BotAI& ai,
     if (!snapshot.victim().IsEmpty() && !i_am_carrier &&  // BG-P0a: carrier runs home, never chases
         !raid_healer && IsMeleeSpec(snapshot.cls(), snapshot.spec()))
     {
-        constexpr float kMeleeRange = 5.0f;
         constexpr float kFleeLeashYd = 8.0f;   // a fleeing mob this far from the bot is let go
         constexpr uint16 kStuckChaseTicksMax = 50;   // ~5s @ 10Hz combat tier
         NearbyUnit const* vu = snapshot.victim_info();
         if (vu)
         {
+            // In melee by the server's own reach (MeleeReach.h): a flat 5 y counted a bot swinging at a big creature as out of reach.
+            const float kMeleeRange = MeleeReach::Of(vu->combat_reach);
             float bx, by, bz;
             snapshot.position(bx, by, bz);
             const float dx = vu->x - bx;
