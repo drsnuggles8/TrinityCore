@@ -5,6 +5,7 @@
 // parser). Hooks marked "Intentionally a no-op" rely on snapshot deltas
 // instead of event pushes â€” see per-handler comments for the rationale.
 
+#include "Util/KillCycle.h"
 #include "Util/SlowCall.h"
 #include "PlayerbotV2.h"
 #include "Services.h"
@@ -3014,6 +3015,7 @@ void Module::OnDeath(Unit* victim, Unit* killer)
         // tick; the entry is popped on success. The push helper is mutex-
         // protected since the bot worker drains concurrently.
         reg.push_loot(id, corpse_guid);
+        V2::KillCycle::Death(id, corpse_guid.GetCounter(), GameTime::GetGameTimeMS());
     }
 }
 

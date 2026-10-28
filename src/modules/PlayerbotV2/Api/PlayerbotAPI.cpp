@@ -52,6 +52,7 @@
 #include "NoMotionGuard.h"
 #include "TradeFlow.h"
 #include "JunkDrop.h"
+#include "Util/KillCycle.h"
 #include "Fleet/LaunchSim.h"   // IsLaunchBot: launch bots pay their own way (Util/TaxiFare.h)
 #include "Util/TaxiFare.h"
 #include "BotTrade.h"
@@ -2948,6 +2949,8 @@ Result API::start_attack(ObjectGuid target, uint8 avoid_school_mask)
         }
         return Result::InvalidTarget;
     }
+
+    V2::KillCycle::Engage(p_->GetGUID().GetCounter(), target.GetCounter(), tu->GetEntry(), p_->GetDistance(tu), GameTime::GetGameTimeMS());
 
     // A mounted player cannot attack (Unit::Attack returns false), so a bot riding past an enemy emitted start_attack every
     // tick and nothing happened: bots ran past each other mounted in WSG (playtest, 2026-10-08). Like a real player who clicks
@@ -5860,6 +5863,12 @@ Result API::loot_corpse(ObjectGuid corpse)
         "[loot_drain] bot={} corpse={} items={} stored={} blocked={} prelooted={} nofit={} nullitem={} after_isLooted={}",
         p_->GetGUID().GetCounter(), corpse.GetCounter(), dbg_items, dbg_stored, dbg_blocked,
         dbg_looted, dbg_nofit, dbg_nullitem, loot->isLooted() ? 1 : 0);
+    if (V2::KillCycle::Entry kc; V2::KillCycle::Looted(p_->GetGUID().GetCounter(), corpse.GetCounter(), kc))
+    {
+        uint32 const now_ms = GameTime::GetGameTimeMS();
+        TC_LOG_INFO("playerbot.v2", "[kill_cycle] {} L{} mob={} dist={:.0f} engage_to_death_ms={} death_to_loot_ms={}",
+            p_->GetName(), uint32(p_->GetLevel()), kc.entry, kc.dist, kc.death_ms - kc.engage_ms, now_ms - kc.death_ms);
+    }
     // CRITICAL: SendLootRelease() only sends the client a packet â it does NOT
     // run the server-side release. The real release (WorldSession::DoLootRelease)
     // is what clears UNIT_DYNFLAG_LOOTABLE (removes the corpse "glitter") and,
