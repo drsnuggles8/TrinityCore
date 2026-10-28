@@ -222,10 +222,17 @@ bool QuestAcceptGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
     // so the bot frees space the player way first; accept resumes once a slot
     // opens. bag_free_slots()==0 is the clean gate (deferring a no-item quest a
     // few ticks until space frees is harmless).
-    // A grey in the bags is room: the accept drops it for the starting item (API::accept_quest, JunkDrop.h).
+    // A grey in the bags is room: the accept drops it for the starting item (API::accept_quest, JunkDrop.h); for a launch bot
+    // white junk too (a replaced weapon or armour piece, a trade good, a misc item).
+    bool const launch = ai.launch().active;
     if (s.bag_free_slots() == 0 &&
         std::none_of(s.raw().inventory.bag_items.begin(), s.raw().inventory.bag_items.end(),
-            [](InventoryItem const& it) { return it.quality == 0 && !it.is_quest_item; }))
+            [launch](InventoryItem const& it)
+            {
+                if (it.is_quest_item) return false;
+                return it.quality == 0 || (launch && it.quality == 1 && (it.item_class == 2 || it.item_class == 4 ||
+                    it.item_class == 7 || it.item_class == 15));
+            }))
     {
         if (!s.raw().quest_discovery.quest_offers.empty()) LogAcceptStall(s, ai, "bags_full", -1.f);
         return false;

@@ -5651,10 +5651,14 @@ Result API::repair_all(ObjectGuid npc, bool from_guild_bank)
 // path runs the spell with m_CastItem set, which is what the spell engine
 // expects for consumable effects.
 // Full bags: destroy the cheapest grey worth less than `count` x item `entry` (see JunkDrop.h), as a player does to take
-// loot or a quest's starting item. True when something was destroyed.
+// loot or a quest's starting item. A launch bot with no grey left drops its cheapest white junk for a quest item or for
+// something worth more: a racer keeps to its route instead of walking to a vendor. True when something was destroyed.
 static bool DropJunkFor(Player* p, uint32 entry, uint32 count, char const* why)
 {
+    constexpr uint32 HEARTHSTONE = 6948;
     ItemTemplate const* in_tmpl = sObjectMgr->GetItemTemplate(entry);
+    bool const incoming_quest = (in_tmpl && in_tmpl->GetClass() == ITEM_CLASS_QUEST) || p->HasQuestForItem(entry);
+    bool const allow_white = V2::Fleet::LaunchSim::Instance().IsLaunchBot(p->GetGUID().GetCounter());
     std::vector<JunkCandidate> cands;
     std::vector<Item*> cand_items;
     p->ForEachItem(ItemSearchLocation::Inventory, [&](Item* bi)
@@ -5662,19 +5666,28 @@ static bool DropJunkFor(Player* p, uint32 entry, uint32 count, char const* why)
         ItemTemplate const* bt = bi ? bi->GetTemplate() : nullptr;
         if (bt && !bi->IsNotEmptyBag())
         {
-            cands.push_back({ uint64(bt->GetSellPrice()) * bi->GetCount(), bt->GetQuality() == ITEM_QUALITY_POOR,
-                bt->GetClass() == ITEM_CLASS_QUEST });
+            uint32 const cls = bt->GetClass();
+            JunkCandidate c;
+            c.value = uint64(bt->GetSellPrice()) * bi->GetCount();
+            c.poor = bt->GetQuality() == ITEM_QUALITY_POOR;
+            c.quest = cls == ITEM_CLASS_QUEST || p->HasQuestForItem(bi->GetEntry());
+            c.keep = bi->GetEntry() == HEARTHSTONE || cls == ITEM_CLASS_CONSUMABLE || cls == ITEM_CLASS_CONTAINER ||
+                cls == ITEM_CLASS_REAGENT || cls == ITEM_CLASS_PROJECTILE || cls == ITEM_CLASS_QUIVER || cls == ITEM_CLASS_KEY;
+            c.white_junk = bt->GetQuality() == ITEM_QUALITY_NORMAL &&
+                (cls == ITEM_CLASS_WEAPON || cls == ITEM_CLASS_ARMOR || cls == ITEM_CLASS_TRADE_GOODS || cls == ITEM_CLASS_MISCELLANEOUS);
+            cands.push_back(c);
             cand_items.push_back(bi);
         }
         return ItemSearchCallbackResult::Continue;
     });
     std::size_t const v = PickJunkToDrop(cands, in_tmpl && in_tmpl->GetQuality() == ITEM_QUALITY_POOR,
-        in_tmpl ? uint64(in_tmpl->GetSellPrice()) * count : 0u);
+        in_tmpl ? uint64(in_tmpl->GetSellPrice()) * count : 0u, incoming_quest, allow_white);
     if (v == kNoJunk)
         return false;
     Item* victim = cand_items[v];
-    TC_LOG_INFO("playerbot.v2", "[bag_drop] bot={} destroys item={} count={} (value {}) for {} item={} count={}",
-        p->GetGUID().GetCounter(), victim->GetEntry(), victim->GetCount(), cands[v].value, why, entry, count);
+    TC_LOG_INFO("playerbot.v2", "[bag_drop] bot={} destroys item={} count={} (value {}{}) for {} item={} count={}{}",
+        p->GetGUID().GetCounter(), victim->GetEntry(), victim->GetCount(), cands[v].value, cands[v].poor ? "" : ", white",
+        why, entry, count, incoming_quest ? " (quest)" : "");
     p->DestroyItem(victim->GetBagSlot(), victim->GetSlot(), true);
     return true;
 }
