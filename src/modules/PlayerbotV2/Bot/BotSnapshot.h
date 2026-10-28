@@ -1126,6 +1126,11 @@ struct QuestObjectivePoi
     float  z = 0.f;
     float  radius = 0.f;
     bool   valid = false;
+    // A kill (or creature-loot) objective: one of its creature's spawn points inside the area, for a bot that sees none of
+    // them (idle:quest_path walks there instead of the area's centre, so a crowd spreads over the whole camp). Changes with
+    // the bot, the minute and on arrival.
+    float  roam_x = 0.f, roam_y = 0.f, roam_z = 0.f;
+    bool   roam_valid = false;
 };
 
 // Resolved AreaTrigger waypoint for QUEST_OBJECTIVE_AREATRIGGER /

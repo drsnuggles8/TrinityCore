@@ -19607,8 +19607,8 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
             // covering a chunk of the zone) uses radius + 10y slop — so
             // the bot stops walking and starts hunting once it crosses
             // into the polygon, instead of marching to the centroid.
-            const float dx = poi.x - bx, dy = poi.y - by;
-            const float dsq = dx*dx + dy*dy;
+            float dx = poi.x - bx, dy = poi.y - by;
+            float dsq = dx*dx + dy*dy;
             // Default arrival radius scales with polygon size — for a
             // pinpoint POI use 25 y, for a zone POI use radius+10 y so
             // bot stops at the polygon edge instead of marching to the
@@ -19648,7 +19648,18 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                         if (uint32(target_id) == o.entry) { any_match = true; break; }
                 }
                 if (!any_match)
+                {
                     arrived = 25.f;   // patrol toward centroid
+                    // Inside the area with none in sight: on through it to one of the creature's spawn points (the builder's
+                    // roam point) instead of waiting at the centre with the rest of the crowd.
+                    if (const float area = std::max(poi.radius, 60.f) + 40.f; poi.roam_valid && dsq <= area * area)
+                    {
+                        dx = poi.roam_x - bx;
+                        dy = poi.roam_y - by;
+                        dsq = dx * dx + dy * dy;
+                        arrived = 10.f;
+                    }
+                }
             }
             const float kPoiArrivedSq = arrived * arrived;
             if (dsq > kPoiArrivedSq)

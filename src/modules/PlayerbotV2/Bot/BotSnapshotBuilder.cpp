@@ -1005,21 +1005,28 @@ void CopyCooldowns(Player const* p, std::vector<CooldownEntry>& out)
 // map (planar distance), falling back to the first-any spawn when the entry has
 // no spawn on this map. Built once into an entry -> [spawns] multi-index; the
 // First* indices are kept for callers that don't have a bot position.
-::CreatureData const* NearestCreatureSpawnByEntry(uint32 entry, float x, float y, uint32 map_id)
+std::vector<::CreatureData const*> const& CreatureSpawnsOfEntry(uint32 entry)
 {
     static std::once_flag s_once;
     static std::unordered_map<uint32, std::vector<::CreatureData const*>> s_index;
+    static std::vector<::CreatureData const*> const s_none;
     std::call_once(s_once, []() {
         auto const& all = sObjectMgr->GetAllCreatureData();
         for (auto const& [spawn_id, cd] : all)
             s_index[cd.id].push_back(&cd);
     });
     auto it = s_index.find(entry);
-    if (it == s_index.end() || it->second.empty())
+    return it == s_index.end() ? s_none : it->second;
+}
+
+::CreatureData const* NearestCreatureSpawnByEntry(uint32 entry, float x, float y, uint32 map_id)
+{
+    std::vector<::CreatureData const*> const& spawns = CreatureSpawnsOfEntry(entry);
+    if (spawns.empty())
         return nullptr;
     ::CreatureData const* best = nullptr;
     float bestSq = std::numeric_limits<float>::max();
-    for (::CreatureData const* cd : it->second)
+    for (::CreatureData const* cd : spawns)
     {
         if (cd->mapId != map_id) continue;
         const float dx = cd->spawnPoint.GetPositionX() - x;
@@ -1029,7 +1036,27 @@ void CopyCooldowns(Player const* p, std::vector<CooldownEntry>& out)
     }
     // No same-map spawn — fall back to the first-any spawn so the bot still
     // gets a (cross-map) waypoint that the travel pipeline can route to.
-    return best ? best : it->second.front();
+    return best ? best : spawns.front();
+}
+
+// One spawn point of `entry` within `radius` of (x, y), chosen by `pick` (a bot and a time window), skipping one the bot stands
+// at (bx, by): where a bot hunting that creature goes when it sees none (QuestObjectivePoi::roam_*).
+::CreatureData const* PickCreatureSpawnInArea(uint32 entry, uint32 map_id, float x, float y, float radius, uint32 pick,
+    float bx, float by)
+{
+    auto const sq = [](float v) { return v * v; };
+    std::vector<::CreatureData const*> in_area;
+    for (::CreatureData const* cd : CreatureSpawnsOfEntry(entry))
+        if (cd->mapId == map_id &&
+            sq(cd->spawnPoint.GetPositionX() - x) + sq(cd->spawnPoint.GetPositionY() - y) <= radius * radius)
+            in_area.push_back(cd);
+    if (in_area.empty())
+        return nullptr;
+    size_t i = pick % in_area.size();
+    if (in_area.size() > 1 &&
+        sq(in_area[i]->spawnPoint.GetPositionX() - bx) + sq(in_area[i]->spawnPoint.GetPositionY() - by) < 15.f * 15.f)
+        i = (i + 1 + (pick >> 8) % (in_area.size() - 1)) % in_area.size();
+    return in_area[i];
 }
 
 // Nearest creature spawn to an arbitrary POINT (any entry, same map) within maxDist
@@ -9840,6 +9867,31 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                     cp.z = gv->z;
                     cp.valid = true;
                 }
+    }
+    // ---- A kill objective's spawn points, for a bot that sees none of its creatures ----
+    // idle:quest_path walked such a bot to the area's centre and it waited there with everyone else (live 28 Oct: the
+    // Coldridge crowd killed only the whelps by the cave). Players spread over the whole camp: a spawn point of the creature
+    // within the area, by bot and minute, sends the bot on through it.
+    if (auto& cp = snap->quest_log.current_objective_poi; cp.valid && cp.map_id == p->GetMapId() &&
+        snap->quest_log.current_objective.object_id > 0)
+    {
+        QuestObjectiveEntry const& obj = snap->quest_log.current_objective;
+        uint32 entry = 0;
+        if (obj.type == QUEST_OBJECTIVE_MONSTER)
+            entry = uint32(obj.object_id);
+        else if (obj.type == QUEST_OBJECTIVE_ITEM)
+            if (::CreatureData const* dropper = QuestItemCreatureSpawnNearest(uint32(obj.object_id), cp.x, cp.y, cp.map_id))
+                entry = dropper->id;
+        uint32 const pick = uint32(p->GetGUID().GetCounter()) * 2654435761u ^ (GameTime::GetGameTimeMS() / 60000u) * 40503u;
+        if (entry)
+            if (::CreatureData const* sp = PickCreatureSpawnInArea(entry, cp.map_id, cp.x, cp.y, std::max(cp.radius, 60.f) + 40.f,
+                    pick, p->GetPositionX(), p->GetPositionY()))
+            {
+                cp.roam_x = sp->spawnPoint.GetPositionX();
+                cp.roam_y = sp->spawnPoint.GetPositionY();
+                cp.roam_z = sp->spawnPoint.GetPositionZ();
+                cp.roam_valid = true;
+            }
     }
     // ---- Launch strategies that steer by place (Bot/LaunchPlaces.h) ----
     if (bot_ai && bot_ai->launch().active &&
