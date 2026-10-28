@@ -23,7 +23,7 @@ CLASSES = {"warrior": 1, "paladin": 2, "hunter": 3, "rogue": 4, "priest": 5, "sh
 RACE_CLASSES = {1: (1, 2, 4, 5, 8, 9), 3: (1, 2, 3, 4, 5, 7), 4: (1, 3, 4, 5, 11), 7: (1, 4, 8, 9)}
 ROUTE_RACES = [3, 7]   # set by --races
 COMBOS = []
-ACTIONS = {"accept": 1, "complete": 2, "turnin": 3, "deathskip": 4, "hearth": 5}
+ACTIONS = {"accept": 1, "complete": 2, "turnin": 3, "deathskip": 4, "hearth": 5, "turnin_done": 6}
 
 
 def bit(race, cls):
@@ -79,6 +79,12 @@ def parse(text):
             # heads for them. Imported as a complete step they held a bot's route until they filled (Coldridge's troggs
             # of A New Threat: racers stood on the trogg slope after the rest of their route).
             opportunistic = re.search(r"^\s*--sim:\s*opportunistic", rest, re.M) is not None
+            # An #optional step that hands in a quest only when it is complete (".isQuestComplete Q"): Olo's guide turns A New
+            # Threat in on the way out if the troggs filled. Imported as a "turnin_done" step (RouteAction::TurnInIfDone); left
+            # out, the racers carried the completed quest past its giver (racer45 build47: 170 complete for all six, none turned in).
+            done_quests = {int(q) for q in re.findall(r"^\s*\.isQuestComplete\s+(\d+)", rest, re.M)}
+            only_optional = (re.search(r"^\s*#optional", rest, re.M) is not None and
+                             re.search(r"^\s*#(hardcore|som)", rest, re.M) is None)
             for raw in rest.split("\n"):
                 t = raw.strip()
                 if t.startswith("--"):
@@ -92,6 +98,11 @@ def parse(text):
                     line_filter = lm.group(1).strip()
                     t = t[:lm.start()].strip()
                 if optional:
+                    a = re.match(r"\.turnin\s+-?(\d+)", t)
+                    if only_optional and a and int(a.group(1)) in done_quests:
+                        mask = mask_for(step_filter, line_filter)
+                        if mask:
+                            steps.append(("turnin_done", int(a.group(1)), 0, mask))
                     continue
                 mask = mask_for(step_filter, line_filter)
                 if not mask:

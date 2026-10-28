@@ -461,7 +461,8 @@ bool LaunchRoutes::Pending(Player const* p, RouteStep const& s, uint32 me) const
 {
     if (!(s.combos & me))
         return false;
-    if (s.action != RouteAction::Accept && s.action != RouteAction::Complete && s.action != RouteAction::TurnIn)
+    if (s.action != RouteAction::Accept && s.action != RouteAction::Complete && s.action != RouteAction::TurnIn &&
+        s.action != RouteAction::TurnInIfDone)
         return false;   // deathskip / hearth: not driven yet
     Quest const* q = sObjectMgr->GetQuestTemplate(s.quest);
     if (!q)
@@ -491,6 +492,8 @@ bool LaunchRoutes::Pending(Player const* p, RouteStep const& s, uint32 me) const
         }
         case RouteAction::TurnIn:
             return !rewarded && in_log;
+        case RouteAction::TurnInIfDone:
+            return !rewarded && st == QUEST_STATUS_COMPLETE;
         default:
             return false;
     }

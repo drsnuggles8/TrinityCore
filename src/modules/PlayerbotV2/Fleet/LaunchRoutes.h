@@ -19,7 +19,9 @@ class Player;
 
 namespace Playerbot::V2::Fleet {
 
-enum class RouteAction : uint8 { None = 0, Accept = 1, Complete = 2, TurnIn = 3, Deathskip = 4, Hearth = 5 };
+// TurnInIfDone: a guide's optional hand-in (".isQuestComplete Q" + ".turnin Q" in an #optional step): only while the quest is
+// complete, as Olo's Coldridge guide takes A New Threat (170) only if the troggs filled on the way.
+enum class RouteAction : uint8 { None = 0, Accept = 1, Complete = 2, TurnIn = 3, Deathskip = 4, Hearth = 5, TurnInIfDone = 6 };
 
 struct RouteStep
 {
