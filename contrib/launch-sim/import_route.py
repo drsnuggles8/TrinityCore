@@ -89,9 +89,14 @@ def guide_bodies(text):
     return [p.split("]])")[0] for p in parts[1:]] if len(parts) > 1 else [text]
 
 
-def parse(text):
+def parse(text, sections=None, base=0):
+    """The route steps of a guide file. sections, when given, gets (first step number, start level, name) for every guide
+    in the file with a "#name 5-11 Dun Morogh" header (step numbers 1-based, counted on from base)."""
     steps = []
     for body in guide_bodies(text):
+        h = re.search(r"^\s*#name\s+(\d+)-(\d+)\s+(.+?)\s*$", body, re.M)
+        if sections is not None and h:
+            sections.append((base + len(steps) + 1, int(h.group(1)), h.group(3)))
         for block in re.split(r"\n[ \t]*(?=step\b)", "\n" + body)[1:]:
             head, _, rest = block.partition("\n")
             # "#season 2" is Season of Discovery, "#season 0,1" Classic Era and Season of Mastery: Forever plays like Era (0). The
@@ -173,13 +178,17 @@ def main():
     if not re.fullmatch(r"[a-z0-9_-]{1,16}", route):
         sys.exit("ROUTE_ID: 1-16 lowercase letters, digits, _ or -")
     steps = []
+    sections = []
     for path in args[1:]:
-        steps += parse(open(path, encoding="utf-8", errors="replace").read())
+        steps += parse(open(path, encoding="utf-8", errors="replace").read(), sections, len(steps))
     print(f"DELETE FROM playerbot_launch_route_step WHERE route = '{route}';")
     for i in range(0, len(steps), 200):
         rows = ",\n".join(f"('{route}', {n}, {mask}, {ACTIONS[a]}, {q}, {o})"
                           for n, (a, q, o, mask) in enumerate(steps[i:i + 200], start=i + 1))
         print("INSERT INTO playerbot_launch_route_step (route, step, combos, action, quest, objective) VALUES\n" + rows + ";")
+    # Where each guide of the route starts and at which level (guided-check.py: a bot starting "5-11 Dun Morogh" should be 5).
+    for first, level, name in sections:
+        print(f"-- section {first} {level} {name}")
     print(f"-- {len(steps)} steps", file=sys.stderr)
 
 

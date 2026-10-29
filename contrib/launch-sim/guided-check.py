@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Checks that guide followers follow their guide, from the [route] lines of a Playerbot.log (doc/LaunchSim.md, "Routes").
 
-    python3 guided-check.py PLAYERBOT.LOG [--min-exit-level 5] [--routes rxp] [--max-skip-share 0.3] [--max-step-min 15]
+    python3 guided-check.py PLAYERBOT.LOG [--routes-dir ~/forever/routes] [--section-slack 0.5] [--max-skip-share 0.3]
+                            [--max-step-min 15]
 
 The snapshot builder logs every route step a bot finishes or passes over ("[route] NAME ROUTE step I/N action=A quest=Q HOW
 level=L xp=X/NEXT on_step_s=S min=M area=AREA in_valley=0|1"). The checks, each PASS or FAIL:
 
-- valley exit: a bot of a checked route (--routes, prefix match) leaves its starting valley at --min-exit-level or later. The
-  first step it logs outside the valley stands for the exit (Olo, 29 Oct: the RestedXP Coldridge guide ends at about 5 1/3; bots
-  that dropped its ".xp" grind steps walked out at level 3).
+- guide sections: a bot that starts the next guide of its route ("5-11 Dun Morogh", from the "-- section" lines import_route.py
+  writes into ROUTE.sql) has that guide's start level, less --section-slack (Olo, 29 Oct: the RestedXP Coldridge guide ends at
+  about 5 1/3; bots that dropped its ".xp" grind steps walked out at level 3). Where bots first stepped out of their starting
+  valley is printed too, but not checked: the guides step out briefly (Shadowglen's Iverron stands outside the gate).
 - skipped steps: no step is passed over by more than --max-skip-share of the bots that reached it ("skipped", "not_in_log",
   "not_turned_in": the bot moved on without doing it; "cannot_take" is a class or race quest, or prerequisites, and allowed).
 - stuck steps: no bot spends more than --max-step-min minutes on one step (a grind step to a level counts too; it is reported
@@ -18,6 +20,8 @@ Exit code 0 when every check passes, 1 otherwise.
 """
 import argparse
 import collections
+import glob
+import os
 import re
 import statistics
 import sys
@@ -31,12 +35,20 @@ LEVEL_ACTION = 7
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("log")
-    ap.add_argument("--min-exit-level", type=float, default=5.0, help="level (with the XP fraction) to leave the valley at")
-    ap.add_argument("--routes", default="rxp", help="comma-separated route name prefixes the exit check applies to")
+    ap.add_argument("--routes-dir", default="", help="directory of the imported ROUTE.sql files (their '-- section' lines)")
+    ap.add_argument("--section-slack", type=float, default=0.5, help="how far below a section's start level a bot may be")
     ap.add_argument("--max-skip-share", type=float, default=0.3)
     ap.add_argument("--max-step-min", type=float, default=15.0)
     a = ap.parse_args()
-    checked = tuple(r for r in a.routes.split(",") if r)
+    sections = collections.defaultdict(list)
+    if a.routes_dir:
+        for path in glob.glob(os.path.join(a.routes_dir, "*.sql")):
+            route = os.path.basename(path)[:-4]
+            with open(path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    m = re.match(r"-- section (\d+) (\d+) (.+)", line)
+                    if m:
+                        sections[route].append((int(m.group(1)), int(m.group(2)), m.group(3).strip()))
 
     steps = []
     with open(a.log, encoding="utf-8", errors="replace") as f:
@@ -66,15 +78,28 @@ def main():
         for s in rs:
             if not s["valley"] and s["bot"] not in exits:
                 exits[s["bot"]] = s["level"] + (s["xp"] / s["next"] if s["next"] else 0.0)
-        if route.startswith(checked) and exits:
-            low = {b: lv for b, lv in exits.items() if lv < a.min_exit_level}
+        if exits:
+            print(f"  [info] valley exit: {len(exits)} of {len(bots)} bots stepped out, level min {min(exits.values()):.2f} "
+                  f"median {statistics.median(exits.values()):.2f} (guides step out briefly, e.g. Iverron at Shadowglen's gate)")
+
+        # guide sections: a bot starting "5-11 Dun Morogh" should be about level 5 (Olo, 29 Oct: Coldridge ends at about 5 1/3)
+        for first, level, name in sections.get(route, []):
+            if level <= 1:
+                continue
+            at = {}
+            for s in rs:
+                if s["step"] >= first and s["bot"] not in at:
+                    at[s["bot"]] = s["level"] + (s["xp"] / s["next"] if s["next"] else 0.0)
+            if not at:
+                print(f"  [----] section '{level}-.. {name}' (step {first}): no bot there yet")
+                continue
+            want = level - a.section_slack
+            low = {b: lv for b, lv in at.items() if lv < want}
             verdict = "FAIL" if low else "PASS"
             ok &= not low
-            print(f"  [{verdict}] valley exit: {len(exits)} of {len(bots)} bots left, level min {min(exits.values()):.2f} "
-                  f"median {statistics.median(exits.values()):.2f} (want >= {a.min_exit_level})"
+            print(f"  [{verdict}] section '{name}' (step {first}, from level {level}): {len(at)} bots started it, level min "
+                  f"{min(at.values()):.2f} median {statistics.median(at.values()):.2f} (want >= {want:g})"
                   + (": " + ", ".join(f"{b} {lv:.2f}" for b, lv in sorted(low.items(), key=lambda kv: kv[1])[:10]) if low else ""))
-        elif route.startswith(checked):
-            print(f"  [----] valley exit: no bot has left the valley yet")
 
         # skipped steps
         # a step the bot came back for and did later (the route went back to it) is not passed over

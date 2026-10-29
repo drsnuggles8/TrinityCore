@@ -92,6 +92,11 @@ class ImportRouteTest(unittest.TestCase):
         self.assertEqual(ir.mask_for("!hardcore Hunter"), self.mask(3))
         self.assertEqual(ir.mask_for("!Herbalism"), everyone)        # an unknown tag filters nothing, negated or not
 
+    def test_sections(self):
+        sections = []
+        steps = ir.parse(GUIDE + GUIDE.replace("#name 1-5 Test Valley", "#name 5-11 Next Zone"), sections, 3)
+        self.assertEqual(sections, [(4, 1, "Test Valley"), (4 + len(steps) // 2, 5, "Next Zone")])
+
     def test_xp_step(self):
         self.assertEqual(ir.xp_step(".xp 4 >> Grind to level 4"), ("level", 4 << 24, 0))
         self.assertEqual(ir.xp_step(".xp 5+1325 >> Travel"), ("level", 5 << 24 | 1325, 0))
