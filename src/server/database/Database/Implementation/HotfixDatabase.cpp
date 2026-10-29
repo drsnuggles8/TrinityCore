@@ -792,6 +792,10 @@ void HotfixDatabaseConnection::DoPrepareStatements()
     PrepareStatement(HOTFIX_SEL_GEM_PROPERTIES, "SELECT ID, EnchantId, Type FROM gem_properties WHERE (`VerifiedBuild` > 0) = ?", CONNECTION_SYNCH);
     PREPARE_MAX_ID_STMT(HOTFIX_SEL_GEM_PROPERTIES, "SELECT MAX(ID) + 1 FROM gem_properties", CONNECTION_SYNCH);
 
+    // GlobalColor.db2 (Forever 70685's default bag frames read EMPTY_BAG_SLOT_EFFECT_COLOR, a row the shipped data lacks)
+    PrepareStatement(HOTFIX_SEL_GLOBAL_COLOR, "SELECT ID, LuaConstantName, Color FROM global_color WHERE (`VerifiedBuild` > 0) = ?", CONNECTION_SYNCH);
+    PREPARE_MAX_ID_STMT(HOTFIX_SEL_GLOBAL_COLOR, "SELECT MAX(ID) + 1 FROM global_color", CONNECTION_SYNCH);
+
     // GlobalCurve.db2
     PrepareStatement(HOTFIX_SEL_GLOBAL_CURVE, "SELECT ID, CurveID, Type, Subtype FROM global_curve WHERE (`VerifiedBuild` > 0) = ?", CONNECTION_SYNCH);
     PREPARE_MAX_ID_STMT(HOTFIX_SEL_GLOBAL_CURVE, "SELECT MAX(ID) + 1 FROM global_curve", CONNECTION_SYNCH);

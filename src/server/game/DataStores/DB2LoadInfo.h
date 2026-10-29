@@ -2465,6 +2465,18 @@ struct GemPropertiesLoadInfo
     static constexpr DB2LoadInfo Instance{ Fields, 3, &GemPropertiesMeta::Instance, HOTFIX_SEL_GEM_PROPERTIES };
 };
 
+struct GlobalColorLoadInfo
+{
+    static constexpr DB2FieldMeta Fields[3] =
+    {
+        { .IsSigned = false, .Type = FT_INT, .Name = "ID" },
+        { .IsSigned = false, .Type = FT_STRING_NOT_LOCALIZED, .Name = "LuaConstantName" },
+        { .IsSigned = true, .Type = FT_INT, .Name = "Color" },
+    };
+
+    static constexpr DB2LoadInfo Instance{ Fields, 3, &GlobalColorMeta::Instance, HOTFIX_SEL_GLOBAL_COLOR };
+};
+
 struct GlobalCurveLoadInfo
 {
     static constexpr DB2FieldMeta Fields[4] =

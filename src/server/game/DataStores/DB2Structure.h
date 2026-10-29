@@ -2079,6 +2079,13 @@ struct GemPropertiesEntry
     int32 Type;
 };
 
+struct GlobalColorEntry
+{
+    uint32 ID;
+    char const* LuaConstantName;
+    int32 Color;
+};
+
 struct GlobalCurveEntry
 {
     uint32 ID;
