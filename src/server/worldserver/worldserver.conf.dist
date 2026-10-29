@@ -4861,6 +4861,8 @@ Classic.MountIndoorsRules = 1
 #                     Off is the Classic rule (WoW Classic Forever has no shared tagging): the first player to tag a
 #                     creature owns it for their group; anyone outside that group gets no experience, loot or quest
 #                     credit. A player who joins the tagger's group before the kill still shares it (group reward).
+#                     A group's kill then has one loot on the corpse, looted under the group's loot method; each member
+#                     in range gets the quest items they need. With shared tagging every tapper loots on its own.
 #        Default:     0 - (Disabled, Classic first-tag rule)
 #                     1 - (Enabled, retail shared tagging)
 

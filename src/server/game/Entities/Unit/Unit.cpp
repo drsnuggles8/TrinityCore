@@ -11693,9 +11693,16 @@ void Unit::SetMeleeAnimKitId(uint16 animKitId)
             if (InstanceScript const* instance = creature->GetInstanceScript())
                 dungeonEncounter = instance->GetBossDungeonEncounter(creature);
 
-            if (dungeonEncounter && !tappers.empty() && sWorld->getBoolConfig(CONFIG_LOOT_SHARED_ENCOUNTER_LOOT))
+            // Classic: a group's kill is one loot on the corpse, looted under the group's loot method, with each member's quest
+            // items (Loot::FillLoot fills those per member in reward range, so a journal Grik'nir drops is there for everyone
+            // on the quest). That covers vanilla boss loot (Loot.SharedEncounterLoot) and every other creature a group tags
+            // (the Classic first-tag rule, Classic.SharedTagging off). Retail gave every tapper a full loot of its own, so a
+            // group of two looted twice as much.
+            bool const groupTapped = std::any_of(tappers.begin(), tappers.end(), [](Player const* tapper) { return tapper->GetGroup() != nullptr; });
+            bool const sharedLoot = !tappers.empty() && (dungeonEncounter ? sWorld->getBoolConfig(CONFIG_LOOT_SHARED_ENCOUNTER_LOOT)
+                : groupTapped && !sWorld->getBoolConfig(CONFIG_CLASSIC_SHARED_TAGGING));
+            if (sharedLoot)
             {
-                // vanilla boss loot: the whole loot table on one corpse, looted under the group's loot method
                 Group* group = nullptr;
                 Player* looter = tappers[0];
                 for (Player* tapper : tappers)
@@ -11713,7 +11720,8 @@ void Unit::SetMeleeAnimKitId(uint16 animKitId)
                         looter = groupLooter;
 
                 Loot* loot = new Loot(creature->GetMap(), creature->GetGUID(), LOOT_CORPSE, group);
-                loot->SetDungeonEncounterId(dungeonEncounter->ID);
+                if (dungeonEncounter)
+                    loot->SetDungeonEncounterId(dungeonEncounter->ID);
 
                 if (uint32 lootid = creature->GetLootId())
                     loot->FillLoot(lootid, LootTemplates_Creature, looter, !group, false, creature->GetLootMode(), ItemBonusMgr::GetContextForPlayer(creature->GetMap()->GetMapDifficulty(), looter));
