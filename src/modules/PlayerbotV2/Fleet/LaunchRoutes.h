@@ -16,6 +16,7 @@
 #include <vector>
 
 class Player;
+class Quest;
 
 namespace Playerbot::V2::Fleet {
 
@@ -88,6 +89,9 @@ public:
     // How a step the bot has moved past ended: "done", or why it was passed over ("skipped:cannot_take", ...); nullptr when
     // the step is not for this bot's race and class.
     char const* PassedAs(Player const* p, RouteStep const& s) const;
+    // An accept step whose quest the bot misses only by a level or two: the route waits on it like a grind step (no quests
+    // after it, the bot grinds) instead of passing it over and coming back.
+    bool WaitsForLevel(Player const* p, RouteStep const& s) const;
     // The quests of the next `steps` steps this player still has to do, in route order (duplicates removed): what a player
     // with the guide open has picked up or is about to, and works on in parallel (wolves for one quest while the boars of
     // another come along), not one step at a time.
@@ -112,6 +116,7 @@ public:
 private:
     // The step is for this player's race and class and still to do (CurrentStep's test).
     bool Pending(Player const* p, RouteStep const& s, uint32 me) const;
+    static bool LevelShort(Player const* p, Quest const* q);
 
     std::vector<std::string>             names_;
     std::vector<std::vector<RouteStep>>  routes_;

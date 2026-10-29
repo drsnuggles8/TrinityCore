@@ -214,8 +214,10 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPackets::Quest::QuestG
         return false;
     };
 
+    char const* after = "close";
     if (quest->HasFlag(QUEST_FLAGS_LAUNCH_GOSSIP_ACCEPT) && !quest->HasFlagEx(QUEST_FLAGS_EX_SUPPRESS_GOSSIP_ACCEPT))
     {
+        after = "launch_gossip_flag";
         if (Creature* creature = object->ToCreature())
             launchGossip(creature);
         else if (GameObject* go = object->ToGameObject())
@@ -223,11 +225,26 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPackets::Quest::QuestG
     }
     // do not close gossip if quest accept script started a new interaction
     else if (!_player->PlayerTalkClass->GetInteractionData().IsInteractingWith(object->GetGUID(), PlayerInteractionType::QuestGiver))
+    {
+        after = "other_interaction";
         _player->PlayerTalkClass->GetInteractionData().IsLaunchedByQuest = true;
+    }
     else if (offersMoreQuests())
+    {
+        after = "list_again";
         launchGossip(object->ToWorldObject());
+    }
     else
         _player->PlayerTalkClass->SendCloseGossip();
+
+    // Playtest 29 Oct: "accepted quest 1, couldn't accept quest 2 without closing the dialogue" again (Sten Stoutarm, 179 and
+    // 233), with the list-again fix above live. What the window did after a real player's accept, and the interaction it was in.
+    if (!_player->IsClientless())
+    {
+        InteractionData const& in = _player->PlayerTalkClass->GetInteractionData();
+        TC_LOG_INFO("server", "[quest_accept] {} accepts {} at {} ({}): {} (interaction {} with {})", _player->GetName(), packet.QuestID,
+            object->GetEntry(), object->GetGUID().GetTypeName(), after, int32(in.Type), in.SourceGuid.ToString());
+    }
 }
 
 void WorldSession::HandleQuestgiverQueryQuestOpcode(WorldPackets::Quest::QuestGiverQueryQuest& packet)

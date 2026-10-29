@@ -485,7 +485,8 @@ bool LaunchRoutes::Pending(Player const* p, RouteStep const& s, uint32 me) const
             if (rewarded || in_log)
                 return false;
             if (!p->CanTakeQuest(q, false))
-                return false;   // not for this bot (yet): prerequisites, level, class; the guide moves on
+                return LevelShort(p, q) && Giver(s.quest);   // a level or two short: the bot grinds for it (WaitsForLevel);
+                                                             // otherwise not for this bot (prerequisites, class): the guide moves on
             if (!Giver(s.quest))
                 return false;   // started by an item or an object, or a giver without a spawn: the bot could not walk there
             return true;
@@ -517,6 +518,26 @@ RouteStep const* LaunchRoutes::CurrentStep(Player const* p, uint8 route) const
         if (Pending(p, s, me))
             return &s;
     return nullptr;
+}
+
+// The guided bench (29 Oct): RestedXP's step order assumes the XP of the kills on the way, and bots behind it reached the
+// Mornbrew (3364, level 4) at 3 + 1198: the route passed the accept as "cannot take", ran ahead and came back for it later. A
+// player would grind the last bit. A quest the bot misses only by its level, by one or two, holds the route like a grind step.
+bool LaunchRoutes::LevelShort(Player const* p, Quest const* q)
+{
+    int32 const need = p->GetQuestMinLevel(q);
+    int32 const have = int32(p->GetLevel());
+    return have < need && need - have <= 2 && p->SatisfyQuestStatus(q, false) && p->SatisfyQuestClass(q, false) &&
+        p->SatisfyQuestRace(q, false) && p->SatisfyQuestDependentQuests(q, false) && p->SatisfyQuestReputation(q, false) &&
+        p->SatisfyQuestSkill(q, false) && p->SatisfyQuestMaxLevel(q, false);
+}
+
+bool LaunchRoutes::WaitsForLevel(Player const* p, RouteStep const& s) const
+{
+    if (s.action != RouteAction::Accept || p->GetQuestRewardStatus(s.quest) || p->GetQuestStatus(s.quest) != QUEST_STATUS_NONE)
+        return false;
+    Quest const* q = sObjectMgr->GetQuestTemplate(s.quest);
+    return q && !p->CanTakeQuest(q, false) && LevelShort(p, q);
 }
 
 size_t LaunchRoutes::CurrentIndex(Player const* p, uint8 route) const
@@ -575,7 +596,7 @@ void LaunchRoutes::Window(Player const* p, uint8 route, uint32 steps, std::vecto
     {
         if (!Pending(p, s, me))
             continue;
-        if (s.action == RouteAction::Level)
+        if (s.action == RouteAction::Level || WaitsForLevel(p, s))
             break;   // a grind step: nothing after it until the bot has the level
         if (std::find(quests.begin(), quests.end(), s.quest) == quests.end())
             quests.push_back(s.quest);

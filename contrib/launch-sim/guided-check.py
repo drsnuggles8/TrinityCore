@@ -77,8 +77,11 @@ def main():
             print(f"  [----] valley exit: no bot has left the valley yet")
 
         # skipped steps
-        reached = collections.Counter(s["step"] for s in rs)
-        failed = collections.Counter(s["step"] for s in rs if s["how"] in FAILED_AS)
+        # a step the bot came back for and did later (the route went back to it) is not passed over
+        done_later = {(s["bot"], s["step"]) for s in rs if s["how"] == "done"}
+        reached = collections.Counter(s["step"] for s in {(s["bot"], s["step"]): s for s in rs}.values())
+        failed = collections.Counter(st for b, st in {(s["bot"], s["step"]) for s in rs if s["how"] in FAILED_AS}
+                                     if (b, st) not in done_later)
         info = {s["step"]: (s["action"], s["quest"]) for s in rs}
         bad = [(st, failed[st], reached[st]) for st in failed if failed[st] / reached[st] > a.max_skip_share]
         verdict = "FAIL" if bad else "PASS"

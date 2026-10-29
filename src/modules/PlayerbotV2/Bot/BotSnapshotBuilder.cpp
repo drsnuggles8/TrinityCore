@@ -1908,7 +1908,9 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     auto const in_launch_window = [&launch_window](uint32 quest)
     { return std::find(launch_window.begin(), launch_window.end(), quest) != launch_window.end(); };
     uint32 const launch_quest = launch_step ? launch_step->quest : 0u;
-    bool const launch_accept = launch_step && launch_step->action == V2::Fleet::RouteAction::Accept;
+    // An accept the bot is a level or two short of holds the route like a grind step: it grinds, it does not walk to the giver.
+    bool const launch_accept = launch_step && launch_step->action == V2::Fleet::RouteAction::Accept &&
+        !V2::Fleet::LaunchRoutes::Instance().WaitsForLevel(p, *launch_step);
     // A grinder (LaunchStrategy::TrollGrinder) takes no quests until its zone's grind level: it farms the zone's camp (Coldridge: the troll whelps to 4; the destination is set late in the build).
     bool const launch_no_quests = bot_ai && bot_ai->launch().active &&
         ((bot_ai->launch().strategy == LaunchStrategy::TrollGrinder &&
