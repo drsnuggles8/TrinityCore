@@ -7377,6 +7377,12 @@ SpellCastResult Spell::CheckMovement() const
     if (IsTriggered())
         return SPELL_CAST_OK;
 
+    // Auto Shot and wand Shoot: movement during the 0.5 s wind-up is Spell::update's (it holds Auto Shot until the hunter stands
+    // still, it ends a wand's Shoot). Here it refused an Auto Shot pressed while still moving and cancelled the first one on a
+    // step (playtest 29 Oct, Fabulous: four presses in a second, Auto Shot never started); Classic starts it once you stop.
+    if (IsAutoRepeat())
+        return SPELL_CAST_OK;
+
     if (Unit* unitCaster = m_caster->ToUnit())
     {
         if (!unitCaster->CanCastSpellWhileMoving(m_spellInfo))

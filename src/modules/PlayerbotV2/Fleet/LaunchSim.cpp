@@ -1049,6 +1049,11 @@ bool LaunchSim::OnBotLogin(Player* p, BotAI* ai)
     lp.seed = e.seed;
     lp.route = PickRoute(pr, e.seed, p->GetRace());
     ai->set_launch(lp);
+    // A bot logging in above level 1 (a resumed run after a restart) trained at its level before; the trainer visit it is due at
+    // is not stored. Without this every bot of level 2+ walked to its class trainer at once after the restart (playtest 29 Oct:
+    // 417 bots in idle:launch_train_walk, the quest areas empty).
+    if (p->GetLevel() >= 2)
+        ai->set_launch_trained_level(uint8(p->GetLevel() >= 4 ? p->GetLevel() & ~1u : 2u));
     // A gatherer picks up its gathering profession right away (a shortcut for the trip to the trainer in Kharanos or
     // Ironforge): dwarves mostly Mining, with a pick, gnomes mostly Herbalism. Its gather rule (idle:gather) then detours to
     // the veins and herbs it passes. Only on the first login of a fresh character (no skill yet).
