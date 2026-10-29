@@ -11,6 +11,7 @@
 #include "ClassicTalentBuilds.h"
 #include "ClassicSupplies.h"
 #include "Bot/ClassicUpkeep.h"
+#include "Fleet/TrainingPlayer.h"
 #include "Bot/Raid/ShieldRules.h"
 #include "BotItemScorer.h"
 #include "Player.h"
@@ -1987,6 +1988,14 @@ Result API::move_to(float x, float y, float z, bool run, bool direct, bool drop,
         // bot's own feet first, teleport strictly as the last resort.
         if (TryTerrainWalkFallback(x, y, z, run))
             return Result::Ok;
+        // Training players must solve the movement failure through player actions. A walk intent must not hide a
+        // bot-only snap teleport from the learner or its outcome recorder.
+        if (V2::Fleet::IsTrainingPlayer(p_))
+        {
+            Playerbot::V2::Module::instance().OnPathOutcome(2 /*FarFromPolyStart*/);
+            NotePathFail(p_, PathDestKey(p_->GetMapId(), x, y), GameTime::GetGameTimeMS());
+            return Result::Locked;
+        }
         // Snap to the nearest valid poly so the next move_to emit can pathfind
         // from a real mesh point. Use the path's actual end position as a heuristic
         // for "where Detour wishes the source had been" â this is the
