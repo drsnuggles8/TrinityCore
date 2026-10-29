@@ -1174,3 +1174,10 @@ Playerbot.Training.TargetShadow.Enable = 0
 Playerbot.Training.TargetShadow.ModelFile = ""
 Playerbot.Training.TargetShadow.CheckpointSHA256 = ""
 Playerbot.Training.TargetShadow.ArtifactSHA256 = ""
+
+# Experimental target-choice authority, restricted to the training-role GUIDs listed here. Defaults off.
+# Only existing quest-eligible, alive, unowned/in-party, in-range, non-refused creature targets can be selected.
+# Movement/combat execution and all normal item/cooldown rules remain in the engine.
+Playerbot.Training.TargetControl.Enable = 0
+Playerbot.Training.TargetControl.PlayerGuids = ""
+Playerbot.Training.TargetControl.Temperature = 1.0

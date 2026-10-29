@@ -36,6 +36,7 @@ inline bool CountsAsPopulationPlayer(bool hasSession, bool botSession, bool conf
 }
 
 bool IsTrainingPlayer(Player const* player);
+bool IsTrainingPlayerGuid(std::uint64_t guid);
 bool IsPlayerForPopulation(Player const* player);
 bool HasTrainingPlayers();
 }

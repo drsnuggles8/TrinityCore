@@ -105,3 +105,20 @@ TEST_CASE("Private exported checkpoint matches PyTorch golden vectors", "[Traini
     REQUIRE(model.optimizer_step == 240);
     REQUIRE(std::isfinite(model.Score(Features{})));
 }
+
+TEST_CASE("Policy sampling is bounded to its legal menu and stable for extreme logits", "[TrainingTargetModel]")
+{
+    std::array<float,3> equal{0,0,0};
+    auto choice = Sample(equal,1,0.5);
+    REQUIRE(choice.index == 1);
+    REQUIRE(std::abs(choice.probabilities[0]-1.0/3) < 0.000001);
+    REQUIRE(Sample(equal,1,0).index == 0);
+    REQUIRE(Sample(equal,1,0.999999).index == 2);
+    std::array<float,2> extreme{10000,-10000};
+    REQUIRE(Sample(extreme,1,0.9999).index == 0);
+    REQUIRE_THROWS(Sample(equal,0,0.5));
+    REQUIRE_THROWS(Sample(equal,1,1));
+    REQUIRE_THROWS(Sample(std::span<float const>{},1,0.5));
+    equal[0] = std::numeric_limits<float>::quiet_NaN();
+    REQUIRE_THROWS(Sample(equal,1,0.5));
+}

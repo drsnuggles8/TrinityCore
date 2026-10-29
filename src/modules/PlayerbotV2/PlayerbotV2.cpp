@@ -3072,6 +3072,8 @@ void Module::OnDeath(Unit* victim, Unit* killer)
     // typically still in combat with adds â€” looting now would interrupt
     // their rotation. The queue persists until State_Idle drains it.
     Creature* c = victim->ToCreature();
+    if (c && killer)
+        if (Player* player = killer->GetCharmerOrOwnerPlayerOrPlayerItself()) Fleet::TrainingCapture::MonsterKill(player,c);
     if (c)
         Diagnostics::Scenario::NoteCreatureKilled(c->GetMapId(), c->GetEntry(), c->hasLootRecipient());
     // Boss kill line for tools/Fight-Report.ps1: dungeon and raid bosses, with how many of the tapping group survived.

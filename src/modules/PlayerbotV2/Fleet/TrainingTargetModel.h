@@ -21,6 +21,29 @@ inline constexpr std::array<std::string_view, 13> FeatureNames = {
     "line_of_sight", "tagged_by_other", "quest_relevant"};
 using Features = std::array<float, 13>;
 
+struct CategoricalChoice { std::size_t index; std::vector<double> probabilities; };
+inline CategoricalChoice Sample(std::span<float const> scores, double temperature, double unit)
+{
+    if (scores.empty() || scores.size() > 16 || !std::isfinite(temperature) || temperature < 0.05 || temperature > 5 ||
+        !std::isfinite(unit) || unit < 0 || unit >= 1 ||
+        !std::all_of(scores.begin(),scores.end(),[](float value) { return std::isfinite(value); }))
+        throw std::runtime_error("Invalid categorical target menu");
+    double top = *std::max_element(scores.begin(),scores.end());
+    std::vector<double> probabilities;
+    double total = 0;
+    for (float score : scores) { double weight = std::exp((double(score)-top)/temperature); probabilities.push_back(weight); total += weight; }
+    double cumulative = 0;
+    std::size_t chosen = scores.size()-1;
+    bool found = false;
+    for (std::size_t i = 0; i < probabilities.size(); ++i)
+    {
+        probabilities[i] /= total;
+        cumulative += probabilities[i];
+        if (!found && unit < cumulative) { chosen = i; found = true; }
+    }
+    return {chosen,std::move(probabilities)};
+}
+
 struct OwnState
 {
     double health, max_health, mana, max_mana, level, bag_free;

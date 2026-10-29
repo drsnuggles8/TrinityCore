@@ -6,6 +6,7 @@
 #include "Bot/TankHazardHold.h"
 #include "Bot/BotSnapshotView.h"
 #include "Bot/BotIntentEmitter.h"
+#include "Fleet/TrainingCapture.h"
 #include "Bot/BotRegistry.h"
 #include "Bot/IdleRule.h"
 #include "Bot/QuestDoable.h"
@@ -16223,6 +16224,32 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                                        (now_ms - ai.last_engage_at_ms() < 8000u);
             constexpr float kEngageRangeSq = 40.0f * 40.0f;
             constexpr float kInteractRangeSq = 5.0f * 5.0f;
+
+            // The model only ranks an executable subset of this quest dispatcher's observed targets. Health,
+            // quest relevance, ownership, distance and per-target refusal gates stay owned by the server.
+            if (hp_above_engage_gate && V2::Fleet::TrainingCapture::ControlsQuestTarget(s.bot_id()))
+            {
+                std::vector<NearbyUnit const*> legal;
+                for (auto const& ao : s.actionable_objectives())
+                {
+                    if (ao.type != 0 && ao.type != 21 && !(ao.type == 1 && ao.source_guid.IsCreature())) continue;
+                    for (auto const& unit : s.raw().combat.nearby_enemies)
+                    {
+                        if (unit.guid != ao.source_guid || !unit.guid.IsCreature() || unit.hp <= 0 || unit.max_hp <= 0 ||
+                            unit.untargetable || unit.no_xp_kill || unit.victim != ObjectGuid::Empty || SkipOthersMob(unit,ai) ||
+                            ai.start_attack_recently_refused(unit.guid.GetCounter(),now_ms)) continue;
+                        float dx = unit.x-bx, dy = unit.y-by, dz = unit.z-bz;
+                        if (dx*dx+dy*dy+dz*dz > kEngageRangeSq) continue;
+                        if (std::find(legal.begin(),legal.end(),&unit) == legal.end() && legal.size() < 16) legal.push_back(&unit);
+                    }
+                }
+                if (auto target = V2::Fleet::TrainingCapture::TryQuestTarget(s.raw(),legal,emit))
+                {
+                    ai.note_engage(target->guid,now_ms);
+                    ai.set_last_rule_fired("idle:learned_quest_target");
+                    return true;
+                }
+            }
 
             // Skip the head objective if we've already chosen current_objective
             // and a per-type rule below will fire — actually no, we want the

@@ -17,6 +17,7 @@ auto const& TrainingGuids()
 }
 
 bool HasTrainingPlayers() { return !TrainingGuids().empty(); }
+bool IsTrainingPlayerGuid(std::uint64_t guid) { return TrainingGuids().contains(guid); }
 
 bool IsTrainingPlayer(Player const* player)
 {
