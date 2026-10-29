@@ -985,6 +985,26 @@ uint32 LaunchSim::AddCohort(uint8 zone, uint32 elapsed_s)
     uint32 n = uint32((uint64(base) * CensusShareOf(zone) + CensusShareOf(LaunchPlaces::kZoneColdridge) / 2) /
                       CensusShareOf(LaunchPlaces::kZoneColdridge));
     n = std::min<uint32>(n, roster_.size() < MaxBots() ? uint32(MaxBots() - roster_.size()) : 0u);
+    // Playerbot.Launch.ValleyCap (Coldridge's; the other zones by the census): a fresh crowd only tops the starting valley up to
+    // this many bots, counting the ones in it now and the fresh ones still to arrive. Every new character added 150 on top
+    // of whoever stood there: ~1000 bots in Coldridge on 29 Oct, every mob dead on its respawn (Olo: "definitely too many").
+    uint32 const cap_base = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("Playerbot.Launch.ValleyCap", 300, true)));
+    uint32 const cap = uint32((uint64(cap_base) * CensusShareOf(zone) + CensusShareOf(LaunchPlaces::kZoneColdridge) / 2) /
+                              CensusShareOf(LaunchPlaces::kZoneColdridge));
+    LaunchPlaces::StartZone const& sz = LaunchPlaces::kZones[zone];
+    uint32 in_valley = 0;
+    for (Entry const& r : roster_)
+    {
+        if (r.cohort && (r.state == BotState::ToCreate || r.state == BotState::Offline || r.state == BotState::LoggingIn) &&
+            LaunchPlaces::ZoneForRace(r.race) == zone)
+            ++in_valley;   // a fresh bot on its way in
+        else if (r.state == BotState::Online && r.guid_low)
+            if (Player const* b = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(r.guid_low)))
+                if (b->GetMapId() == sz.map && LaunchPlaces::Dist2d(sz.center, b->GetPositionX(), b->GetPositionY()) < sz.radius * sz.radius)
+                    ++in_valley;
+    }
+    n = std::min<uint32>(n, in_valley < cap ? cap - in_valley : 0u);
+    TC_LOG_INFO("playerbot.v2", "[launch] fresh crowd for {}: {} bots in the valley or on their way, cap {}", sz.key, in_valley, cap);
     for (uint32 k = 0; k < n; ++k)
     {
         Entry e;
