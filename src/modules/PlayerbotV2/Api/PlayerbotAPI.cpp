@@ -510,6 +510,38 @@ void API::set_cast_speed_multiplier(float mult)
         p_->SetBotCastSpeedMod(std::clamp(mult, 0.4f, 1.6f));
 }
 
+// Travel lanes (playtest 29 Oct: "a ton of conga lines" out of Coldridge). Every bot walking to the same place got the same road
+// centerline or Detour corner path, so a crowd leaving together walked it in single file. The inner nodes of a travel path move
+// sideways by the bot's lane, up to 3.6 y either side of the line, fixed per bot and destination: a crowd spreads over the width of
+// a road or valley the way players do. A node keeps its place when its offset point lies on another level or behind a wall.
+static void SpreadTravelNodes(Player const* p, std::vector<WaypointNode>& nodes, float dest_x, float dest_y)
+{
+    if (nodes.size() < 3 || !p->FindMap())
+        return;
+    uint64 const seed = p->GetGUID().GetCounter() * 0x9E3779B97F4A7C15ull
+        ^ (uint64(int32(dest_x / 20.0f)) << 32) ^ uint64(uint32(int32(dest_y / 20.0f)));
+    float const lane = (float(int32((seed >> 29) % 7)) - 3.0f) * 1.2f;
+    if (lane == 0.0f)
+        return;
+    Map* map = p->GetMap();
+    for (size_t i = 1; i + 1 < nodes.size(); ++i)
+    {
+        WaypointNode& n = nodes[i];
+        float dx = nodes[i + 1].X - nodes[i - 1].X, dy = nodes[i + 1].Y - nodes[i - 1].Y;
+        float const len = std::sqrt(dx * dx + dy * dy);
+        if (len < 6.0f)   // a tight corner or stair: keep the line
+            continue;
+        dx /= len; dy /= len;
+        float const ox = n.X - dy * lane, oy = n.Y + dx * lane;
+        float const oz = map->GetHeight(p->GetPhaseShift(), ox, oy, n.Z + 2.0f, true, 6.0f);
+        if (oz <= INVALID_HEIGHT || std::fabs(oz - n.Z) > 1.5f)
+            continue;
+        if (!map->isInLineOfSight(p->GetPhaseShift(), n.X, n.Y, n.Z + 1.5f, ox, oy, oz + 1.5f, LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing))
+            continue;
+        n.X = ox; n.Y = oy; n.Z = oz;
+    }
+}
+
 // ---- Commands (real bodies) ----------------------------------------------
 
 // Classic 1.60 rank chains: rotations name a spell by any rank (usually
@@ -2580,6 +2612,7 @@ Result API::move_to(float x, float y, float z, bool run, bool direct, bool drop,
             uint32 nid = 0;
             for (Position const& wp : roadWps)
                 nodes.emplace_back(nid++, wp.GetPositionX(), wp.GetPositionY(), wp.GetPositionZ());
+            SpreadTravelNodes(p_, nodes, x, y);
 
             WaypointPath roadPath(0, std::move(nodes),
                 run ? WaypointMoveType::Run : WaypointMoveType::Walk);
@@ -2643,6 +2676,8 @@ Result API::move_to(float x, float y, float z, bool run, bool direct, bool drop,
             uint32 nid = 0;
             for (G3D::Vector3 const& pp : pts)
                 nodes.emplace_back(nid++, pp.x, pp.y, pp.z);
+            if (!p_->GetMap()->Instanceable())
+                SpreadTravelNodes(p_, nodes, x, y);
 
             WaypointPath cmpPath(0, std::move(nodes),
                 run ? WaypointMoveType::Run : WaypointMoveType::Walk);
