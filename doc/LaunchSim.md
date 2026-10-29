@@ -206,8 +206,9 @@ within `Respawn.DynamicRadius` (60 y) of its spawn point and in line of sight of
 A crowded camp therefore respawns fast, while a cave nobody else is in keeps retail timers: Olo alone in Jasperlode Mine
 (kobolds 270 s) or the Coldridge troll cave (whelps 180 s) gets the full timer, and 30 bots round a wolf camp bring its
 180 s down to the minimum. Timers already at or below the minimum (quest objects such as Felix's box, 10 s) never change.
-`Logger.maps=2,Server` (`TC_LOGGER_MAPS=2,Server`, debug) logs each death with its timer and the players counted; it also
-logs grid loading, so switch it back afterwards.
+`Logger.maps=2,Server` (debug) logs each death with its timer and the players counted; it also logs grid loading, so switch it
+back afterwards. `Logger.maps` is not in worldserver.conf, so `TC_LOGGER_MAPS` alone is ignored (environment variables only
+override keys the file has): put the line in a `worldserver.conf.d/*.conf` file instead.
 
 **History (zone-wide counting, before the local count):** the stock TrinityCore rule counted every player in the zone, so
 120-300 bots in Dun Morogh or Elwynn scaled every spawn there, caves included. Rate 10 gave ~15 s timers: mobs came back while
