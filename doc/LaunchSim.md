@@ -197,14 +197,22 @@ too (`2026_10_27_01_world_launch_dynamic_respawn_zones.sql`).
 The 2019 Classic launch used dynamic respawns in the starter zones (more players, faster respawns); whether Forever does is
 not known. `sql/custom/world/2026_10_27_00_world_launch_dynamic_respawn.sql` puts the hostile creatures of the launch area
 (1345 spawns) into spawn group 2 "Dynamic Scaling (Quest objectives)"; `Respawn.DynamicMode = 1` (`TC_RESPAWN_DYNAMIC_MODE=1`
-in the home server's worldserver.env) switches it on: with N players in Dun Morogh a respawn takes 10/N of its time, at
-least 10 s. Set it to 0 to practise against normal respawn timers. Without it 260 bots shared a few dozen wolves and boars
-and the average level after 45 minutes was 2.8.
+in the home server's worldserver.env) switches it on. Set it to 0 to practise against normal respawn timers. Without it
+260 bots shared a few dozen wolves and boars and the average level after 45 minutes was 2.8.
 
-**Off since 28 Oct (Olo):** with 120 bots in Coldridge the 180 s timers fell to ~15 s: mobs came back while players still
-fought at the spot, the named trolls and Felix's corner were impossible, and there were more mobs than a launch crowd
-leaves. `TC_RESPAWN_DYNAMIC_MODE=0` in the live worldserver.env: every creature keeps its own timer (quest objects such as
-Felix's box have 10 s timers anyway). The bots level more slowly for it; that is the launch pace to practise against.
+**The count is local.** When a creature dies, the server counts the players (bots included) that are alive, not in GM mode,
+within `Respawn.DynamicRadius` (60 y) of its spawn point and in line of sight of it. With up to `Respawn.DynamicRateCreature`
+(3) of them it keeps its own timer; with N > 3 it takes 3/N of it, never less than `Respawn.DynamicMinimumCreature`.
+A crowded camp therefore respawns fast, while a cave nobody else is in keeps retail timers: Olo alone in Jasperlode Mine
+(kobolds 270 s) or the Coldridge troll cave (whelps 180 s) gets the full timer, and 30 bots round a wolf camp bring its
+180 s down to the minimum. Timers already at or below the minimum (quest objects such as Felix's box, 10 s) never change.
+`Logger.maps=2,Server` (`TC_LOGGER_MAPS=2,Server`, debug) logs each death with its timer and the players counted; it also
+logs grid loading, so switch it back afterwards.
+
+**History (zone-wide counting, before the local count):** the stock TrinityCore rule counted every player in the zone, so
+120-300 bots in Dun Morogh or Elwynn scaled every spawn there, caves included. Rate 10 gave ~15 s timers: mobs came back while
+players still fought at the spot and the named trolls and Felix's corner were impossible. Off was too few mobs for the
+crowd; rate 40 with a 60 s and then a 20 s minimum still swarmed the caves the bots never go into.
 
 ## Racer pace
 

@@ -2173,7 +2173,8 @@ Respawn.RestartQuietTime = 3
 #        Description: Select which mode (if any) should be used to adjust respawn of creatures.
 #                     This will only affect creatures that have dynamic spawn rate scaling enabled in
 #                     the spawn group table (by default, gathering nodes and quest targets with respawn time <30min
-#                     1 - Use number of players in zone
+#                     1 - Use the number of players near the spawn point: alive, not in GM mode, within
+#                         Respawn.DynamicRadius of it and in line of sight (bots count as players)
 #        Default:     0 - No dynamic respawn function
 
 Respawn.DynamicMode = 0
@@ -2190,12 +2191,12 @@ Respawn.DynamicEscortNPC = 0
 
 #
 #    Respawn.DynamicRateCreature
-#        Description: The rate at which the respawn time is adjusted for high player counts in a zone (for creatures).
+#        Description: The number of players near a spawn point that a creature's own respawn time is meant for.
 #                     Up to this number of players, the respawn rate is unchanged.
 #                     At double this number in players, you get twice as many respawns, at three times this number, three times the respawns, and so forth.
-#        Default:     10
+#        Default:     3
 
-Respawn.DynamicRateCreature = 10
+Respawn.DynamicRateCreature = 3
 
 #
 #    Respawn.DynamicMinimumCreature
@@ -2206,12 +2207,12 @@ Respawn.DynamicMinimumCreature = 10
 
 #
 #    Respawn.DynamicRateGameObject
-#        Description: The rate at which the respawn time is adjusted for high player counts in a zone (for gameobjects).
+#        Description: The number of players near a spawn point that a GameObject's own respawn time is meant for.
 #                     Up to this number of players, the respawn rate is unchanged.
 #                     At double this number in players, you get twice as many respawns, at three times this number, three times the respawns, and so forth.
-#        Default:     10
+#        Default:     3
 
-Respawn.DynamicRateGameObject = 10
+Respawn.DynamicRateGameObject = 3
 
 #
 #    Respawn.DynamicMinimumGameObject
@@ -2219,6 +2220,14 @@ Respawn.DynamicRateGameObject = 10
 #        Default:     10 - (10 seconds)
 
 Respawn.DynamicMinimumGameObject = 10
+
+#
+#    Respawn.DynamicRadius
+#        Description: How far (in yards) from a spawn point players count towards its dynamic respawn rate.
+#                     They must also see the spawn point, so players outside a cave do not speed up the cave.
+#        Default:     60
+
+Respawn.DynamicRadius = 60
 
 #
 ###################################################################################################

@@ -25,6 +25,7 @@
 #include "Conversation.h"
 #include "DB2Stores.h"
 #include "DatabaseEnv.h"
+#include "DynamicRespawn.h"
 #include "DynamicTree.h"
 #include "DynamicMMapTileBuilder.h"
 #include "GameObjectModel.h"
@@ -643,21 +644,6 @@ void Map::VisitNearbyCellsOf(WorldObject* obj, TypeContainerVisitor<Trinity::Obj
             Visit(cell, worldVisitor);
         }
     }
-}
-
-void Map::UpdatePlayerZoneStats(uint32 oldZone, uint32 newZone)
-{
-    // Nothing to do if no change
-    if (oldZone == newZone)
-        return;
-
-    if (oldZone != MAP_INVALID_ZONE)
-    {
-        uint32& oldZoneCount = _zonePlayerCountMap[oldZone];
-        ASSERT(oldZoneCount, "A player left zone %u (went to %u) - but there were no players in the zone!", oldZone, newZone);
-        --oldZoneCount;
-    }
-    ++_zonePlayerCountMap[newZone];
 }
 
 void Map::Update(uint32 t_diff)
@@ -2317,7 +2303,7 @@ void Map::ProcessRespawns()
     }
 }
 
-void Map::ApplyDynamicModeRespawnScaling(WorldObject const* obj, ObjectGuid::LowType spawnId, uint32& respawnDelay, uint32 mode) const
+void Map::ApplyDynamicModeRespawnScaling(WorldObject const* obj, ObjectGuid::LowType spawnId, uint32& respawnDelay, uint32 mode)
 {
     ASSERT(mode == 1);
     ASSERT(obj->GetMap() == this);
@@ -2345,20 +2331,36 @@ void Map::ApplyDynamicModeRespawnScaling(WorldObject const* obj, ObjectGuid::Low
     if (!(data->spawnGroupData->flags & SPAWNGROUP_FLAG_DYNAMIC_SPAWN_RATE))
         return;
 
-    auto it = _zonePlayerCountMap.find(obj->GetZoneId());
-    if (it == _zonePlayerCountMap.end())
-        return;
-    uint32 const playerCount = it->second;
-    if (!playerCount)
-        return;
-    double const adjustFactor = sWorld->getFloatConfig(type == SPAWN_TYPE_GAMEOBJECT ? CONFIG_RESPAWN_DYNAMICRATE_GAMEOBJECT : CONFIG_RESPAWN_DYNAMICRATE_CREATURE) / playerCount;
-    if (adjustFactor >= 1.0) // nothing to do here
-        return;
     uint32 const timeMinimum = sWorld->getIntConfig(type == SPAWN_TYPE_GAMEOBJECT ? CONFIG_RESPAWN_DYNAMICMINIMUM_GAMEOBJECT : CONFIG_RESPAWN_DYNAMICMINIMUM_CREATURE);
     if (respawnDelay <= timeMinimum)
         return;
 
-    respawnDelay = std::max<uint32>(ceil(respawnDelay * adjustFactor), timeMinimum);
+    // Demand is local: the living players (bots included) near the spawn point who can see it. A cave nobody else is in
+    // keeps its own timers, however crowded the rest of the zone is, and a crowded camp respawns fast.
+    Position const& spawnPoint = data->ToSpawnData()->spawnPoint;
+    float const radius = sWorld->getFloatConfig(CONFIG_RESPAWN_DYNAMIC_RADIUS);
+    std::vector<Player*> playersInRange;
+    Trinity::AnyPlayerInPositionRangeCheck check(&spawnPoint, radius);
+    Trinity::PlayerListSearcher searcher(obj, playersInRange, check);
+    Cell::VisitWorldObjects(spawnPoint.GetPositionX(), spawnPoint.GetPositionY(), this, searcher, radius);
+
+    // Past the count that brings the timer to its minimum, more players change nothing: a crowd of hundreds costs no more
+    // line-of-sight checks than that.
+    double const rate = sWorld->getFloatConfig(type == SPAWN_TYPE_GAMEOBJECT ? CONFIG_RESPAWN_DYNAMICRATE_GAMEOBJECT : CONFIG_RESPAWN_DYNAMICRATE_CREATURE);
+    uint32 const enough = DynamicRespawn::PlayersForMinimum(respawnDelay, rate, timeMinimum);
+    uint32 nearbyPlayers = 0;
+    for (Player const* player : playersInRange)
+    {
+        if (nearbyPlayers >= enough)
+            break;
+        if (!player->IsGameMaster() && player->IsWithinLOS(spawnPoint.GetPositionX(), spawnPoint.GetPositionY(), spawnPoint.GetPositionZ()))
+            ++nearbyPlayers;
+    }
+
+    uint32 const scaledDelay = DynamicRespawn::ScaleDelay(respawnDelay, nearbyPlayers, rate, timeMinimum);
+    TC_LOG_DEBUG("maps", "Map::ApplyDynamicModeRespawnScaling: {} (spawn {}) respawns in {} s instead of {} s, {} players near its spawn point",
+        obj->GetGUID().ToString(), spawnId, scaledDelay, respawnDelay, nearbyPlayers);
+    respawnDelay = scaledDelay;
 }
 
 bool Map::ShouldBeSpawnedOnGridLoad(SpawnObjectType type, ObjectGuid::LowType spawnId) const

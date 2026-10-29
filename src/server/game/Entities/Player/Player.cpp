@@ -8107,8 +8107,6 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
     uint32 const oldZone = m_zoneUpdateId;
     m_zoneUpdateId = newZone;
 
-    GetMap()->UpdatePlayerZoneStats(oldZone, newZone);
-
     // call leave script hooks immedately (before updating flags)
     if (oldZone != newZone)
     {
