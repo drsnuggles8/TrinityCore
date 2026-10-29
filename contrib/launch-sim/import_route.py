@@ -30,6 +30,12 @@ def bit(race, cls):
     return ROUTE_RACES.index(race) * 12 + cls
 
 
+# Game-mode tags of the filters: Forever plays like Classic Era, not Season of Discovery / Mastery, not hardcore. Unknown
+# tags were true and "!sod" false, so "step << !sod/Warrior" (Forever: everyone) went to Warriors only: Shadowglen's A Good
+# Friend (4495) was accepted by no other class and the guided bench's night elves passed its whole chain over (29 Oct).
+MODES = {"sod": False, "som": False, "hardcore": False, "era": True, "softcore": True}
+
+
 def term_true(term, race, cls):
     neg = term.startswith("!")
     t = term.lstrip("!").lower()
@@ -37,12 +43,14 @@ def term_true(term, race, cls):
         val = RACES[t] == race
     elif t in CLASSES:
         val = CLASSES[t] == cls
+    elif t in MODES:
+        val = MODES[t]
     elif t in ("alliance",):
         val = True
     elif t in ("horde",):
         val = False
     else:
-        val = True   # tags we do not model (season, softcore, professions): do not filter on them
+        return True   # tags we do not model (professions, ...): do not filter on them, negated or not
     return val != neg
 
 
@@ -86,6 +94,12 @@ def parse(text):
     for body in guide_bodies(text):
         for block in re.split(r"\n[ \t]*(?=step\b)", "\n" + body)[1:]:
             head, _, rest = block.partition("\n")
+            # "#season 2" is Season of Discovery, "#season 0,1" Classic Era and Season of Mastery: Forever plays like Era (0). The
+            # SoD steps (rune quests 77xxx, a level-2 grind for Warlocks with no pet) held the guided bench's Warlocks at
+            # level 1 for up to 51 minutes (29 Oct).
+            season = re.search(r"^\s*#season\s+([\d,\s]+)", rest, re.M)
+            if season and "0" not in re.split(r"[,\s]+", season.group(1).strip()):
+                continue
             m = re.search(r"<<\s*(.+)$", head)
             step_filter = m.group(1).strip() if m else ""
             optional = False

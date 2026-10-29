@@ -15,6 +15,13 @@ RXPGuides.RegisterGuide([[
 #name 1-5 Test Valley
 step
     .accept 100 >> Accept First Steps
+step << Warlock
+    #season 2
+    .xp 2 >> Season of Discovery only
+    .accept 77001
+step << Warlock
+    #season 0,1
+    .accept 104
 step << Hunter
     .accept 101 >> Accept Hunter Training
 step
@@ -57,6 +64,7 @@ class ImportRouteTest(unittest.TestCase):
     def test_order_and_actions(self):
         self.assertEqual([(a, q, o) for a, q, o, _ in self.steps], [
             ("accept", 100, 0),
+            ("accept", 104, 0),               # "#season 0,1" is Era: kept; the "#season 2" (SoD) step before it is not
             ("accept", 101, 0),
             ("complete", 100, 1),
             ("complete", 100, 2),
@@ -75,6 +83,14 @@ class ImportRouteTest(unittest.TestCase):
         self.assertEqual(by[("complete", 100, 2)], self.mask(1))
         self.assertEqual(by[("level", 3 << 24 | 1130, 0)], self.mask(7))
         self.assertEqual(by[("level", 2 << 24, 0)], self.mask(*{c for _, c in ir.COMBOS}))
+
+    def test_mode_tags(self):
+        everyone = self.mask(*{c for _, c in ir.COMBOS})
+        self.assertEqual(ir.mask_for("!sod/Warrior"), everyone)      # Era: not SoD, so every class
+        self.assertEqual(ir.mask_for("sod"), 0)
+        self.assertEqual(ir.mask_for("sod Warrior"), 0)
+        self.assertEqual(ir.mask_for("!hardcore Hunter"), self.mask(3))
+        self.assertEqual(ir.mask_for("!Herbalism"), everyone)        # an unknown tag filters nothing, negated or not
 
     def test_xp_step(self):
         self.assertEqual(ir.xp_step(".xp 4 >> Grind to level 4"), ("level", 4 << 24, 0))
