@@ -381,8 +381,9 @@ void Initialize()
         control_enabled = sConfigMgr->GetBoolDefault("Playerbot.Training.TargetControl.Enable",false,true);
         control_guids = ParseTrainingPlayerGuids(sConfigMgr->GetStringDefault("Playerbot.Training.TargetControl.PlayerGuids","",true));
         control_temperature = std::clamp(double(sConfigMgr->GetFloatDefault("Playerbot.Training.TargetControl.Temperature",1.f,true)),0.05,5.0);
-        TC_LOG_INFO("playerbot.v2", "[training_shadow] loaded checkpoint={} epoch={} step={} parity=passed authority=none",
-            shadow_model->checkpoint_sha256, shadow_model->epoch, shadow_model->optimizer_step);
+        TC_LOG_INFO("playerbot.v2", "[training_shadow] loaded checkpoint={} epoch={} step={} parity=passed authority={}",
+            shadow_model->checkpoint_sha256, shadow_model->epoch, shadow_model->optimizer_step,
+            control_enabled && !control_guids.empty() ? "quest_targets" : "none");
         TC_LOG_INFO("playerbot.v2","[training_control] enabled={} configured_actors={} temperature={}",control_enabled,control_guids.size(),control_temperature);
     }
     catch (std::exception const& error)
