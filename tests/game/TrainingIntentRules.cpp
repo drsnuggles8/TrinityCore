@@ -23,7 +23,7 @@ TEST_CASE("Training actors cannot execute bot-only spatial rescue or cooldown re
 TEST_CASE("Ordinary training-player actions still reach the engine", "[TrainingIntentRules]")
 {
     for (IntentBody const& body : {IntentBody{MoveToIntent{}}, IntentBody{CastSpellIntent{}},
-                                  IntentBody{UseItemByEntryIntent{}}, IntentBody{JumpIntent{}}})
+                                  IntentBody{UseItemByEntryIntent{}}, IntentBody{JumpIntent{}}, IntentBody{HearthIntent{}}})
     {
         bool executed = false;
         auto result = ExecuteTrainingIntent(true, body, [&] { executed = true; return 7; });
