@@ -1,6 +1,7 @@
 #include "TrainingCapture.h"
 #include "TrainingPlayer.h"
 #include "TrainingTargetModel.h"
+#include "TrainingIntentRules.h"
 #include "Bot/BotIntent.h"
 #include "Bot/BotSnapshot.h"
 #include "Config.h"
@@ -89,7 +90,7 @@ public:
         if (!shadow_model || s.identity.race != 3 || s.identity.cls != 7 || s.identity.level > 6 ||
             s.position.map_id != 0 || s.area.zone_id != 1) return;
         std::lock_guard lock(actors_mutex_);
-        if (!shadows_.contains(s.bot_id) && shadows_.size() >= 16) return;
+        if (!shadows_.contains(s.bot_id) && shadows_.size() >= 128) return;
         TrainingTarget::Frame frame{s.version, s.published_at_ms, {}};
         TrainingTarget::OwnState own{double(s.vitals.hp), double(s.vitals.max_hp), double(s.vitals.power[POWER_MANA]),
             double(s.vitals.max_power[POWER_MANA]), double(s.identity.level), double(s.bags.bag_free_slots), s.vitals.in_combat};
@@ -419,8 +420,7 @@ void ExecutedImpl(Player const* player, Intent const& intent, std::uint8_t resul
     Text(w, "action_kind", IntentKindName(intent.body.index()));
     w.Key("result"); w.Uint(result); w.Key("exception"); w.Bool(exception);
     w.Key("accepted_by_api"); w.Bool(result == 0 && !exception);
-    w.Key("privileged_action"); w.Bool(std::holds_alternative<UnstuckIntent>(intent.body) || std::holds_alternative<TeleportToIntent>(intent.body)
-        || std::holds_alternative<NearTeleportToIntent>(intent.body) || std::holds_alternative<ResetCooldownsIntent>(intent.body));
+    w.Key("privileged_action"); w.Bool(IsPrivilegedTrainingIntent(intent.body));
     bool payload = true;
     w.Key("payload"); w.StartObject();
     if (auto const* value = std::get_if<MoveToIntent>(&intent.body))

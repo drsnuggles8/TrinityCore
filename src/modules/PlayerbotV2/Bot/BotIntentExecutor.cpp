@@ -4,6 +4,8 @@
 
 #include "BotIntent.h"
 #include "../Fleet/TrainingCapture.h"
+#include "../Fleet/TrainingPlayer.h"
+#include "../Fleet/TrainingIntentRules.h"
 #include "BotAI.h"
 #include "BotRegistry.h"
 #include "FlightWait.h"
@@ -727,7 +729,9 @@ size_t V2::Module::DrainIntents()
             const auto intent_t0 = std::chrono::steady_clock::now();
             try
             {
-                Result r = std::visit(IntentVisitor{api, entry.ai.get()}, intent.body);
+                auto allowed_result = V2::Fleet::ExecuteTrainingIntent(V2::Fleet::IsTrainingPlayer(p), intent.body,
+                    [&] { return std::visit(IntentVisitor{api, entry.ai.get()}, intent.body); });
+                Result r = allowed_result.value_or(Result::Locked);
                 // A full instance is not a failed port to retry at once: the rejoin rule waits and asks again.
                 if (r == Result::ServerRefused && api.last_instance_full_map() != 0 && entry.ai)
                     entry.ai->note_instance_full(api.last_instance_full_map(), GameTime::GetGameTimeMS());
