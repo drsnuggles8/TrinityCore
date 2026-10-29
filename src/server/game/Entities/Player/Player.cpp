@@ -5616,7 +5616,9 @@ float Player::ApplyRatingDiminishing(CombatRating cr, float bonusValue) const
 
 float Player::GetExpertiseDodgeOrParryReduction(WeaponAttackType attType) const
 {
-    float baseExpertise = 7.5f;
+    // Classic 1.60 (vanilla): no innate expertise, creatures keep their full 5% dodge and parry (retail players start at 7.5%).
+    // From Karrz's playerbots release v0.1.25 (29 Oct).
+    float baseExpertise = 0.0f;
     switch (attType)
     {
         case BASE_ATTACK:
