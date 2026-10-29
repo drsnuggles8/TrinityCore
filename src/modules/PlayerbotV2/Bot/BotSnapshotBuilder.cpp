@@ -1871,6 +1871,39 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         launch_step = V2::Fleet::LaunchRoutes::Instance().CurrentStep(p, bot_ai->launch().route);
         if (launch_step)
             V2::Fleet::LaunchRoutes::Instance().Window(p, bot_ai->launch().route, 12, launch_window);
+
+        // [route]: each step the bot finishes or passes over, with its level, XP and the time it spent on it (Olo, 29 Oct: "a sanity
+        // check that a guide-follower actually follows the guide"; contrib/launch-sim/guided-check.py reads these lines).
+        auto const& routes = V2::Fleet::LaunchRoutes::Instance();
+        uint8 const route = bot_ai->launch().route;
+        size_t const idx = launch_step ? size_t(launch_step - routes.StepAt(route, 0)) : routes.Steps(route);
+        uint16 const was = bot_ai->launch_route_index();
+        uint32 const now_ms = GameTime::GetGameTimeMS();
+        if (was != idx + 1)
+        {
+            std::string const& rname = routes.Names()[route];
+            ::Playerbot::LaunchPlaces::StartZone const& sz = ::Playerbot::LaunchPlaces::kZones[::Playerbot::LaunchPlaces::ZoneForRace(p->GetRace())];
+            bool const in_valley = p->GetMapId() == sz.map &&
+                ::Playerbot::LaunchPlaces::Dist2d(sz.center, p->GetPositionX(), p->GetPositionY()) < sz.radius * sz.radius;
+            uint32 const on_step_s = was ? (now_ms - bot_ai->launch_route_since_ms()) / 1000u : 0u;
+            if (was && idx + 1 > was)
+                for (size_t j = was - 1; j < idx; ++j)
+                    if (V2::Fleet::RouteStep const* st = routes.StepAt(route, j))
+                        if (char const* how = routes.PassedAs(p, *st))
+                            TC_LOG_INFO("playerbot.v2", "[route] {} {} step {}/{} action={} quest={} {} level={} xp={}/{} on_step_s={} min={} area={} in_valley={}",
+                                p->GetName(), rname, j + 1, routes.Steps(route), uint32(st->action),
+                                st->action == V2::Fleet::RouteAction::Level ? (st->quest >> 24) * 100000u + (st->quest & 0xFFFFFFu) : st->quest,
+                                how, uint32(p->GetLevel()), p->GetXP(), p->GetXPForNextLevel(), on_step_s,
+                                (now_ms - bot_ai->launch().login_ms) / 60000u, p->GetAreaId(), in_valley ? 1 : 0);
+            if (was && idx + 1 < was)
+                TC_LOG_INFO("playerbot.v2", "[route] {} {} back to step {}/{} from {} (level {})", p->GetName(), rname, idx + 1,
+                    routes.Steps(route), was, uint32(p->GetLevel()));
+            if (idx == routes.Steps(route) && was != idx + 1)
+                TC_LOG_INFO("playerbot.v2", "[route] {} {} finished at level={} xp={}/{} min={}", p->GetName(), rname,
+                    uint32(p->GetLevel()), p->GetXP(), p->GetXPForNextLevel(), (now_ms - bot_ai->launch().login_ms) / 60000u);
+            bot_ai->set_launch_route_index(uint16(idx + 1));
+            bot_ai->set_launch_route_since_ms(now_ms ? now_ms : 1u);
+        }
     }
     auto const in_launch_window = [&launch_window](uint32 quest)
     { return std::find(launch_window.begin(), launch_window.end(), quest) != launch_window.end(); };

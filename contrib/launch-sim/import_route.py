@@ -5,7 +5,7 @@
 
 ROUTE_ID is a short name (e.g. rxp, olo; rxp-human, rxp-nightelf for the other Alliance starting zones: the launch sim picks
 a route for a bot by this suffix). Every RegisterGuide block of every file is read in order and becomes one ordered list of
-quest steps: accept / complete (quest objective) / turn in, plus deathskip and hearth steps. Class and race filters
+quest steps: accept / complete (quest objective) / turn in, plus deathskip, hearth and level (".xp" grind) steps. Class and race filters
 (`step << Dwarf Hunter`, `<< !Gnome`, `.accept 1234 << Warrior/Rogue`) are evaluated for each class of the route's races
 (default dwarf,gnome) and stored as a bit mask (bit = race slot * 12 + class id; the first race slot 0, the second slot 1),
 so one route serves every class.
@@ -23,7 +23,7 @@ CLASSES = {"warrior": 1, "paladin": 2, "hunter": 3, "rogue": 4, "priest": 5, "sh
 RACE_CLASSES = {1: (1, 2, 4, 5, 8, 9), 3: (1, 2, 3, 4, 5, 7), 4: (1, 3, 4, 5, 11), 7: (1, 4, 8, 9)}
 ROUTE_RACES = [3, 7]   # set by --races
 COMBOS = []
-ACTIONS = {"accept": 1, "complete": 2, "turnin": 3, "deathskip": 4, "hearth": 5, "turnin_done": 6}
+ACTIONS = {"accept": 1, "complete": 2, "turnin": 3, "deathskip": 4, "hearth": 5, "turnin_done": 6, "level": 7}
 
 
 def bit(race, cls):
@@ -60,6 +60,20 @@ def mask_for(*exprs):
         if all(allowed(e, race, cls) for e in exprs if e):
             m |= 1 << bit(race, cls)
     return m
+
+
+def xp_step(line):
+    """A grind step: ".xp 4" (level 4), ".xp 3+1130" (1130 XP into level 3), ".xp 10-1720" (1720 XP short of 10), as
+    ("level", level << 24 | xp, 1 when counted back from the next level else 0) for RouteAction::Level; None otherwise.
+    ".xp >6,1" / ".xp <11,1" only show a step by level (no digit after ".xp "): not grind steps. Left out, Guided bots walked
+    out of Coldridge at level 3 (Olo, 29 Oct)."""
+    a = re.match(r"\.xp\s+(\d+)(?:\s*([+-])\s*(\d+))?(?=\s|$)", line)
+    if not a:
+        return None
+    level, sign, xp = int(a.group(1)), a.group(2), int(a.group(3) or 0)
+    if sign == "-":
+        return ("level", (level - 1) << 24 | xp, 1)
+    return ("level", level << 24 | xp, 0)
 
 
 def guide_bodies(text):
@@ -103,6 +117,12 @@ def parse(text):
                         mask = mask_for(step_filter, line_filter)
                         if mask:
                             steps.append(("turnin_done", int(a.group(1)), 0, mask))
+                    # RestedXP marks most of its grind steps #optional ("Grind to level 2"): a player under the level does them,
+                    # and they put the end of Coldridge at about 5 1/3 (Olo, 29 Oct). Imported like the plain ones below.
+                    elif only_optional and (lv := xp_step(t)):
+                        mask = mask_for(step_filter, line_filter)
+                        if mask:
+                            steps.append(lv + (mask,))
                     continue
                 mask = mask_for(step_filter, line_filter)
                 if not mask:
@@ -115,6 +135,8 @@ def parse(text):
                     if opportunistic:
                         continue
                     steps.append(("complete", int(a.group(1)), int(a.group(2)), mask))
+                elif (lv := xp_step(t)):
+                    steps.append(lv + (mask,))
                 elif t.startswith(".deathskip"):
                     steps.append(("deathskip", 0, 0, mask))
                 elif re.match(r"\.hs\b", t):

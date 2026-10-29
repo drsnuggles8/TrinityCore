@@ -461,6 +461,15 @@ bool LaunchRoutes::Pending(Player const* p, RouteStep const& s, uint32 me) const
 {
     if (!(s.combos & me))
         return false;
+    if (s.action == RouteAction::Level)
+    {
+        uint8 const level = uint8(s.quest >> 24);
+        uint32 const xp = s.quest & 0xFFFFFFu;
+        if (p->GetLevel() != level)
+            return p->GetLevel() < level;
+        uint32 const next = p->GetXPForNextLevel();
+        return p->GetXP() < (s.objective == 1 ? (next > xp ? next - xp : 0u) : xp);
+    }
     if (s.action != RouteAction::Accept && s.action != RouteAction::Complete && s.action != RouteAction::TurnIn &&
         s.action != RouteAction::TurnInIfDone)
         return false;   // deathskip / hearth: not driven yet
@@ -510,6 +519,52 @@ RouteStep const* LaunchRoutes::CurrentStep(Player const* p, uint8 route) const
     return nullptr;
 }
 
+size_t LaunchRoutes::CurrentIndex(Player const* p, uint8 route) const
+{
+    if (!p || route >= routes_.size())
+        return 0;
+    uint32 const me = ComboBit(p->GetRace(), p->GetClass());
+    for (size_t i = 0; i < routes_[route].size(); ++i)
+        if (Pending(p, routes_[route][i], me))
+            return i;
+    return routes_[route].size();
+}
+
+char const* LaunchRoutes::PassedAs(Player const* p, RouteStep const& s) const
+{
+    if (!(s.combos & ComboBit(p->GetRace(), p->GetClass())))
+        return nullptr;
+    if (s.action == RouteAction::Level)
+        return "done";   // no longer pending: the bot has the level and XP
+    if (s.action == RouteAction::Deathskip || s.action == RouteAction::Hearth)
+        return "not_driven";
+    Quest const* q = sObjectMgr->GetQuestTemplate(s.quest);
+    if (!q)
+        return "skipped:no_quest";
+    bool const rewarded = p->GetQuestRewardStatus(s.quest);
+    QuestStatus const st = p->GetQuestStatus(s.quest);
+    bool const in_log = st == QUEST_STATUS_INCOMPLETE || st == QUEST_STATUS_COMPLETE || st == QUEST_STATUS_FAILED;
+    switch (s.action)
+    {
+        case RouteAction::Accept:
+            if (rewarded || in_log)
+                return "done";
+            if (!p->CanTakeQuest(q, false))
+                return "skipped:cannot_take";
+            return Giver(s.quest) ? "skipped" : "skipped:no_giver";
+        case RouteAction::Complete:
+            if (rewarded || st == QUEST_STATUS_COMPLETE)
+                return "done";
+            return in_log ? "done" : "skipped:not_in_log";   // in the log and no longer pending: the objective is complete
+        case RouteAction::TurnIn:
+            return rewarded ? "done" : "skipped:not_turned_in";
+        case RouteAction::TurnInIfDone:
+            return rewarded ? "done" : "optional:not_complete";
+        default:
+            return "skipped";
+    }
+}
+
 void LaunchRoutes::Window(Player const* p, uint8 route, uint32 steps, std::vector<uint32>& quests) const
 {
     quests.clear();
@@ -520,6 +575,8 @@ void LaunchRoutes::Window(Player const* p, uint8 route, uint32 steps, std::vecto
     {
         if (!Pending(p, s, me))
             continue;
+        if (s.action == RouteAction::Level)
+            break;   // a grind step: nothing after it until the bot has the level
         if (std::find(quests.begin(), quests.end(), s.quest) == quests.end())
             quests.push_back(s.quest);
         if (--steps == 0)
