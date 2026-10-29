@@ -18,6 +18,7 @@
 
 #include "DynamicRespawn.h"
 
+using DynamicRespawn::CombatWaitUntil;
 using DynamicRespawn::PlayersForMinimum;
 using DynamicRespawn::ScaleDelay;
 
@@ -73,5 +74,40 @@ TEST_CASE("Counting stops exactly where the timer reaches its minimum", "[Dynami
                 // one player fewer and the timer is still above it (or the count is still within the rate)
                 if (enough > 1)
                     CHECK((ScaleDelay(delay, enough - 1, rate, minimum) > minimum || enough - 1 <= rate));
+            }
+}
+
+TEST_CASE("A due respawn waits while a player fights at the spawn point, but not forever", "[DynamicRespawn]")
+{
+    time_t const t0 = 1000;
+    // nobody fighting, or the wait switched off: respawn now
+    CHECK(CombatWaitUntil(t0, 0, false, 5, 15) == 0);
+    CHECK(CombatWaitUntil(t0, 0, true, 0, 15) == 0);
+
+    // a fight: 5 s at a time, from the first wait
+    CHECK(CombatWaitUntil(t0, 0, true, 5, 15) == t0 + 5);
+    CHECK(CombatWaitUntil(t0 + 5, t0, true, 5, 15) == t0 + 10);
+    CHECK(CombatWaitUntil(t0 + 10, t0, true, 5, 15) == t0 + 15);
+    // a camp that is never quiet: the respawn comes 15 s late at most
+    CHECK(CombatWaitUntil(t0 + 15, t0, true, 5, 15) == 0);
+    CHECK(CombatWaitUntil(t0 + 40, t0, true, 5, 15) == 0);
+    // the last step is cut to the cap
+    CHECK(CombatWaitUntil(t0 + 12, t0, true, 5, 15) == t0 + 15);
+    // the fight ends during the wait: respawn now
+    CHECK(CombatWaitUntil(t0 + 5, t0, false, 5, 15) == 0);
+}
+
+TEST_CASE("A combat wait is always later than now while it lasts", "[DynamicRespawn]")
+{
+    // ProcessRespawns asserts that a postponed respawn lies in the future
+    for (uint32 step : { 1u, 5u, 20u })
+        for (uint32 maxWait : { 1u, 5u, 15u, 60u })
+            for (time_t elapsed = 0; elapsed < 70; ++elapsed)
+            {
+                CAPTURE(step, maxWait, elapsed);
+                time_t const until = CombatWaitUntil(1000 + elapsed, 1000, true, step, maxWait);
+                if (until)
+                    CHECK(until > 1000 + elapsed);
+                CHECK(until <= time_t(1000 + maxWait));
             }
 }

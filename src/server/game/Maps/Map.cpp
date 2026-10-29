@@ -2082,6 +2082,38 @@ bool Map::CheckRespawn(RespawnInfo* info)
         info->respawnTime = respawnTime;
         return false;
     }
+
+    // A creature does not come back on top of a fight at its spawn point (continents only)
+    if (info->type == SPAWN_TYPE_CREATURE && !Instanceable())
+    {
+        if (uint32 const step = sWorld->getIntConfig(CONFIG_RESPAWN_COMBAT_WAIT_STEP))
+        {
+            float const radius = sWorld->getFloatConfig(CONFIG_RESPAWN_COMBAT_WAIT_RADIUS);
+            Position const& spawnPoint = data->spawnPoint;
+            PhaseShift spawnPhaseShift;
+            PhasingHandler::InitDbPhaseShift(spawnPhaseShift, data->phaseUseFlags, data->phaseId, data->phaseGroup);
+            std::vector<Player*> playersInRange;
+            Trinity::AnyPlayerInPositionRangeCheck check(&spawnPoint, radius);
+            Trinity::PlayerListSearcher searcher(spawnPhaseShift, playersInRange, check);
+            Cell::VisitWorldObjects(spawnPoint.GetPositionX(), spawnPoint.GetPositionY(), this, searcher, radius);
+            bool const fightAtSpawn = std::any_of(playersInRange.begin(), playersInRange.end(), [](Player const* player)
+            {
+                return player->IsInCombat() && !player->IsGameMaster();
+            });
+
+            time_t const now = GameTime::GetGameTime();
+            if (time_t const waitUntil = DynamicRespawn::CombatWaitUntil(now, info->combatWaitSince, fightAtSpawn, step, sWorld->getIntConfig(CONFIG_RESPAWN_COMBAT_WAIT_MAX)))
+            {
+                if (!info->combatWaitSince)
+                    info->combatWaitSince = now;
+                TC_LOG_DEBUG("maps.respawn", "Map::CheckRespawn: creature spawn {} (entry {}) waits {} s for a fight at its spawn point",
+                    info->spawnId, info->entry, waitUntil - now);
+                info->respawnTime = waitUntil;
+                return false;
+            }
+        }
+    }
+
     // everything ok, let's spawn
     return true;
 }
@@ -2358,7 +2390,7 @@ void Map::ApplyDynamicModeRespawnScaling(WorldObject const* obj, ObjectGuid::Low
     }
 
     uint32 const scaledDelay = DynamicRespawn::ScaleDelay(respawnDelay, nearbyPlayers, rate, timeMinimum);
-    TC_LOG_DEBUG("maps", "Map::ApplyDynamicModeRespawnScaling: {} (spawn {}) respawns in {} s instead of {} s, {} players near its spawn point",
+    TC_LOG_DEBUG("maps.respawn", "Map::ApplyDynamicModeRespawnScaling: {} (spawn {}) respawns in {} s instead of {} s, {} players near its spawn point",
         obj->GetGUID().ToString(), spawnId, scaledDelay, respawnDelay, nearbyPlayers);
     respawnDelay = scaledDelay;
 }

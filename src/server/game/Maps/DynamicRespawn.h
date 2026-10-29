@@ -21,6 +21,7 @@
 #include "Define.h"
 #include <algorithm>
 #include <cmath>
+#include <ctime>
 #include <limits>
 
 namespace DynamicRespawn
@@ -43,6 +44,21 @@ namespace DynamicRespawn
             return std::numeric_limits<uint32>::max();
 
         return std::max<uint32>(uint32(std::ceil(respawnDelay * rate / minimum)), 1);
+    }
+
+    // A due respawn while a player fights at the spawn point: it waits `step` seconds at a time, `maxWait` seconds in all
+    // counted from `waitingSince` (0: not waited yet), so a camp that is never quiet still respawns. Returns the time to
+    // check again, or 0 to respawn now.
+    inline time_t CombatWaitUntil(time_t now, time_t waitingSince, bool fightAtSpawn, uint32 step, uint32 maxWait)
+    {
+        if (!fightAtSpawn || !step)
+            return 0;
+
+        time_t const since = waitingSince ? waitingSince : now;
+        if (now - since >= time_t(maxWait))
+            return 0;
+
+        return std::min<time_t>(now + step, since + maxWait);
     }
 }
 

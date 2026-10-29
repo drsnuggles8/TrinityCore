@@ -175,6 +175,7 @@ struct TC_GAME_API RespawnInfo
     uint32 entry;
     time_t respawnTime;
     uint32 gridId;
+    time_t combatWaitSince = 0; // in memory only: when this due respawn first waited for a fight at its spawn point
 };
 inline bool CompareRespawnInfo::operator()(RespawnInfo const* a, RespawnInfo const* b) const
 {

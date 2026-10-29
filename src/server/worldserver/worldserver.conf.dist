@@ -2230,6 +2230,19 @@ Respawn.DynamicMinimumGameObject = 10
 Respawn.DynamicRadius = 60
 
 #
+#    Respawn.CombatWaitStep
+#    Respawn.CombatWaitMax
+#    Respawn.CombatWaitRadius
+#        Description: A creature on a continent whose respawn is due while a player fights within CombatWaitRadius
+#                     yards of its spawn point waits CombatWaitStep seconds at a time, CombatWaitMax seconds in all,
+#                     so it does not come back on top of the fight. 0 for CombatWaitStep switches this off.
+#        Default:     5, 15, 15
+
+Respawn.CombatWaitStep = 5
+Respawn.CombatWaitMax = 15
+Respawn.CombatWaitRadius = 15
+
+#
 ###################################################################################################
 
 ###################################################################################################
@@ -4492,6 +4505,8 @@ Logger.scripts.hotswap=3,Console Server
 Logger.sql.sql=5,Console DBErrors
 Logger.sql.updates=3,Console Server
 Logger.mmaps=3,Server
+# Same as root; its own line so that TC_LOGGER_MAPS_RESPAWN=2,Server (debug) can trace each dynamic respawn and combat wait
+Logger.maps.respawn=5,Console Server CrashRing
 
 #Logger.addon=3,Console Server
 #Logger.ahbot=3,Console Server

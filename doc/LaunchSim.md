@@ -206,9 +206,17 @@ within `Respawn.DynamicRadius` (60 y) of its spawn point and in line of sight of
 A crowded camp therefore respawns fast, while a cave nobody else is in keeps retail timers: Olo alone in Jasperlode Mine
 (kobolds 270 s) or the Coldridge troll cave (whelps 180 s) gets the full timer, and 30 bots round a wolf camp bring its
 180 s down to the minimum. Timers already at or below the minimum (quest objects such as Felix's box, 10 s) never change.
-`Logger.maps=2,Server` (debug) logs each death with its timer and the players counted; it also logs grid loading, so switch it
-back afterwards. `Logger.maps` is not in worldserver.conf, so `TC_LOGGER_MAPS` alone is ignored (environment variables only
-override keys the file has): put the line in a `worldserver.conf.d/*.conf` file instead.
+
+**No respawn on top of a fight.** A creature on a continent whose respawn is due while a player (bot or not) fights within
+`Respawn.CombatWaitRadius` (15 y) of its spawn point waits `Respawn.CombatWaitStep` (5 s) at a time, `Respawn.CombatWaitMax`
+(15 s) in all, so a camp that is never quiet still respawns. `Respawn.CombatWaitStep = 0` switches it off.
+
+`TC_LOGGER_MAPS_RESPAWN=2,Server` (debug, `Logger.maps.respawn`) logs each death with its timer and the players counted, and
+each combat wait. Environment variables only override keys the config file has, which is why worldserver.conf carries
+`Logger.maps.respawn` at the root's level; `TC_LOGGER_MAPS` alone is ignored (no `Logger.maps` line). Test-realm evidence on
+29 Oct (200 bots in Coldridge, 15 min, 1520 kills): the spawn-area wolves at 20 s with 27+ players counted, troggs 42-108 s,
+boars 135 s, every Frostmane troll at its full 180 s with a median of 2 players counted. `~/forever/respawn-check.sh` repeats
+the run.
 
 **History (zone-wide counting, before the local count):** the stock TrinityCore rule counted every player in the zone, so
 120-300 bots in Dun Morogh or Elwynn scaled every spawn there, caves included. Rate 10 gave ~15 s timers: mobs came back while
