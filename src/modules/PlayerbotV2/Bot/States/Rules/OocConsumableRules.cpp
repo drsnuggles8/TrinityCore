@@ -21,6 +21,9 @@
 #include "Bot/BotIntent.h"
 #include "Bot/ClassicUpkeep.h"
 #include "Bot/DrinkSayRule.h"
+#include "Bot/PullSize.h"
+#include "Bot/QuestPull.h"
+#include "Log.h"
 #include "Bot/States/MaintainHelpers.h"   // States::DungeonLootRoll
 #include "SharedDefines.h"
 #include "RaceMask.h"        // RACE_UNDEAD_PLAYER
@@ -278,6 +281,103 @@ bool RestFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, Bot
         ai.note_action_retry(BotAI::ActionKind::AmbientSit, 0, now_ms);
     }
     ai.set_last_rule_fired("idle:rest");
+    return true;
+}
+
+// ---------- idle:prepare_pull ----------
+// A solo quester sizes its next pull before it walks into it: the quest target it would take next plus the idle aggressive mobs
+// next to it (Bot/PullSize.h). A single mob is pulled as before; for two or more the bot eats, drinks or sits until it has 90 %
+// health and 80 % mana (Olo, 29 Oct: guided and racer bots never finished The Stolen Journal - melee bots went into the Coldridge
+// troll cave at half health, met three whelps at once, fled and started over). Priority 704 sits above the quest walkers and every
+// engage path, so nothing pulls while the bot gets ready; corpses within 30 y are looted first (idle:loot_near, 780). A wait that
+// does not reach the mark in 2 minutes (no regeneration) gives up for a minute.
+
+} // namespace
+
+// Bot/QuestPull.h. The objectives are the ones the eat rule above keeps a solo bot on its feet for.
+NextPull NextQuestPull(BotSnapshotView const& s)
+{
+    NextPull next;
+    float best_dsq = 0.0f;
+    for (auto const& ao : s.actionable_objectives())
+    {
+        if (!(ao.type == /*MONSTER*/ 0 || ao.type == /*KILL_WITH_LABEL*/ 21 || (ao.type == /*ITEM*/ 1 && ao.source_guid.IsCreature())))
+            continue;
+        if (next.target && ao.distance_sq >= best_dsq)
+            continue;
+        for (NearbyUnit const& u : s.nearby_enemies())
+            if (u.guid == ao.source_guid && u.hp > 0 && u.victim.IsEmpty() && !u.unit_in_combat && !u.untargetable)
+            {
+                next.target = &u;
+                best_dsq = ao.distance_sq;
+                break;
+            }
+    }
+    if (next.target)
+        next.size = PullSize::Estimate(*next.target, s.nearby_enemies());
+    return next;
+}
+
+bool HardPull(NextPull const& next)
+{
+    return next.target && (next.size >= 3 || next.target->is_elite_or_rare);
+}
+
+namespace {
+
+bool PreparePullGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32 now_ms)
+{
+    if (!s.is_alive() || s.in_combat() || s.is_casting() || !s.victim().IsEmpty() || s.attackers_count() > 0)
+        return false;
+    if (s.in_group() || s.raw().movement.is_mounted || s.is_in_dungeon() || s.in_battleground())
+        return false;
+    if (now_ms < ai.prepare_pull_skip_until_ms())
+        return false;
+
+    NextPull const next = NextQuestPull(s);
+    bool const uses_mana = s.max_power(POWER_MANA) > 0;
+    if (!next.target || PullSize::Ready(next.size, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : 100, uses_mana))
+    {
+        ai.set_prepare_pull_since_ms(0);
+        return false;
+    }
+    if (ai.prepare_pull_since_ms() && now_ms - ai.prepare_pull_since_ms() >= PullSize::kMaxWaitMs)
+    {
+        TC_LOG_INFO("playerbot.v2", "[prepare_pull] {} gives up after {} s at hp={}% mana={}%: pulls as it is for {} s", s.name(),
+            (now_ms - ai.prepare_pull_since_ms()) / 1000, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : -1, PullSize::kSkipAfterGiveUpMs / 1000);
+        ai.set_prepare_pull_since_ms(0);
+        ai.set_prepare_pull_skip_until_ms(now_ms + PullSize::kSkipAfterGiveUpMs);
+        return false;
+    }
+    return Classic::SafeToRecover(s, &g);
+}
+
+bool PreparePullFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32 now_ms)
+{
+    if (!ai.prepare_pull_since_ms())
+    {
+        ai.set_prepare_pull_since_ms(now_ms);
+        NextPull const next = NextQuestPull(s);
+        TC_LOG_INFO("playerbot.v2", "[prepare_pull] {} waits before pulling {} mobs (entry {}): hp={}% mana={}%", s.name(), next.size,
+            next.target ? next.target->entry : 0, s.hp_pct(), s.max_power(POWER_MANA) > 0 ? s.power_pct(POWER_MANA) : -1);
+    }
+    ai.set_last_rule_fired("idle:prepare_pull");
+    // A bot still walking stops there: this rule holds the tick, so no walker moves it on.
+    if (s.is_moving())
+        return true;
+    Classic::RecoveryPick const pick = Classic::PickRecovery(s, PullSize::kReadyHealthPct, PullSize::kReadyManaPct);
+    if (pick.item)
+    {
+        emit.emit(UseItemByEntryIntent{pick.item, s.raw().guid});
+        if (pick.drink)
+            Classic::SayDrinkingIfDue(s, ai, emit, now_ms);
+        return true;
+    }
+    if (!pick.hold && !ai.action_recently_tried(BotAI::ActionKind::AmbientSit, 0, now_ms))
+    {
+        emit.emit(SetStandStateIntent{1});
+        ai.note_action_retry(BotAI::ActionKind::AmbientSit, 0, now_ms);
+    }
     return true;
 }
 
@@ -560,6 +660,14 @@ void RegisterOocConsumableRules(IdleRuleRegistry& r)
         rule.priority = 666;
         rule.gate     = &OocEatFoodGate;
         rule.fire     = &OocEatFoodFire;
+        r.register_rule(std::move(rule));
+    }
+    {
+        IdleRule rule;
+        rule.name     = "idle:prepare_pull";
+        rule.priority = 704;
+        rule.gate     = &PreparePullGate;
+        rule.fire     = &PreparePullFire;
         r.register_rule(std::move(rule));
     }
     {

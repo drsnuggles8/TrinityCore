@@ -16,7 +16,9 @@
 // LaunchAcceptsInvite - the group_invite_accept rule asks it whether a launch bot takes an invite.
 //
 // idle:launch_party_build @849 - a party builder (LaunchStrategy::PartyBuilder) working a kill objective invites solo
-//   players of about its level close by, up to a group of three, with a "LF group" line the first time.
+//   players of about its level close by, up to a group of three, with a "LF group" line the first time. Any other bot but
+//   loners and griefers does the same before a quest pull too hard to take alone (Bot/QuestPull.h HardPull: three or more
+//   mobs, or an elite), so Grik'nir among his whelps gets groups as on launch day.
 // idle:launch_chatter @420 - now and then a line in General (or /say) of the kind a launch crowd writes: the camp is
 //   crowded, where is the cave, LFG, first time in Classic. Casuals and friendly bots talk most, loners and racers least.
 // idle:launch_snipe @860 - a griefer (LaunchTemperament::Griefer: some grinders and questers) goes for untagged mobs another player stands next
@@ -38,6 +40,7 @@
 #include "Bot/BotIntent.h"
 #include "Bot/LaunchPlaces.h"
 #include "Bot/LaunchProfile.h"
+#include "Bot/QuestPull.h"
 #include "QuestDef.h"
 #include <algorithm>
 #include <array>
@@ -228,12 +231,19 @@ ObjectGuid PartyRecruit(BotSnapshotView const& s, BotAI& ai)
 bool LaunchPartyBuildGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32)
 {
     LaunchProfile const& lp = ai.launch();
-    if (!lp.active || lp.strategy != LaunchStrategy::PartyBuilder || !s.is_alive() || s.in_combat() || s.has_group_invite())
+    if (!lp.active || !s.is_alive() || s.in_combat() || s.has_group_invite())
         return false;
     if (s.in_group() && g.member_count() >= 3)
         return false;
-    auto const& obj = s.raw().quest_log.current_objective;
-    if (s.raw().quest_log.current_quest_id == 0 || obj.type != QUEST_OBJECTIVE_MONSTER || obj.progress >= obj.amount)
+    if (lp.strategy == LaunchStrategy::PartyBuilder)
+    {
+        auto const& obj = s.raw().quest_log.current_objective;
+        if (s.raw().quest_log.current_quest_id == 0 || obj.type != QUEST_OBJECTIVE_MONSTER || obj.progress >= obj.amount)
+            return false;
+    }
+    // Anyone else asks for a group only before a quest pull too hard to take alone (three or more mobs, or an elite: Grik'nir
+    // among his whelps), as players do ("LFG Grik'nir"); loners and griefers never do.
+    else if (lp.temperament == LaunchTemperament::Loner || lp.temperament == LaunchTemperament::Griefer || !HardPull(NextQuestPull(s)))
         return false;
     return !PartyRecruit(s, ai).IsEmpty();
 }

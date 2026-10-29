@@ -133,6 +133,9 @@ void BotAI::set_last_rule_fired(char const* name)
             // RpgRules: a world bot standing at an NPC it is visiting, for a
             // bounded 8-20 s (the rule ends the linger itself).
             "idle:rpg_linger",
+            // A solo quester resting up before a pull of two or more (OocConsumableRules); the rule gives the wait up itself
+            // after PullSize::kMaxWaitMs.
+            "idle:prepare_pull",
         };
         bool exempt = false;
         for (char const* e : kExempt)

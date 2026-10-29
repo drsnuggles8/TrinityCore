@@ -392,6 +392,9 @@ struct NearbyUnit
     // asymmetric bot-cannot-reach-mob case is handled by the pull-gate /
     // disengage machinery, not here. False for players.
     bool       cannot_reach = false;
+    // Attacks this bot on sight: a hostile (red) reaction to it and not a passive creature. Neutral (yellow) mobs stand still
+    // when their neighbour is pulled, so only these count towards the size of a pull (Bot/PullSize.h).
+    bool       aggressive = false;
     // Creature classification is Elite / RareElite / Rare (CreatureClassifications
     // 1/2/4). These are legitimately high-HP, slow-to-kill targets (world bosses,
     // rare spawns, elite quest mobs) — the unkillable-target leash MUST NOT

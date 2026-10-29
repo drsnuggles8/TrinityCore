@@ -263,6 +263,19 @@ Falling With Style (65, another criteria tree, not a cast: open), A Refugee's Qu
 picker always found a nearer objective than Grik'nir in the cave), Iverron's Antidote (16). Quest-object uses: 3 in 45
 minutes (build44-46 fix the reach, the walk lockout and the walk being overridden; still open in the build45 zones test).
 
+**The Stolen Journal, 29 Oct:** the guided bots do go for Grik'nir (rxp step 50) but rarely get there: in guided60 16 accepted
+it and 2 turned it in, in racer45-build52 4 and 0. The route was right; the fights were not. Leoniah (warrior, level 4) went
+into the troll cave three times in 19 minutes, met two to four whelps at once each time, fled at 25 % health and started over
+from the cave mouth; the priest Narinah ground through and finished. A solo quester never sat down to eat near its quest
+targets, so it went in at whatever health it had. Now it sizes each pull first (`idle:prepare_pull`, Bot/PullSize.h): the
+quest target it would take next plus the idle aggressive mobs within 10 y of it. One mob is pulled as before; for two or more
+the bot eats, drinks or sits until 90 % health and 80 % mana (it gives up after 2 minutes without regeneration, for 1 minute).
+Log: `[prepare_pull] <bot> waits before pulling N mobs`. Before a pull too hard to take alone (three or more mobs, or an
+elite) a bot also asks for a group as players do ("LFG Grik'nir"): `idle:launch_party_build`, which only the partylead persona
+ran before, now runs for every launch bot but loners and griefers, inviting solo players of about its level within 30 y up to a
+group of three. A group's kill now has one loot on the corpse under the group's loot method, with each member's quest items
+(Unit::Kill); retail gave every tapper a full loot of its own, so two grouped players looted twice as much.
+
 ## Capacity and performance
 
 Measurements go here, each with the build, bot count and what changed.

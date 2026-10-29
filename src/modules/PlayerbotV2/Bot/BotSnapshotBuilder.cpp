@@ -4827,6 +4827,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
             u.z = t->GetPositionZ();
             u.o = t->GetOrientation();
             u.combat_reach = t->GetCombatReach();
+            u.aggressive = t->IsHostileTo(p) && !(t->ToCreature() && t->ToCreature()->HasReactState(REACT_PASSIVE));
             Spell* casting = t->GetCurrentSpell(CURRENT_GENERIC_SPELL);
             if (!casting) casting = t->GetCurrentSpell(CURRENT_CHANNELED_SPELL);
             if (casting)
@@ -6537,6 +6538,7 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 u.y      = c->GetPositionY();
                 u.z      = c->GetPositionZ();
                 u.o      = c->GetOrientation();
+                u.aggressive = c->IsHostileTo(p) && !c->HasReactState(REACT_PASSIVE);
                 if (Unit const* v = c->GetVictim()) u.victim = v->GetGUID();
                 u.creature_type = uint8(c->GetCreatureType());
                 snap->combat.nearby_enemies.push_back(u);
