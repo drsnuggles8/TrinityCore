@@ -1166,3 +1166,11 @@ Playerbot.LoadTest.MaxP99Ms = 100
 Playerbot.LoadTest.MaxAvgMs = 40
 Playerbot.LoadTest.MaxRssMb = 9000
 Playerbot.LoadTest.MaxSlowCallMs = 250
+
+# Private learner instrumentation. Disabled by default; configured training GUIDs only.
+# No neural action authority is granted. Models must be frozen and match both configured SHA256 values.
+# The 13-feature target scorer loads once at startup and checks exported PyTorch parity vectors.
+Playerbot.Training.TargetShadow.Enable = 0
+Playerbot.Training.TargetShadow.ModelFile = ""
+Playerbot.Training.TargetShadow.CheckpointSHA256 = ""
+Playerbot.Training.TargetShadow.ArtifactSHA256 = ""

@@ -1,8 +1,10 @@
 #include "TrainingCapture.h"
 #include "TrainingPlayer.h"
+#include "TrainingTargetModel.h"
 #include "Bot/BotIntent.h"
 #include "Bot/BotSnapshot.h"
 #include "Config.h"
+#include "CryptoHash.h"
 #include "GameTime.h"
 #include "Log.h"
 #include "ObjectMgr.h"
@@ -32,6 +34,7 @@ using Buffer = rapidjson::StringBuffer;
 using Writer = rapidjson::Writer<Buffer>;
 void Text(Writer& w, char const* key, std::string const& value) { w.Key(key); w.String(value.c_str(), static_cast<rapidjson::SizeType>(value.size())); }
 void Number(Writer& w, char const* key, double value) { w.Key(key); if (std::isfinite(value)) w.Double(value); else w.Null(); }
+std::shared_ptr<TrainingTarget::Model const> shadow_model;
 
 bool Enabled()
 {
@@ -40,6 +43,7 @@ bool Enabled()
 }
 
 struct Actor { std::string episode; std::uint64_t deaths = 0; };
+struct ShadowState { TrainingTarget::History history; std::string previous_target; };
 
 // The world thread serializes owned values and tries a bounded enqueue. Only this worker touches the output file.
 class Sink
@@ -70,11 +74,94 @@ public:
     {
         std::lock_guard lock(actors_mutex_);
         auto& actor = actors_[guid];
-        if (reset || actor.episode.empty()) actor = Actor{capture_ + "-" + std::to_string(guid) + "-" + std::to_string(++episode_), 0};
+        if (reset || actor.episode.empty())
+        {
+            actor = Actor{capture_ + "-" + std::to_string(guid) + "-" + std::to_string(++episode_), 0};
+            shadows_.erase(guid);
+        }
         if (died) ++actor.deaths;
         return actor;
     }
-    void Forget(std::uint64_t guid) { std::lock_guard lock(actors_mutex_); actors_.erase(guid); }
+    void Forget(std::uint64_t guid) { std::lock_guard lock(actors_mutex_); actors_.erase(guid); shadows_.erase(guid); }
+    // Both hooks run on the world thread. Store only bounded, owned feature values, never Player/snapshot pointers.
+    void Remember(BotSnapshot const& s)
+    {
+        if (!shadow_model || s.identity.race != 3 || s.identity.cls != 7 || s.identity.level > 6 ||
+            s.position.map_id != 0 || s.area.zone_id != 1) return;
+        std::lock_guard lock(actors_mutex_);
+        if (!shadows_.contains(s.bot_id) && shadows_.size() >= 16) return;
+        TrainingTarget::Frame frame{s.version, s.published_at_ms, {}};
+        TrainingTarget::OwnState own{double(s.vitals.hp), double(s.vitals.max_hp), double(s.vitals.power[POWER_MANA]),
+            double(s.vitals.max_power[POWER_MANA]), double(s.identity.level), double(s.bags.bag_free_slots), s.vitals.in_combat};
+        for (auto const& enemy : s.combat.nearby_enemies)
+        {
+            if (enemy.hp <= 0 || enemy.max_hp <= 0 || enemy.untargetable || enemy.no_xp_kill) continue;
+            if (frame.candidates.size() >= 16) break;
+            bool relevant = false;
+            for (auto const& quest : s.quest_log.quests)
+                for (auto const& objective : quest.objectives)
+                    if (objective.type == 0 && objective.object_id == static_cast<int32>(enemy.entry) && objective.progress < objective.amount)
+                        relevant = true;
+            auto features = TrainingTarget::Encode(own, {double(enemy.hp), double(enemy.max_hp), double(enemy.level),
+                enemy.x-s.position.x, enemy.y-s.position.y, enemy.z-s.position.z, enemy.in_los,
+                enemy.tapped && !enemy.tapped_by_us, relevant});
+            if (!std::all_of(features.begin(), features.end(), [](float value) { return std::isfinite(value); })) return;
+            frame.candidates.push_back({enemy.guid.ToString(), features});
+        }
+        shadows_[s.bot_id].history.Push(std::move(frame));
+    }
+    void Shadow(Player const* player, Actor const& actor, Intent const& intent, std::uint8_t result, bool exception)
+    {
+        if (!shadow_model || result != 0 || exception || !Accepting()) return;
+        std::lock_guard lock(actors_mutex_);
+        auto state_it = shadows_.find(intent.bot_id);
+        if (state_it == shadows_.end()) return;
+        auto& state = state_it->second;
+        if (std::holds_alternative<StopAttackIntent>(intent.body)) { state.previous_target.clear(); return; }
+        auto attack = std::get_if<StartAttackIntent>(&intent.body);
+        if (!attack) return;
+        std::string baseline = attack->target.ToString();
+        if (baseline == state.previous_target) return;
+        state.previous_target = baseline;
+        auto frame = state.history.Find(intent.source_snapshot, GameTime::GetGameTimeMS());
+        Buffer buffer; Writer w(buffer); Header(w, "shadow_target", player, actor);
+        w.Key("source_snapshot"); w.Uint64(intent.source_snapshot);
+        w.Key("intent_id"); w.Uint64(intent.id);
+        Text(w, "checkpoint_sha256", shadow_model->checkpoint_sha256);
+        w.Key("checkpoint_epoch"); w.Uint64(shadow_model->epoch);
+        w.Key("optimizer_step"); w.Uint64(shadow_model->optimizer_step);
+        Text(w, "baseline_target", baseline);
+        Text(w, "candidate_set", "observed_alive_xp_selectable");
+        // This is an observed comparison menu, not a certified executable-action menu. It confers no authority.
+        bool baseline_present = frame && std::any_of(frame->candidates.begin(), frame->candidates.end(),
+            [&](auto const& candidate) { return candidate.guid == baseline; });
+        char const* reason = !frame ? "missing_or_stale_source" : frame->candidates.size() < 2 ? "no_actual_choice" :
+            !baseline_present ? "baseline_not_observed" : "scored";
+        Text(w, "status", reason);
+        if (std::string_view(reason) == "scored")
+        {
+            auto start = std::chrono::steady_clock::now();
+            std::vector<float> scores;
+            scores.reserve(frame->candidates.size());
+            for (auto const& candidate : frame->candidates) scores.push_back(shadow_model->Score(candidate.features));
+            auto index = static_cast<std::size_t>(std::max_element(scores.begin(), scores.end())-scores.begin());
+            auto nearest = std::min_element(frame->candidates.begin(), frame->candidates.end(),
+                [](auto const& a, auto const& b) { return a.features[8] < b.features[8]; });
+            auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-start).count();
+            w.Key("inference_us"); w.Double(double(elapsed)/1000);
+            Text(w, "proposed_target", frame->candidates[index].guid);
+            Text(w, "nearest_target", nearest->guid);
+            w.Key("candidates"); w.StartArray();
+            for (std::size_t i = 0; i < scores.size(); ++i)
+            {
+                w.StartObject(); Text(w, "guid", frame->candidates[i].guid);
+                w.Key("features"); w.StartArray(); for (float value : frame->candidates[i].features) w.Double(value); w.EndArray();
+                w.Key("score"); w.Double(scores[i]); w.EndObject();
+            }
+            w.EndArray();
+        }
+        w.EndObject(); Push(buffer);
+    }
     void Header(Writer& w, char const* kind, Player const* player, Actor const& actor)
     {
         w.StartObject();
@@ -195,6 +282,7 @@ private:
     std::condition_variable ready_;
     boost::lockfree::queue<std::string*, boost::lockfree::capacity<512>> queue_;
     std::unordered_map<std::uint64_t, Actor> actors_;
+    std::unordered_map<std::uint64_t, ShadowState> shadows_;
     std::atomic<bool> stopping_{false}, error_{false}, budget_{false};
     std::atomic<std::uint64_t> active_producers_{0}, enqueued_{0};
     std::thread thread_;
@@ -232,6 +320,33 @@ void Event(Player const* player, char const* kind, bool reset = false, bool died
     auto actor = output->Context(player->GetGUID().GetCounter(), reset, died);
     Buffer buffer; Writer w(buffer); output->Header(w, kind, player, actor); w.EndObject(); output->Push(buffer);
 }
+}
+
+void Initialize()
+{
+    if (!Enabled() || !sConfigMgr->GetBoolDefault("Playerbot.Training.TargetShadow.Enable", false, true)) return;
+    try
+    {
+        std::string path = sConfigMgr->GetStringDefault("Playerbot.Training.TargetShadow.ModelFile", "", true);
+        std::string expected = sConfigMgr->GetStringDefault("Playerbot.Training.TargetShadow.CheckpointSHA256", "", true);
+        std::string artifact = sConfigMgr->GetStringDefault("Playerbot.Training.TargetShadow.ArtifactSHA256", "", true);
+        if (std::filesystem::file_size(path) > 1024*1024) throw std::runtime_error("Model artifact exceeds 1 MiB");
+        std::ifstream input(path, std::ios::binary);
+        if (!input) throw std::runtime_error("Model artifact could not be opened");
+        std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        std::string actual;
+        constexpr char Hex[] = "0123456789abcdef";
+        for (auto byte : Trinity::Crypto::SHA256::GetDigestOf(text)) { actual += Hex[byte >> 4]; actual += Hex[byte & 15]; }
+        if (artifact.size() != 64 || actual != artifact) throw std::runtime_error("Model artifact SHA256 mismatch");
+        shadow_model = std::make_shared<TrainingTarget::Model const>(TrainingTarget::Model::Parse(text, expected));
+        TC_LOG_INFO("playerbot.v2", "[training_shadow] loaded checkpoint={} epoch={} step={} parity=passed authority=none",
+            shadow_model->checkpoint_sha256, shadow_model->epoch, shadow_model->optimizer_step);
+    }
+    catch (std::exception const& error)
+    {
+        shadow_model.reset();
+        TC_LOG_ERROR("playerbot.v2", "[training_shadow] disabled; scripted AI retained: {}", error.what());
+    }
 }
 
 void Login(Player const* player) { Safely([&] { Event(player, "login", true); }); }
@@ -292,6 +407,7 @@ void ObservationImpl(Player const* player, BotSnapshot const& s)
         w.Key("no_xp"); w.Bool(enemy.no_xp_kill); w.Key("unselectable"); w.Bool(enemy.untargetable); w.EndObject();
     }
     w.EndArray(); w.EndObject(); output->Push(buffer);
+    output->Remember(s);
 }
 
 void ExecutedImpl(Player const* player, Intent const& intent, std::uint8_t result, bool exception)
@@ -319,6 +435,7 @@ void ExecutedImpl(Player const* player, Intent const& intent, std::uint8_t resul
     { Text(w, "target", value->npc.ToString()); w.Key("quest_id"); w.Uint(value->quest_id); w.Key("reward_choice"); w.Uint(value->reward_choice); }
     else payload = false;
     w.EndObject(); w.Key("payload_captured"); w.Bool(payload); w.EndObject(); output->Push(buffer);
+    output->Shadow(player, actor, intent, result, exception);
 }
 
 void Observation(Player const* player, BotSnapshot const& snapshot)

@@ -5,6 +5,7 @@ namespace Playerbot { struct BotSnapshot; struct Intent; }
 
 namespace Playerbot::V2::Fleet::TrainingCapture
 {
+void Initialize();
 void Login(Player const* player);
 void Logout(Player const* player);
 void Death(Player const* player);

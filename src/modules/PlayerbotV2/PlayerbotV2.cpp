@@ -861,6 +861,8 @@ void Module::Init()
     //   - PopulationManager / LfgMediator / BgFiller (Fleet/)
     //   - EncounterRegistry::RegisterAll() (Combat/Encounters/)
 
+    // Read and verify the optional frozen shadow model before any learner logs in. Never load files on a bot tick.
+    Fleet::TrainingCapture::Initialize();
     initialized_ = true;
 
     if (Services::Config().auto_resume_on_boot())
