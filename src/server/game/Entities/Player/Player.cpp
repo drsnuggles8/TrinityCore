@@ -10001,10 +10001,15 @@ uint8 Player::FindEquipSlot(Item const* item, uint8 slot, bool swap) const
                 slots = { ACCOUNT_BANK_SLOT_BAG_START + 0, ACCOUNT_BANK_SLOT_BAG_START + 1, ACCOUNT_BANK_SLOT_BAG_START + 2, ACCOUNT_BANK_SLOT_BAG_START + 3, ACCOUNT_BANK_SLOT_BAG_START + 4, NULL_SLOT };
             else if (item->GetTemplate()->GetId() == ITEM_CHARACTER_BANK_TAB_BAG)
                 slots = { BANK_SLOT_BAG_START + 0, BANK_SLOT_BAG_START + 1, BANK_SLOT_BAG_START + 2, BANK_SLOT_BAG_START + 3, BANK_SLOT_BAG_START + 4, BANK_SLOT_BAG_START + 5 };
-            else if (item->GetTemplate()->GetClass() != ITEM_CLASS_CONTAINER || item->GetTemplate()->GetSubClass() != ITEM_SUBCLASS_REAGENT_CONTAINER)
-                slots = { INVENTORY_SLOT_BAG_START + 0, INVENTORY_SLOT_BAG_START + 1, INVENTORY_SLOT_BAG_START + 2, INVENTORY_SLOT_BAG_START + 3, NULL_SLOT, NULL_SLOT };
-            else
+            else if (item->GetTemplate()->GetClass() == ITEM_CLASS_CONTAINER && item->GetTemplate()->GetSubClass() == ITEM_SUBCLASS_REAGENT_CONTAINER)
                 slots[0] = REAGENT_BAG_SLOT_START;
+            // WoW Forever: a special bag (the 4-slot Apprentice's Herb Pouch, Mining Pack and Skinning Satchel, any profession or
+            // soul bag) also goes in the extra slot, first when equipped from the bags (Olo, 30 Oct: "you can equip the 4 slot
+            // skinning/mining/herbalism bag in the profession slot"); "This item cannot be equipped" before.
+            else if (item->GetTemplate()->GetClass() == ITEM_CLASS_CONTAINER && item->GetTemplate()->GetSubClass() != ITEM_SUBCLASS_CONTAINER)
+                slots = { REAGENT_BAG_SLOT_START, INVENTORY_SLOT_BAG_START + 0, INVENTORY_SLOT_BAG_START + 1, INVENTORY_SLOT_BAG_START + 2, INVENTORY_SLOT_BAG_START + 3, NULL_SLOT };
+            else
+                slots = { INVENTORY_SLOT_BAG_START + 0, INVENTORY_SLOT_BAG_START + 1, INVENTORY_SLOT_BAG_START + 2, INVENTORY_SLOT_BAG_START + 3, NULL_SLOT, NULL_SLOT };
             break;
         case INVTYPE_PROFESSION_TOOL:
         case INVTYPE_PROFESSION_GEAR:
@@ -11201,7 +11206,8 @@ InventoryResult Player::CanStoreItem(uint8 bag, uint8 slot, ItemPosCountVec &des
 
         if (pProto->GetBagFamily())
         {
-            for (uint32 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; i++)
+            // the extra slot too: a special bag can sit there (FindEquipSlot, WoW Forever)
+            for (uint32 i = INVENTORY_SLOT_BAG_START; i < REAGENT_BAG_SLOT_END; i++)
             {
                 res = CanStoreItem_InBag(i, dest, pProto, count, true, false, pItem, bag, slot);
                 if (Optional<InventoryResult> res2 = tryHandleBagStoreResult(res))
@@ -11230,7 +11236,8 @@ InventoryResult Player::CanStoreItem(uint8 bag, uint8 slot, ItemPosCountVec &des
     // search free slot - special bag case
     if (pProto->GetBagFamily())
     {
-        for (uint32 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; i++)
+        // the extra slot too: a special bag can sit there (FindEquipSlot, WoW Forever)
+        for (uint32 i = INVENTORY_SLOT_BAG_START; i < REAGENT_BAG_SLOT_END; i++)
         {
             res = CanStoreItem_InBag(i, dest, pProto, count, false, false, pItem, bag, slot);
             if (Optional<InventoryResult> res2 = tryHandleBagStoreResult(res))
