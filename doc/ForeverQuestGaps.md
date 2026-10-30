@@ -83,6 +83,13 @@ Two things now leave a trace:
 - Logger `player.items` (Server.log) records each real player's turn-in (the choice received and whether it landed) and
   every item sold or destroyed: `[reward]`, `[sell]`, `[destroy]`. The next choice turn-in shows where the item goes.
 
+It showed (30 Oct, The Troll Cave, Princess Must Die!): the window had no choices to pick. 152 choice quests carry a retail
+`QuestPackageID` (182: 561, 218: 562, 88: 791), and with one the client builds the choices from QuestPackageItem.db2,
+which is empty in Forever 70685; quests without one (Webwood Venom, 916) were fine. `ObjectMgr::LoadQuests` now drops a
+package with no items (`Quest N has QuestPackageID = P but the package has no items` in DBErrors.log), and closes up and
+recounts the choice and item lists after its checks remove rewards, so a removed reward is no longer announced as an
+empty slot.
+
 The bots' starter-quest and junk-quest completion (`StarterQuestAutocomplete`, `JunkQuestResolver`) passed the choice's
 index where `RewardQuest` takes an item id, so those quests gave bots no choice item; they pass the item now.
 
