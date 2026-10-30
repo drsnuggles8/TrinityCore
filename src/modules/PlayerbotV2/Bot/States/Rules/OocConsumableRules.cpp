@@ -291,7 +291,8 @@ bool RestFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, Bot
 // 29 Oct: guided and racer bots never finished The Stolen Journal - melee bots went into the Coldridge
 // troll cave at half health, met three whelps at once, fled and started over). Priority 704 sits above the quest walkers and every
 // engage path, so nothing pulls while the bot gets ready; corpses within 30 y are looted first (idle:loot_near, 780). A wait that
-// does not reach the mark in 2 minutes (no regeneration) gives up for a minute.
+// does not reach the mark in 2 minutes (no regeneration) gives up for a minute. Without a quest target in sight a careful bot
+// below the engage floor (PullSize::Ready for one mob) rests all the same before it walks on.
 
 } // namespace
 
@@ -368,12 +369,14 @@ bool PreparePullGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
     if (now_ms < ai.prepare_pull_skip_until_ms())
         return false;
 
+    // No quest target in sight counts as a single mob: a careful bot below the engage floor rests before it walks on, as any
+    // mob on its way (a path-threat pull, an aggressive one it walks past) is its next fight (build79 guided30: 10 of 14 deaths
+    // were warriors who looted and walked straight into the next Defias or wolf, and came back from the spirit healer at 55 %).
     NextPull const next = NextQuestPull(s);
     bool const resting = ai.prepare_pull_since_ms() != 0;
     bool const uses_mana = s.max_power(POWER_MANA) > 0;
-    uint32 const size = PullSize::RestSize(next.size, HardPull(next, s.level()), resting);
-    if ((!next.target && !resting) ||
-        PullSize::Ready(size, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : 100, uses_mana, CarefulPuller(ai)))
+    uint32 const size = PullSize::RestSize(next.target ? next.size : 1, HardPull(next, s.level()), resting);
+    if (PullSize::Ready(size, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : 100, uses_mana, CarefulPuller(ai)))
     {
         ai.set_prepare_pull_since_ms(0);
         return false;
@@ -395,8 +398,12 @@ bool PreparePullFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
     {
         ai.set_prepare_pull_since_ms(now_ms);
         NextPull const next = NextQuestPull(s);
-        TC_LOG_INFO("playerbot.v2", "[prepare_pull] {} waits before pulling {} mobs (entry {}): hp={}% mana={}%", s.name(), next.size,
-            next.target ? next.target->entry : 0, s.hp_pct(), s.max_power(POWER_MANA) > 0 ? s.power_pct(POWER_MANA) : -1);
+        if (next.target)
+            TC_LOG_INFO("playerbot.v2", "[prepare_pull] {} waits before pulling {} mobs (entry {}): hp={}% mana={}%", s.name(), next.size,
+                next.target->entry, s.hp_pct(), s.max_power(POWER_MANA) > 0 ? s.power_pct(POWER_MANA) : -1);
+        else
+            TC_LOG_INFO("playerbot.v2", "[prepare_pull] {} rests before it walks on: hp={}% mana={}%", s.name(), s.hp_pct(),
+                s.max_power(POWER_MANA) > 0 ? s.power_pct(POWER_MANA) : -1);
     }
     ai.set_last_rule_fired("idle:prepare_pull");
     // A bot still walking stops there: this rule holds the tick, so no walker moves it on.

@@ -4,8 +4,11 @@
 // away from its attackers, which in a cave led deeper in (Olo, 30 Oct: in build76 guided60, 15 of the 19 deaths in the
 // Coldridge troll cave came mid-flee). Pure: tested in tests/game/ClassicFightOutlook.cpp.
 
+#include "PullSize.h"
+
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace Playerbot {
 
@@ -14,6 +17,7 @@ struct FleeTrail
     static constexpr float kSpacing = 10.0f;     // a point every 10 y walked
     static constexpr float kJump = 60.0f;        // a step longer than this is a teleport, a flight or a ghost run: a new trail
     static constexpr float kMinRun = 15.0f;      // a flee heads for a point at least this far from the bot
+    static constexpr float kClearYards = 12.0f;  // a mob this close to a run's line or its end joins the run (Crowd)
 
     struct Point { float x = 0.f, y = 0.f, z = 0.f; };
 
@@ -57,6 +61,27 @@ struct FleeTrail
                 return i;
         }
         return -1;
+    }
+
+    // The mobs a run from (bx, by) to (tx, ty) would wake: those of `units` that join a pull (PullSize::JoinsPull) within
+    // kClearYards of the line there. A flee takes a destination with none, or the fewest (build79 guided30: Silence fled to a
+    // quest hub among the Mangy Wolves twice and died there both times).
+    template <class Unit>
+    static std::uint32_t Crowd(std::vector<Unit> const& units, float bx, float by, float tx, float ty)
+    {
+        float const vx = tx - bx, vy = ty - by, len2 = vx * vx + vy * vy;
+        std::uint32_t n = 0;
+        for (Unit const& u : units)
+        {
+            if (!PullSize::JoinsPull(u))
+                continue;
+            float t = len2 > 0.f ? ((u.x - bx) * vx + (u.y - by) * vy) / len2 : 0.f;
+            t = t < 0.f ? 0.f : (t > 1.f ? 1.f : t);
+            float const dx = u.x - (bx + vx * t), dy = u.y - (by + vy * t);
+            if (dx * dx + dy * dy <= kClearYards * kClearYards)
+                ++n;
+        }
+        return n;
     }
 };
 

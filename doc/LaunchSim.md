@@ -316,6 +316,12 @@ bring its neighbours (PullSize::Estimate), a target standing alone at most 30 y 
 quest-kill dispatch in State_Idle follows that pick). (5) `idle:launch_take_add` (@706): a healthy solo bot, not a loner,
 takes the untagged extra mob off a solo player within 30 y who fights two or more (at most one level above the bot): it tags
 it, and the player is left with one (Olo: "that 2nd bot might take the untagged 2nd monster"). Log: `[take_add]`.
+Build79 guided30's 14 deaths: 10 were warriors who looted and walked straight into the next Defias Cutpurse or Mangy Wolf (the
+quest walkers pull any hostile in their path, and the walk only stopped below 50 %), or came back from the spirit healer at
+55 % and did the same; Silence fled twice toward a quest hub among the wolves and died there. (6) `idle:prepare_pull` rests a
+careful bot below the engage floor even with no quest target in sight (`[prepare_pull] <bot> rests before it walks on`).
+(7) A flee takes the first of its destinations (town NPC, trail, hub, away and away turned 40 / 80 degrees) whose run passes
+no idle aggressive mob within 12 y, else the one passing the fewest (FleeTrail::Crowd; `heads <kind> ... idle mobs on the way N`).
 
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and

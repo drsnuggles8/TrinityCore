@@ -1396,7 +1396,9 @@ void ReFaceVictim(BotSnapshotView const& s, BotIntentEmitter& emit)
 // Justice; a paladin Lay on Hands heals instead of fleeing), then runs from the attackers toward the nearest
 // friendly town NPC that is not behind them, else back along the way the bot came (Bot/FleeTrail.h: walked ground, no
 // fresh mobs - straight away from the attackers led deeper into the Coldridge troll cave), else to a quest hub ahead, else
-// straight away from them. A bot that is winning at the pace of the last seconds (Bot/FightOutlook.h) fights on instead.
+// straight away from them (or turned 40 / 80 degrees); the first of these whose run passes no idle aggressive mob wins, else
+// the one that passes the fewest (FleeTrail::Crowd). A bot that is winning at the pace of the last seconds
+// (Bot/FightOutlook.h) fights on instead.
 // The flee is committed for
 // at least 3 s and ends once no attacker is within 25 y for 4 s (or after 30 s); then a 20 s cooldown applies, and
 // the rest (ooc eat / drink / bandage) takes over once combat drops. A bot already using a survival item this tick
@@ -1617,45 +1619,56 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
                 if (al > 0.01f) { ax /= al; ay /= al; }
             }
         }
-        float tx = bx + ax * 45.f, ty = by + ay * 45.f, tz = bz;
-        char const* kind = "away";
         auto ahead = [&](float x, float y) {
             float const vx = x - bx, vy = y - by, vl = std::sqrt(vx * vx + vy * vy);
             return vl > 8.f && (vx * ax + vy * ay) / vl >= 0.25f;
         };
+        // The candidates in order - a town NPC ahead, back the way it came, a quest hub ahead, then away and away turned 40 or
+        // 80 degrees either way - and the first whose run wakes no idle mob wins; with none clear, the one that wakes the
+        // fewest (FleeTrail::Crowd).
+        float tx = bx + ax * 45.f, ty = by + ay * 45.f, tz = bz;
+        char const* kind = "away";
+        uint32 crowd = std::numeric_limits<uint32>::max();
+        int8 trail_pick = -1;
+        auto consider = [&](float x, float y, float z, char const* k, int8 trail_idx)
+        {
+            if (crowd == 0) return;
+            uint32 const c = FleeTrail::Crowd(s.nearby_enemies(), bx, by, x, y);
+            if (c < crowd) { crowd = c; tx = x; ty = y; tz = z; kind = k; trail_pick = trail_idx; }
+        };
         constexpr uint32 kTownMask = uint32(UNIT_NPC_FLAG_VENDOR) | uint32(UNIT_NPC_FLAG_FLIGHTMASTER) |
                                      uint32(UNIT_NPC_FLAG_INNKEEPER) | uint32(UNIT_NPC_FLAG_REPAIR);
-        bool found = false;
         for (NearbyUnit const& f : s.raw().combat.nearby_friends)
         {
             if ((f.npc_flags & kTownMask) == 0 || f.hp <= 0) continue;
             float const fx = f.x - bx, fy = f.y - by;
             if (fx * fx + fy * fy > 150.f * 150.f || !ahead(f.x, f.y)) continue;
-            tx = f.x; ty = f.y; tz = f.z; kind = "town_npc"; found = true; break;
+            consider(f.x, f.y, f.z, "town_npc", -1);
         }
         // Back the way it came: the newest trail point 15 y off first, then one point further back on each arrival.
-        if (!found)
+        FleeTrail const& trail = ai.flee_trail();
+        int const at = snap.trail_at < 0 ? trail.First(bx, by) : snap.trail_at + 1;
+        if (at >= 0 && at < trail.count)
         {
-            FleeTrail const& trail = ai.flee_trail();
-            int const at = snap.trail_at < 0 ? trail.First(bx, by) : snap.trail_at + 1;
-            if (at >= 0 && at < trail.count)
-            {
-                FleeTrail::Point const& p = trail.At(uint8(at));
-                tx = p.x; ty = p.y; tz = p.z; kind = "trail"; found = true;
-                snap.trail_at = int8(at);
-            }
+            FleeTrail::Point const& p = trail.At(uint8(at));
+            consider(p.x, p.y, p.z, "trail", int8(at));
         }
-        if (!found)
-            if (auto const* hub = Services::Hubs().GetNearestQuestHub(s.raw()))
-                if (hub->mapId == s.map_id())
-                {
-                    float const hx = hub->location.GetPositionX(), hy = hub->location.GetPositionY();
-                    float const fx = hx - bx, fy = hy - by;
-                    if (fx * fx + fy * fy <= 250.f * 250.f && ahead(hx, hy))
-                    { tx = hx; ty = hy; tz = hub->location.GetPositionZ(); kind = "hub"; }
-                }
+        if (auto const* hub = Services::Hubs().GetNearestQuestHub(s.raw()))
+            if (hub->mapId == s.map_id())
+            {
+                float const hx = hub->location.GetPositionX(), hy = hub->location.GetPositionY();
+                float const fx = hx - bx, fy = hy - by;
+                if (fx * fx + fy * fy <= 250.f * 250.f && ahead(hx, hy))
+                    consider(hx, hy, hub->location.GetPositionZ(), "hub", -1);
+            }
+        for (float const deg : {0.f, 40.f, -40.f, 80.f, -80.f})
+        {
+            float const r = deg * 0.0174533f, c = std::cos(r), sn = std::sin(r);
+            consider(bx + (ax * c - ay * sn) * 45.f, by + (ax * sn + ay * c) * 45.f, bz, "away", -1);
+        }
+        if (trail_pick >= 0) snap.trail_at = trail_pick;
         snap.dx = tx; snap.dy = ty; snap.dz = tz; snap.has_dest = true;
-        TC_LOG_INFO("playerbot.v2", "[solo_flee] {} heads {} ({:.0f},{:.0f})", s.name(), kind, tx, ty);
+        TC_LOG_INFO("playerbot.v2", "[solo_flee] {} heads {} ({:.0f},{:.0f}) idle mobs on the way {}", s.name(), kind, tx, ty, crowd);
     }
     if (!s.victim().IsEmpty()) emit.stop_attack();
     emit.move_to(snap.dx, snap.dy, snap.dz, /*run*/ true);

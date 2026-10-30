@@ -19,6 +19,8 @@
 #include "../../src/modules/PlayerbotV2/Bot/FightOutlook.h"
 #include "../../src/modules/PlayerbotV2/Bot/FleeTrail.h"
 
+#include <vector>
+
 using namespace Playerbot;
 using FightOutlook::Sample;
 using FightOutlook::Winning;
@@ -93,4 +95,53 @@ TEST_CASE("A teleport or a new map starts a new trail", "[ClassicFightOutlook]")
     CHECK(trail.count == 12);
     CHECK(trail.At(0).x == 700.f);
     CHECK(trail.At(11).x == 590.f);
+}
+
+namespace
+{
+struct Guid
+{
+    int id = 0;
+    bool IsEmpty() const { return id == 0; }
+};
+
+// The fields of NearbyUnit FleeTrail::Crowd reads (through PullSize::JoinsPull)
+struct Mob
+{
+    float x = 0, y = 0, z = 0;
+    int hp = 100;
+    bool is_player = false;
+    bool untargetable = false;
+    bool is_pacified = false;
+    bool aggressive = true;
+    Guid victim;
+    bool unit_in_combat = false;
+};
+
+Mob MobAt(float x, float y)
+{
+    Mob m;
+    m.x = x;
+    m.y = y;
+    return m;
+}
+}
+
+TEST_CASE("A flee counts the idle aggressive mobs along its run", "[ClassicFightOutlook]")
+{
+    // a run from (0, 0) to (40, 0): a wolf pack at its end, one beside the line, one behind the bot, one far off
+    std::vector<Mob> mobs{MobAt(42.f, 3.f), MobAt(38.f, -5.f), MobAt(20.f, 11.f), MobAt(-11.f, 0.f), MobAt(20.f, 30.f)};
+    CHECK(FleeTrail::Crowd(mobs, 0.f, 0.f, 40.f, 0.f) == 4);
+    // the other way round only the one that was behind it: the others are behind it now, the nearest 23 y off
+    CHECK(FleeTrail::Crowd(mobs, 0.f, 0.f, -40.f, 0.f) == 1);
+    // the attacker on the bot's back, a mob in another fight, a neutral one and a dead one wake nothing
+    Mob chaser = MobAt(-5.f, 0.f);
+    chaser.victim = Guid{1};
+    Mob busy = MobAt(-20.f, 0.f);
+    busy.unit_in_combat = true;
+    Mob neutral = MobAt(-30.f, 0.f);
+    neutral.aggressive = false;
+    Mob dead = MobAt(-35.f, 0.f);
+    dead.hp = 0;
+    CHECK(FleeTrail::Crowd(std::vector<Mob>{chaser, busy, neutral, dead}, 0.f, 0.f, -40.f, 0.f) == 0);
 }
