@@ -315,7 +315,9 @@ private:
     std::atomic<std::uint64_t> dropped_{0};
     std::mutex wait_mutex_, actors_mutex_;
     std::condition_variable ready_;
-    boost::lockfree::queue<std::string*, boost::lockfree::capacity<512>> queue_;
+    // A hundred freshly logged-in players can publish observations, quest and policy events in one burst.
+    // Keep producer enqueue non-blocking while bounding the backlog to a few tens of MiB in ordinary captures.
+    boost::lockfree::queue<std::string*, boost::lockfree::capacity<4096>> queue_;
     std::unordered_map<std::uint64_t, Actor> actors_;
     std::unordered_map<std::uint64_t, ShadowState> shadows_;
     std::atomic<bool> stopping_{false}, error_{false}, budget_{false};
