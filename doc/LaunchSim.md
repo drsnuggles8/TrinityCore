@@ -332,6 +332,8 @@ at -9160,90; they fled, rested to full and walked back through it. (9) A guide-f
 valley counts as a camp grinder (`identity.launch_camp`): the hub routers leave it alone, and farther than 120 y from the
 zone's grind spot (Northshire: the Echo Ridge kobolds) it walks there. `[face_stuck] <bot> refused | turned but still off`
 says why a combat re-face did not turn a bot (5 deaths over b80-b82 stood beside their mob with the angle never changing).
+Build84 caught one: a standing shaman (no spline, no cast, idle motion) stayed 93 degrees off after the facing spline; (10) when
+the spline turn does not land, the server orientation is set outright (`turned but still off, orientation set`).
 
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and

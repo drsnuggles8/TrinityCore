@@ -3936,7 +3936,13 @@ Result API::face_target(ObjectGuid target, bool combat)
             return Result::Ok;
         p_->SetFacingToPoint(u->GetPosition(), /*force*/ true);
         if (!p_->HasInArc(float(M_PI) / 2.0f, u))
-            stuck("turned but still off");
+        {
+            // guided30-b84 (30 Oct): a standing shaman, no spline, no cast, idle motion, kept 93 degrees off after every turn and
+            // died beside the whelp it never swung at. The swing's arc check reads the server orientation: set it outright (the
+            // clients saw the facing spline already).
+            stuck("turned but still off, orientation set");
+            p_->UpdatePosition(p_->GetPositionX(), p_->GetPositionY(), p_->GetPositionZ(), p_->GetAbsoluteAngle(u));
+        }
         return Result::Ok;
     }
     // Already facing it (within ~0.1 rad) and standing still: nothing to do.
