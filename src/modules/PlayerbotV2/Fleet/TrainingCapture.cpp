@@ -197,7 +197,7 @@ public:
         w.Key("recorded_at_ms"); w.Uint(GameTime::GetGameTimeMS());
         bool leveling = LevelingPolicy::Controls(guid);
         bool controlled = ControlsQuestTarget(guid) || leveling;
-        Text(w, "behavior_policy", leveling ? "learned-leveling-options-v1" : controlled ? "learned-quest-target-v1" : "scripted-v2");
+        Text(w, "behavior_policy", leveling ? "learned-leveling-options-v2" : controlled ? "learned-quest-target-v1" : "scripted-v2");
         w.Key("model_authority"); w.Bool(controlled);
         w.Key("death_count"); w.Uint64(actor.deaths);
         w.Key("monster_killing_blows"); w.Uint64(actor.kills);
@@ -353,7 +353,7 @@ std::shared_ptr<Sink> Get(Player const* player)
 }
 std::shared_ptr<Sink> GetForBot(std::uint64_t guid)
 {
-    if (!(ControlsQuestTarget(guid) || LevelingPolicy::Controls(guid)) || failed.load() || shutting_down.load()) return {};
+    if (!(ControlsQuestTarget(guid) || LevelingPolicy::Participant(guid)) || failed.load() || shutting_down.load()) return {};
     std::lock_guard lock(sink_mutex);
     return sink && sink->Accepting() ? sink : nullptr;
 }
