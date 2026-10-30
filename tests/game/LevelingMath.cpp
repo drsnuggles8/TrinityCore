@@ -80,6 +80,13 @@ TEST_CASE("Leveling masked sampling preserves probabilities for every selected i
     }
     REQUIRE_THROWS(Select(scores,1));
 }
+TEST_CASE("Grinding beyond the task level cannot replace finishing quest milestones", "[LevelingMath]")
+{
+    Progress a,b;a.ms=1000;b.ms=6000;a.xp=7000;b.xp=7800;a.xp_cap=b.xp_cap=7600;
+    REQUIRE(Outcome(a,b,false,400).xp==1.5);
+    a.xp=7800;b.xp=8200;REQUIRE(Outcome(a,b,false,400).xp==0);
+    b.xp_cap=8000;REQUIRE_THROWS(Outcome(a,b,false,400));
+}
 TEST_CASE("Leveling actor and critic validate real exported weights and parity", "[LevelingMath]")
 {
     auto path=std::getenv("PLUTO_LEVELING_TEST_MODEL");std::string text;

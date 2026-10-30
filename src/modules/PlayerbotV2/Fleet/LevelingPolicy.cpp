@@ -484,6 +484,8 @@ bool Hold(Choice const& c,BotSnapshot const& s)
 
 bool Controls(std::uint64_t guid) {return bool(model)&&guids.contains(guid)&&IsTrainingPlayerGuid(guid);}
 bool Participant(std::uint64_t guid) {return bool(model)&&participants.contains(guid)&&IsTrainingPlayerGuid(guid);}
+std::uint64_t XPRewardCap()
+{ std::uint64_t cap=0;for(std::uint32_t level=1;level<task.goal;++level)cap+=sObjectMgr->GetXPForLevel(level);return cap; }
 void Initialize()
 {
     if(!sConfigMgr->GetBoolDefault("Playerbot.Training.Leveling.Enable",false,true))return;
@@ -571,7 +573,7 @@ void Observe(Player const* player,BotSnapshot const& s,std::uint64_t xp,std::uin
             }
         }
         frame.goals=a->goals;frame.affordances=a->affordances;
-        p.version=s.version;p.ms=s.published_at_ms;p.xp=xp;p.deaths=deaths;p.quests=0;p.potential=Potential(s);
+        p.version=s.version;p.ms=s.published_at_ms;p.xp=xp;p.xp_cap=XPRewardCap();p.deaths=deaths;p.quests=0;p.potential=Potential(s);
         std::vector<std::uint32_t> rewarded;
         if(player)for(auto q:player->getRewardedQuests())
         {

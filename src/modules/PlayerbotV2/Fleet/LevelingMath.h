@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 #include <utility>
+#include <limits>
 
 namespace Playerbot::V2::Fleet::Leveling
 {
@@ -129,6 +130,7 @@ inline Sample Select(std::span<float const> logits,double uniform)
 struct Progress
 {
     std::uint64_t version=0,xp=0,deaths=0,quests=0;
+    std::uint64_t xp_cap=std::numeric_limits<std::uint64_t>::max();
     std::uint32_t ms=0;
     double potential=0,x=0,y=0,z=0,hp=1,mana=1;
     bool alive=true,combat=false;
@@ -143,7 +145,9 @@ inline Reward Outcome(Progress const& before,Progress const& after,bool terminal
     Reward r;r.seconds=double(std::uint32_t(after.ms-before.ms))/1000;
     if (!(r.seconds>0&&r.seconds<=1200) || !(xp_reference>0) || after.xp<before.xp || after.quests<before.quests || after.deaths<before.deaths)
         throw std::runtime_error("Non-monotonic leveling progress");
-    r.discount=std::pow(spec.gamma,r.seconds);r.xp=spec.xp*double(after.xp-before.xp)/xp_reference;r.quest=spec.quest*double(after.quests-before.quests);
+    r.discount=std::pow(spec.gamma,r.seconds);
+    if(before.xp_cap!=after.xp_cap)throw std::runtime_error("XP reward cap changed inside an option");
+    r.xp=spec.xp*double(std::min(after.xp,after.xp_cap)-std::min(before.xp,before.xp_cap))/xp_reference;r.quest=spec.quest*double(after.quests-before.quests);
     r.death=-spec.death*double(after.deaths-before.deaths);r.time=-spec.time*r.seconds;
     double distance=std::hypot(after.x-before.x,after.y-before.y);
     if (!after.combat && after.hp>=.9 && after.mana>=.9 && distance<1 && after.xp==before.xp && after.quests==before.quests) r.stall=-spec.stall*r.seconds;

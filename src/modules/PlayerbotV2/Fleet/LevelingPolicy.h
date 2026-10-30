@@ -8,6 +8,7 @@ namespace Playerbot::V2::Fleet::LevelingPolicy
 void Initialize();
 bool Controls(std::uint64_t guid);
 bool Participant(std::uint64_t guid);
+std::uint64_t XPRewardCap();
 void Observe(Player const* player,BotSnapshot const& snapshot,std::uint64_t xp,std::uint64_t deaths,double xp_reference);
 bool Tick(BotSnapshot const& snapshot,BotAI& ai,BotIntentEmitter& emitter);
 void Executed(std::uint64_t guid,std::uint64_t source,std::uint8_t result);

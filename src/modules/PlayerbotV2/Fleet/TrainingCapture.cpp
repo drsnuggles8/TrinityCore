@@ -501,6 +501,7 @@ void ObservationImpl(Player const* player, BotSnapshot const& s)
     std::uint64_t cumulative = s.identity.xp;
     for (std::uint8_t level = 1; level < s.identity.level; ++level) cumulative += sObjectMgr->GetXPForLevel(level);
     w.Key("xp_total_coordinate"); w.Uint64(cumulative); w.Key("xp_reference"); w.Uint(sObjectMgr->GetXPForLevel(1));
+    w.Key("xp_reward_cap");w.Uint64(LevelingPolicy::XPRewardCap());
     w.Key("health"); w.Int(s.vitals.hp); w.Key("max_health"); w.Int(s.vitals.max_hp);
     w.Key("mana"); w.Int(s.vitals.power[POWER_MANA]); w.Key("max_mana"); w.Int(s.vitals.max_power[POWER_MANA]);
     w.Key("alive"); w.Bool(s.vitals.is_alive); w.Key("in_combat"); w.Bool(s.vitals.in_combat);
