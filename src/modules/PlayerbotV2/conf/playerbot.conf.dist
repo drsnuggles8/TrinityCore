@@ -439,7 +439,8 @@ Playerbot.Raid.ResistPotions = 0
 #                     from range, and raid stand points avoid an idle pack's aggro reach.
 #   RaidSpacing       raid pre-pull / converge ranged spacing arcs and the rocks floor logic.
 #   SpreadOut         melee DPS stand on their own spot round the back / sides of the victim and ranged / healers
-#                     get a stable per-bot bearing / distance jitter, so a raid does not pile on one spot.
+#                     get a stable per-bot bearing / distance jitter, so a raid does not pile on one spot. A melee
+#                     bot the victim is attacking chases the victim itself (it faces the bot, so it has no back).
 #   LooseMobHold      DPS bots hold fire on a raid elite that is loose on a party member.
 #   RaidBuffHold      the tank's 30 s group-buff hold and the 120 s hold for members still
 #                     outside the instance, before a pull / advance. Off: neither holds.

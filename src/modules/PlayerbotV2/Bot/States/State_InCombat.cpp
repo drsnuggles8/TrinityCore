@@ -1718,6 +1718,10 @@ bool ThreatHoldActive(BotAI& ai, BotSnapshotView const& s, ObjectGuid target,
 bool MeleeSpreadSpot(BotSnapshotView const& s, GroupSnapshotView const& g, NearbyUnit const& v, float& ox, float& oy)
 {
     if (!Services::Config().behavior_spread_out() || v.hp <= 0) return false;
+    // A mob on this bot turns to face it, so its back is always the far side: the chase ran round it, turning it, and the bot
+    // stayed on the move with its re-face refused (guided30-b85: 257 of 267 [spread] lines were a lone bot on its own mob, the
+    // re-face 138-166 degrees off). It chases the mob itself, like idle:melee_behind, which never repositions on its own aggro.
+    if (v.victim == s.guid()) return false;
     uint32 n = 1, k = 0;
     if (auto const* mems = g.members())
         for (auto const& m : *mems)

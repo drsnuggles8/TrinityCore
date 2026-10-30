@@ -341,6 +341,9 @@ leashed) stayed active, ended at the next fight and started the 20 s cooldown in
 into such a fight. (11) A run unseen for 5 s ended when it was last seen. A level 2 paladin under two Defias Cutpurses (about
 60 hp, 9 hp a second) had under 2 s left at its 25 % threshold; (12) a bot that is not winning and would be dead within 6 s at
 the pace of the last seconds (FightOutlook::MsToDie) runs at up to 50 % health (`[solo_flee] <bot> runs: ... dies_in_ms=N`).
+257 of build85's 267 `[spread]` lines were a lone bot chasing its own mob to a spot behind it: the mob faces the bot it
+attacks, so the spot was always on its far side, and the bot circled with its re-face refused while moving. (13) A melee bot
+the victim is attacking chases the victim itself (MeleeSpreadSpot).
 
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and

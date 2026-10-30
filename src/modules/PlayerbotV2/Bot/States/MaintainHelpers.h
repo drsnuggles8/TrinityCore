@@ -150,8 +150,9 @@ bool RaidFormationHold(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView co
 
 // Playerbot.Behavior.SpreadOut: this melee bot's own stand spot on an arc round the back / sides of `victim`
 // (rank = guid order among the group's melee on the same victim, evenly spaced, plus stable per-bot angle and
-// radial jitter, inside melee reach). False when the key is off or every candidate is in a hazard / avoid
-// circle - the caller keeps its old point. Definition in State_InCombat.cpp.
+// radial jitter, inside melee reach). False when the key is off, the victim is attacking this bot (it faces the
+// bot, so the back moves with it) or every candidate is in a hazard / avoid circle - the caller keeps its old
+// point. Definition in State_InCombat.cpp.
 bool MeleeSpreadSpot(BotSnapshotView const& s, GroupSnapshotView const& g, NearbyUnit const& victim,
                      float& ox, float& oy);
 
