@@ -272,7 +272,8 @@ State Context(BotSnapshot const& s,Actor const& actor,Progress const& p)
     x[20]=goal_distance<=2000;x[21]=s.quest_log.current_objective_tool.valid;x[22]=float(p.potential);
     x[23]=std::min(1.f,float(s.combat.nearby_friends.size())/100);
     x[24]=std::min(2.f,float(std::log1p(std::max(0,s.inventory.gold))/std::log(10000.)));
-    x[25]=float(std::min(2.,actor.episode.stagnant/task.stagnation));x[26]=float(std::min(2.,actor.episode.observed/task.maximum));x[27]=float(task.goal)/10;
+    x[25]=float(std::min(2.,actor.episode.stagnant/task.stagnation));x[26]=float(std::min(2.,actor.episode.observed/task.maximum));
+    x[27]=task.required.empty()?1:float(std::count_if(task.required.begin(),task.required.end(),[&](auto id){return actor.episode.rewarded.contains(id); }))/task.required.size();
     x[31]=std::min(1.f,float(s.consumables.health_potion_count)/10);
     x[33]=Fraction(s.vendor_visit.estimated_repair_cost,std::max(1,s.inventory.gold));x[35]=std::min(1.f,float(s.gossip.gossip_options.size())/8);
     std::unordered_set<uint32> food,water;
@@ -338,6 +339,7 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,std::
         std::copy(state.begin(),state.end(),c.features.begin());c.features[StateWidth+std::size_t(kind)]=1;
         c.features[68]=std::log1p(std::hypot(x-s.position.x,y-s.position.y)/10)/std::log(5.f);c.features[69]=std::clamp((z-s.position.z)/10,-2.f,2.f);
         c.features[73]=quest!=0;
+        if(std::find(task.required.begin(),task.required.end(),quest)!=task.required.end())c.features[73]=2;
         for(auto const& q:s.quest_log.quests)if(q.quest_id==quest)c.features[74]=std::min(5.f,float(q.xp_reward)/400);
         c.features[75]=1;
         for(auto const& q:s.quest_log.quests)if(q.quest_id==quest)
