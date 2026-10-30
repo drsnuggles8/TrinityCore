@@ -304,9 +304,11 @@ against build76's 179), so it is held to difficult quests.
 bad" (Olo). Build77 guided60's 46 deaths (`dynrespawn/death-patterns.py`): 19 fled from one or two mobs for 30 s, still had
 them on their back, turned and died; 12 fled from a pull of three or more; 10 died running; 5 pulled the next mob straight
 from the spirit healer at 50 %; one wait gave up at 15 % health after a flee and pulled as it was. In Classic a mob that hits a
-runner from behind dazes it, so a run on foot only works toward help or with an escape spell. Now: (1) with one or two
-attackers and neither an escape tool ready nor a town NPC in the scan, `combat:solo_flee` stands and fights
-(`[solo_flee] <bot> stands`); a big pull still runs. (2) A careful bot takes even a single-mob quest pull only at 70 % health
+runner from behind dazes it, so a run on foot only works toward help or with an escape spell. Now: (1) build80 made a bot
+with one or two attackers and neither an escape tool ready nor a town NPC in the scan stand and fight instead: guided30 deaths
+went from build79's 14 to 39, 27 of them standing (`[solo_flee] <bot> stands`, 75 such lines), and the cave lost as many as
+before (49 vs 50, now 36 fighting). In the open world a run mostly ends in a leash or help, so build81 runs again; the cave's
+deaths come from the pull, not the run. (2) A careful bot takes even a single-mob quest pull only at 70 % health
 and 40 % mana (PullSize::Ready), resting to 90 / 80 % once it sits; casual, idle and skipper personas pull as they are.
 (3) The wait-before-pull's 2 minutes count resting only: a fight or a death starts it over.
 (4) One mob at a time (Olo: "bots really should get better at pulling only 1 monster"): when the nearest quest target would

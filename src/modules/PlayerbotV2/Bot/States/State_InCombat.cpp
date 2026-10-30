@@ -1434,26 +1434,6 @@ constexpr SoloFleeTool kSoloFleeTools[] = {
     { CLASS_PALADIN,  853, 10.f, true,  false, 1, 0    },   // Hammer of Justice
 };
 
-// A run can work: an escape tool of the bot's class is ready for its attackers (`n`, the nearest `nearest_d2` away), or a town
-// NPC is in the scan (guards and the townsfolk's help close by).
-bool SoloFleeCanEscape(BotSnapshotView const& s, uint32 n, float nearest_d2)
-{
-    for (SoloFleeTool const& t : kSoloFleeTools)
-    {
-        if (t.cls != s.cls() || !s.knows_spell(t.spell) || !s.is_ready(t.spell) || n < t.need_n) continue;
-        if (t.skip_aura && s.has_aura(t.skip_aura)) continue;
-        if (t.spell == 1850 && !s.has_aura(768)) continue;
-        if (t.near_yd > 0.f && nearest_d2 > t.near_yd * t.near_yd) continue;
-        return true;
-    }
-    constexpr uint32 kTownMask = uint32(UNIT_NPC_FLAG_VENDOR) | uint32(UNIT_NPC_FLAG_FLIGHTMASTER) |
-                                 uint32(UNIT_NPC_FLAG_INNKEEPER) | uint32(UNIT_NPC_FLAG_REPAIR);
-    for (NearbyUnit const& f : s.raw().combat.nearby_friends)
-        if ((f.npc_flags & kTownMask) != 0 && f.hp > 0)
-            return true;
-    return false;
-}
-
 bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& g, BotIntentEmitter& emit,
                   bool survival_item_used)
 {
@@ -1550,20 +1530,8 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
             ai.set_last_rule_fired("combat:solo_flee_lay_on_hands");
             return true;
         }
-        // Running on foot from one or two melee mobs only works toward help or with an escape tool: a mob that hits a runner from
-        // behind dazes it, and the bot loses health while dealing none (build77 guided60: 19 of 46 deaths fled for 30 s with the
-        // mob still on them, turned and died; 10 more died running). Without either it stands and fights: a big pull still runs.
-        if (n <= 2 && !SoloFleeCanEscape(s, n, nearest ? nearest_d2 : 1e9f))
-        {
-            if (now - snap.last_fight_on_log_ms >= 5000u)
-            {
-                TC_LOG_INFO("playerbot.v2", "[solo_flee] {} stands: hp={}% attackers={} victim_hp<={}%, no escape tool ready and no town near",
-                    s.name(), s.hp_pct(), n, max_hp_pct);
-                std::lock_guard<std::mutex> lock(g_solo_flee_mu);
-                g_solo_flee[key].last_fight_on_log_ms = now;
-            }
-            return false;
-        }
+        // No stand-and-fight for one or two mobs without an escape tool: build80 tried it and doubled the guided deaths (39 vs
+        // build79's 14, 27 of them standing); in the open world a run mostly ends in a leash or help (doc/LaunchSim.md).
         if (s.is_casting() && s.raw().cast.current_cast_remaining.count() > 0 && s.hp_pct() > 10) return false;
     }
 
