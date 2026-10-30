@@ -19,6 +19,7 @@
 #include "ObjectGuid.h"
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class Player;
@@ -75,6 +76,7 @@ private:
         uint32      online_since_ms = 0;
         uint32      login_sent_ms = 0;
         bool        cohort = false;   // added for a new level-1 player after the launch (playerbot_launch_cohort)
+        uint32      zone = 0;         // the area-table zone it was last in (characters.zone; 0 = its race's start zone)
     };
 
     // An answer to an "inv?" whisper, sent by `from` (a launch bot) once due: an invite, or a whisper back.
@@ -117,6 +119,10 @@ private:
     // A fresh crowd of level-1 bots for `zone`, arriving from `elapsed_s` on the launch curve; returns how many.
     uint32 AddCohort(uint8 zone, uint32 elapsed_s);
     std::unordered_map<uint64, bool> cohort_given_;   // the new characters that got one (this server run)
+    // Playerbot.Launch.PlayerZonesOnly (Fleet/LaunchZoneClusters.h): the clusters a real player is in, read every 2 s.
+    std::unordered_set<uint32> player_clusters_;
+    uint32             player_clusters_at_ms_ = 0;
+    bool               zones_gated_ = false;   // this tick: logins and logouts follow player_clusters_
 };
 
 } // namespace Playerbot::V2::Fleet

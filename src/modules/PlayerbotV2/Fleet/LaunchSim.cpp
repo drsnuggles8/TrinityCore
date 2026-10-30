@@ -6,6 +6,7 @@
 #include "BotAccountMgr.h"
 #include "BotIdentityRegistry.h"
 #include "LaunchRoutes.h"
+#include "LaunchZoneClusters.h"
 #include "Bot/BotAI.h"
 #include "Bot/BotIntent.h"
 #include "Bot/BotIntentEmitter.h"
@@ -244,6 +245,26 @@ uint32 MaxBots()
     return uint32(std::max<int32>(1, sConfigMgr->GetIntDefault("Playerbot.Launch.MaxBots", 5000, true)));
 }
 
+// Playerbot.Launch.PlayerZonesOnly = 1 (with AutoRun): a launch bot is logged in only while a real player is in its start-area
+// cluster (Fleet/LaunchZoneClusters.h); 0 = the whole roster, as before 30 Oct.
+bool PlayerZonesOnly()
+{
+    return sConfigMgr->GetBoolDefault("Playerbot.Launch.PlayerZonesOnly", true, true);
+}
+
+// The zone a bot that never saved one starts in: its race's starting zone (Coldridge in Dun Morogh, Northshire in Elwynn,
+// Shadowglen in Teldrassil, Zephras Isle).
+uint32 StartAreaZone(uint8 race)
+{
+    switch (LaunchPlaces::ZoneForRace(race))
+    {
+        case LaunchPlaces::kZoneColdridge:  return 1;
+        case LaunchPlaces::kZoneNorthshire: return 12;
+        case LaunchPlaces::kZoneShadowglen: return 141;
+        default:                            return 16593;
+    }
+}
+
 // Real (non-bot) players in the world, `except` left out.
 uint32 RealPlayersOnline(Player const* except)
 {
@@ -436,7 +457,8 @@ void LaunchSim::LoadRoster()
     loaded_ = true;
     LaunchRoutes::Instance().Load();
     QueryResult r = CharacterDatabase.Query(
-        "SELECT character_guid_low, name, race, class, gender, persona, arrival_s, session_s, seed FROM playerbot_launch_bot");
+        "SELECT b.character_guid_low, b.name, b.race, b.class, b.gender, b.persona, b.arrival_s, b.session_s, b.seed, IFNULL(c.zone, 0) "
+        "FROM playerbot_launch_bot b LEFT JOIN characters c ON c.guid = b.character_guid_low");
     if (!r)
         return;
     do
@@ -448,6 +470,7 @@ void LaunchSim::LoadRoster()
         e.race = f[2].GetUInt8(); e.cls = f[3].GetUInt8(); e.gender = f[4].GetUInt8();
         e.persona = std::min<uint8>(f[5].GetUInt8(), uint8(kPersonas.size() - 1));
         e.arrival_s = f[6].GetUInt32(); e.session_s = f[7].GetUInt32(); e.seed = f[8].GetUInt32();
+        e.zone = f[9].GetUInt32();
         e.state = BotState::Offline;
         roster_.push_back(std::move(e));
     } while (r->NextRow());
@@ -825,6 +848,22 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
             for (Entry& e : roster_)
                 if (e.state == BotState::ToCreate && made++ < 4 && !CreateOne(e))
                     e.state = BotState::Done;   // gave up on this one
+            // The clusters real players are in (Playerbot.Launch.PlayerZonesOnly): only their bots log in, and the bots of a
+            // cluster every player has left log out where they stand.
+            zones_gated_ = AutoRun() && PlayerZonesOnly();
+            if (zones_gated_ && (player_clusters_at_ms_ == 0 || now_ms - player_clusters_at_ms_ >= 2000u))
+            {
+                player_clusters_at_ms_ = now_ms ? now_ms : 1u;
+                player_clusters_.clear();
+                std::shared_lock<std::shared_mutex> lock(*HashMapHolder<Player>::GetLock());
+                for (auto const& [guid, pl] : ObjectAccessor::GetPlayers())
+                    if (pl && pl->IsInWorld() && IsPlayerForPopulation(pl))
+                        player_clusters_.insert(LaunchZoneClusters::Of(pl->GetZoneId()));
+            }
+            auto const wanted = [&](Entry const& e)
+            {
+                return !zones_gated_ || player_clusters_.count(LaunchZoneClusters::Of(e.zone ? e.zone : StartAreaZone(e.race))) != 0;
+            };
             uint32 logins = 0;
             for (Entry& e : roster_)
             {
@@ -832,7 +871,7 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                 switch (e.state)
                 {
                     case BotState::Offline:
-                        if (e.guid_low && e.arrival_s <= elapsed_s && logins < 6)
+                        if (e.guid_low && e.arrival_s <= elapsed_s && logins < 6 && wanted(e))
                         {
                             auto const r = Services::SessionMgr().LoginBot(g);
                             ++logins;
@@ -845,8 +884,30 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                             e.state = BotState::Offline;   // never arrived: try again
                         break;
                     case BotState::Online:
-                        if (!ObjectAccessor::FindConnectedPlayer(g))
+                    {
+                        Player* const bot = ObjectAccessor::FindConnectedPlayer(g);
+                        if (bot && bot->IsInWorld())
+                            e.zone = bot->GetZoneId();
+                        if (!bot)
                             e.state = BotState::Done;      // gone (kicked, crashed session)
+                        else if (!wanted(e))
+                        {
+                            // No player in its cluster any more: it logs out where it stands and comes back with the next one,
+                            // with what is left of its session.
+                            uint32 const played_s = (now_ms - e.online_since_ms) / 1000u;
+                            Services::SessionMgr().LogoutBot(g);
+                            if (e.session_s && played_s >= e.session_s)
+                            {
+                                e.state = BotState::Done;
+                                CharacterDatabase.PExecute("REPLACE INTO playerbot_launch_done (character_guid_low) VALUES ({})", e.guid_low);
+                            }
+                            else
+                            {
+                                if (e.session_s)
+                                    e.session_s -= played_s;
+                                e.state = BotState::Offline;
+                            }
+                        }
                         else if (e.session_s && now_ms - e.online_since_ms >= e.session_s * 1000u)
                         {
                             Services::SessionMgr().LogoutBot(g);
@@ -856,6 +917,7 @@ void LaunchSim::OnWorldTick(uint32 now_ms)
                                 kPersonas[e.persona].key, e.session_s / 60u);
                         }
                         break;
+                    }
                     default:
                         break;
                 }

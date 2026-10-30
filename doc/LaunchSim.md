@@ -71,6 +71,15 @@ run past its first half hour: then a fresh crowd of level-1 bots launches in its
 `playerbot_launch_cohort`; a reset removes them). (Until 28 Oct the last logout and every server
 start reset the roster to level 1, so a restart left the players alone among level-1 bots.)
 
+`Playerbot.Launch.PlayerZonesOnly = 1` (default, AutoRun only): a launch bot is online only while a real player is in its
+start-area cluster (Fleet/LaunchZoneClusters.h): Dun Morogh, Ironforge and Loch Modan; Elwynn, Stormwind, Westfall and
+Redridge; Teldrassil, Darnassus and Darkshore; any other zone (Zephras Isle, Duskwood, ...) on its own. The bots of a
+cluster every player has left log out where they stand with what is left of their session, and come back with the next
+player; the clusters are read every 2 s. A bot's zone is its saved `characters.zone` (its race's start zone if none).
+Before 30 Oct the whole roster logged in when one player did: 3281 bots for one player in Dun Morogh, of which 1274 never
+got a snapshot rebuilt again (the slow-tier build cap, Threading/LazyBuildBudget.h) and stood in Anvilmar and the
+Kharanos inn in their login pause. 0 = the whole roster, as before.
+
 For comparing builds, `Playerbot.Launch.RosterSeed = N` (N > 0) makes `prepare` (and `reset` with a size) roll the same
 roster again: zones, races, classes, genders, personas, the bots' seeds and arrivals (names still vary). The racer bench
 (`~/forever/racer45.sh`) sets it; a random class mix moved the 45-minute level by more than a change did.
