@@ -5449,9 +5449,20 @@ void ObjectMgr::LoadQuests()
             }
         }
 
+        // A quest package the client has no QuestPackageItem rows of: the client builds the reward choices from the package, so it
+        // drew none and the turn-in was refused for want of a pick (30 Oct: The Troll Cave, The Stolen Journal and Princess Must
+        // Die! - 152 choice quests carry a retail package id, and the Forever 70685 QuestPackageItem.db2 is empty). Without it the
+        // client lists the quest's own choices.
+        if (qinfo->_packageID && !sDB2Manager.GetQuestPackageItems(qinfo->_packageID) && !sDB2Manager.GetQuestPackageItemsFallback(qinfo->_packageID))
+        {
+            TC_LOG_ERROR("sql.sql", "Quest {} has `QuestPackageID` = {} but the package has no items, the quest offers its own rewards.",
+                qinfo->GetQuestId(), qinfo->_packageID);
+            qinfo->_packageID = 0;
+        }
+
         // The reward counts were taken from the row before the checks above removed rewards: the offer-reward window then
         // announced the removed choices as empty slots, the client drew no choice at all, and the turn-in was refused for want
-        // of a pick (Olo, 30 Oct: The Troll Cave's four Anvilmar weapons, which had no Item row). Close the gaps and recount.
+        // of a pick. Close the gaps and recount.
         {
             uint32 n = 0;
             for (uint8 j = 0; j < QUEST_REWARD_CHOICES_COUNT; ++j)
