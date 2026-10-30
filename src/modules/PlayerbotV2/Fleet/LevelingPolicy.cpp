@@ -11,9 +11,14 @@
 #include "GameTime.h"
 #include "Log.h"
 #include "CryptoHash.h"
+#include "ObjectMgr.h"
+#include "Player.h"
+#include "Map.h"
+#include "GridDefines.h"
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 #include <deque>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -35,7 +40,8 @@ struct Choice
     Kind kind=Kind::Baseline;ObjectGuid target;std::uint32_t quest=0,item=0,spell=0;
     float x=0,y=0,z=0;ActionFeatures features{};
 };
-struct Frame { Progress progress;State state{};bool allowed=true;std::uint8_t level=1; };
+struct KnownGoal { std::uint32_t quest=0;float x=0,y=0,z=0; };
+struct Frame { Progress progress;State state{};bool allowed=true;std::uint8_t level=1;std::vector<KnownGoal> goals; };
 struct Pending
 {
     bool active=false;std::uint64_t id=0,segment=1;Progress before;State state{};
@@ -46,6 +52,7 @@ struct Actor
     std::mutex mutex;std::deque<Frame> frames;Pending pending;std::uint64_t sequence=0,segment=1;
     std::uint32_t born=0,moved=0;float markx=0,marky=0;bool scope_finished=false;
     double xp_reference=400;std::mt19937_64 random;
+    std::uint32_t goals_at=0;std::vector<KnownGoal> goals;
     explicit Actor(std::uint64_t guid):random(guid^0x504c55544f504f4cull) {}
 };
 std::mutex actors_mutex;
@@ -110,7 +117,7 @@ void Finish(std::uint64_t guid,Actor& actor,Frame const& frame,bool terminal,boo
     w.EndObject();TrainingCapture::PolicyEvent(guid,frame.progress.version,"leveling_transition",buffer.GetString());
     p.active=false;if(terminal||truncated)++actor.segment;
 }
-std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,ObjectGuid corpse)
+std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,ObjectGuid corpse,std::span<KnownGoal const> goals)
 {
     BotSnapshotView v(s);std::vector<Choice> menu;
     auto add=[&](Kind kind,ObjectGuid target={},float x=0,float y=0,float z=0,std::uint32_t quest=0,std::uint32_t item=0,std::uint32_t spell=0)->Choice*
@@ -118,7 +125,9 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,Objec
         if(menu.size()>=32)return nullptr;
         Choice c;c.kind=kind;c.target=target;c.x=x;c.y=y;c.z=z;c.quest=quest;c.item=item;c.spell=spell;
         std::copy(state.begin(),state.end(),c.features.begin());c.features[24+std::size_t(kind)]=1;
-        c.features[40]=std::min(2.f,std::hypot(x-s.position.x,y-s.position.y)/40);c.features[41]=std::clamp((z-s.position.z)/10,-2.f,2.f);
+        c.features[40]=std::log1p(std::hypot(x-s.position.x,y-s.position.y)/10)/std::log(5.f);c.features[41]=std::clamp((z-s.position.z)/10,-2.f,2.f);
+        c.features[45]=quest!=0;
+        for(auto const& q:s.quest_log.quests)if(q.quest_id==quest)c.features[46]=std::min(5.f,float(q.xp_reward)/400);
         c.features[47]=1;menu.push_back(c);return &menu.back();
     };
     auto own=[&](Kind kind){return add(kind,s.guid,s.position.x,s.position.y,s.position.z);};
@@ -130,7 +139,7 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,Objec
         if(state[0]<.95f||state[1]<.9f)own(Kind::Rest);
         if(v.can_hearth())own(Kind::Hearth);
     }
-    if(state[0]<.85f&&state[1]>.15f&&v.knows_spell(331)&&v.is_ready(331))
+    if(state[0]<.85f&&state[1]>.15f&&v.can_cast()&&v.knows_spell(331)&&v.is_ready(331))
         add(Kind::Heal,s.guid,s.position.x,s.position.y,s.position.z,0,0,331);
     auto position=[&](ObjectGuid id,float& x,float& y,float& z)
     {
@@ -162,7 +171,7 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,Objec
         if(std::hypot(u.x-s.position.x,u.y-s.position.y)>40||ai.start_attack_recently_refused(u.guid.GetCounter(),s.published_at_ms))continue;
         Choice* c=nullptr;
         if(!s.vitals.in_combat)c=add(Kind::Attack,u.guid,u.x,u.y,u.z);
-        else if(v.knows_spell(403)&&v.is_ready(403)&&state[1]>.1)c=add(Kind::Cast,u.guid,u.x,u.y,u.z,0,0,403);
+        else if(v.can_cast()&&v.knows_spell(403)&&v.is_ready(403)&&state[1]>.1)c=add(Kind::Cast,u.guid,u.x,u.y,u.z,0,0,403);
         if(c)
         {
             c->features[42]=Fraction(u.hp,u.max_hp);c->features[43]=std::clamp(float(u.max_hp)/std::max(1,s.vitals.max_hp),0.f,5.f);
@@ -186,6 +195,10 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,Objec
         if(!corpse.IsEmpty())
             if(auto c=add(Kind::Loot,corpse,s.position.x,s.position.y,s.position.z)) {c->features[40]=2;c->features[47]=0;}
         auto const& poi=s.quest_log.current_objective_poi;
+        for(auto const& goal:goals)
+            for(auto const& q:s.quest_log.quests)
+                if(q.quest_id==goal.quest&&q.state==0&&!ai.move_refused_recently(goal.x,goal.y,goal.z,s.published_at_ms))
+                    add(Kind::QuestGoal,{},goal.x,goal.y,goal.z,goal.quest);
         if(poi.valid&&poi.map_id==s.position.map_id&&!ai.move_refused_recently(poi.x,poi.y,poi.z,s.published_at_ms))
             add(Kind::QuestGoal,{},poi.x,poi.y,poi.z,s.quest_log.current_quest_id);
         std::size_t goals=0;
@@ -201,10 +214,10 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,Objec
         {
             if(a.type==2)
                 for(auto const& o:s.world_objects.nearby_objects)if(o.guid==a.source_guid)
-                    add(std::hypot(o.x-s.position.x,o.y-s.position.y)<=4.5f?Kind::Interact:Kind::Approach,o.guid,o.x,o.y,o.z,a.quest_id);
+                    add(std::hypot(std::hypot(o.x-s.position.x,o.y-s.position.y),o.z-s.position.z)<=4.5f?Kind::Interact:Kind::Approach,o.guid,o.x,o.y,o.z,a.quest_id);
             if(a.type==3)
                 for(auto const& u:s.combat.nearby_friends)if(u.guid==a.source_guid)
-                    add(std::hypot(u.x-s.position.x,u.y-s.position.y)<=4.5f?Kind::Interact:Kind::Approach,u.guid,u.x,u.y,u.z,a.quest_id);
+                    add(std::hypot(std::hypot(u.x-s.position.x,u.y-s.position.y),u.z-s.position.z)<=4.5f?Kind::Interact:Kind::Approach,u.guid,u.x,u.y,u.z,a.quest_id);
         }
         for(std::size_t i=0;i<8;++i)
         {
@@ -269,7 +282,7 @@ void Initialize()
     }
     catch(std::exception const& e){model.reset();TC_LOG_ERROR("playerbot.v2","[leveling_policy] disabled: {}",e.what());}
 }
-void Observe(BotSnapshot const& s,std::uint64_t xp,std::uint64_t deaths,double xp_reference)
+void Observe(Player const* player,BotSnapshot const& s,std::uint64_t xp,std::uint64_t deaths,double xp_reference)
 {
     if(!Controls(s.bot_id))return;
     auto a=Get(s.bot_id);if(!a)return;std::lock_guard lock(a->mutex);
@@ -278,6 +291,38 @@ void Observe(BotSnapshot const& s,std::uint64_t xp,std::uint64_t deaths,double x
         if(!a->born){a->born=s.published_at_ms;a->moved=s.published_at_ms;a->markx=s.position.x;a->marky=s.position.y;}
         if(std::hypot(s.position.x-a->markx,s.position.y-a->marky)>=3){a->moved=s.published_at_ms;a->markx=s.position.x;a->marky=s.position.y;}
         BotSnapshotView v(s);Frame frame;auto& p=frame.progress;
+        if(!a->goals_at||std::uint32_t(s.published_at_ms-a->goals_at)>=10000)
+        {
+            a->goals.clear();a->goals_at=s.published_at_ms;
+            // Exactly the quest-map data returned to a client for quests already in this player's log.
+            // Never query unseen creature spawn locations or future quests for the learned menu.
+            for(auto const& q:s.quest_log.quests)
+            {
+                if(q.state!=0||q.unachievable||q.unturnable||a->goals.size()>=8)continue;
+                auto data=sObjectMgr->GetQuestPOIData(int32(q.quest_id));if(!data)continue;
+                KnownGoal best;float best_distance=2000;
+                for(auto const& blob:data->Blobs)
+                {
+                    if(blob.MapID!=int32(s.position.map_id)||blob.ObjectiveIndex<0||blob.Points.empty()||blob.PlayerConditionID)continue;
+                    bool relevant=q.objectives.empty();
+                    for(auto const& o:q.objectives)
+                        if(o.progress<o.amount&&((o.id&&blob.QuestObjectiveID==int32(o.id))||blob.QuestObjectID==o.object_id||blob.ObjectiveIndex==o.storage_index))relevant=true;
+                    if(!relevant)continue;
+                    double x=0,y=0,z=0;for(auto const& point:blob.Points){x+=point.X;y+=point.Y;z+=point.Z;}
+                    x/=blob.Points.size();y/=blob.Points.size();z/=blob.Points.size();
+                    float distance=std::hypot(float(x)-s.position.x,float(y)-s.position.y);
+                    if(distance>=best_distance)continue;
+                    if(z==0&&player&&player->GetMap())
+                    {
+                        float ground=player->GetMap()->GetHeight(player->GetPhaseShift(),float(x),float(y),MAX_HEIGHT,true);
+                        z=ground>INVALID_HEIGHT?ground:s.position.z;
+                    }
+                    best={q.quest_id,float(x),float(y),float(z)};best_distance=distance;
+                }
+                if(best.quest)a->goals.push_back(best);
+            }
+        }
+        frame.goals=a->goals;
         p.version=s.version;p.ms=s.published_at_ms;p.xp=xp;p.deaths=deaths;p.quests=s.quest_log.completed_quest_count;p.potential=Potential(s);
         p.x=s.position.x;p.y=s.position.y;p.z=s.position.z;p.hp=Fraction(s.vitals.hp,s.vitals.max_hp);
         p.mana=s.vitals.max_power[POWER_MANA]>0?Fraction(s.vitals.power[POWER_MANA],s.vitals.max_power[POWER_MANA]):1;
@@ -305,7 +350,9 @@ bool Tick(BotSnapshot const& s,BotAI& ai,BotIntentEmitter& emit)
         if(a->pending.active&&(std::uint32_t(s.published_at_ms-a->pending.before.ms)<5000||v.is_casting()))return Hold(a->pending.action,s);
         if(a->pending.active)Finish(s.bot_id,*a,*frame,false,false);
         if(v.is_casting())return false;
-        auto menu=Menu(s,ai,frame->state,corpse);std::vector<float> scores;for(auto const& c:menu)scores.push_back(model->actor.Score(c.features));
+        auto menu=Menu(s,ai,frame->state,corpse,frame->goals);
+        auto started=std::chrono::steady_clock::now();
+        std::vector<float> scores;for(auto const& c:menu)scores.push_back(model->actor.Score(c.features));
         auto sampled=Select(scores,std::generate_canonical<double,53>(a->random));
         if(evaluation)
         {
@@ -314,9 +361,11 @@ bool Tick(BotSnapshot const& s,BotAI& ai,BotIntentEmitter& emit)
         }
         auto const& chosen=menu[sampled.index];
         double value=model->critic.Score(frame->state),logp=std::log(std::max(1e-30,sampled.probabilities[sampled.index]));
+        auto inference=std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now()-started).count();
         std::uint64_t id=++a->sequence;
         rapidjson::StringBuffer buffer;Writer w(buffer);w.StartObject();Text(w,"checkpoint_sha256",model->checkpoint);
         Text(w,"mode",evaluation?"evaluation":"training");
+        w.Key("inference_us");w.Double(inference);
         w.Key("epoch");w.Uint64(model->epoch);w.Key("decision_id");w.Uint64(id);w.Key("segment");w.Uint64(a->segment);
         Array(w,"state",frame->state);w.Key("selected");w.Uint64(sampled.index);w.Key("log_probability");w.Double(logp);w.Key("value");w.Double(value);
         w.Key("candidates");w.StartArray();

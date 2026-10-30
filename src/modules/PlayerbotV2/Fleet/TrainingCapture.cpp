@@ -88,7 +88,7 @@ public:
         source_revision_ = sConfigMgr->GetStringDefault("Playerbot.Training.Capture.SourceRevision", "unknown", true);
         realm_ = sConfigMgr->GetIntDefault("RealmID", 0, true);
         max_rows_ = static_cast<std::uint64_t>(std::clamp(sConfigMgr->GetIntDefault("Playerbot.Training.Capture.MaxRows", 10000, true), 100, 1000000));
-        max_bytes_ = static_cast<std::uint64_t>(std::clamp(sConfigMgr->GetIntDefault("Playerbot.Training.Capture.MaxMegabytes", 64, true), 1, 1024)) * 1024 * 1024;
+        max_bytes_ = static_cast<std::uint64_t>(std::clamp(sConfigMgr->GetIntDefault("Playerbot.Training.Capture.MaxMegabytes", 64, true), 1, 2048)) * 1024 * 1024;
         auto directory = std::filesystem::path(sConfigMgr->GetStringDefault("LogsDir", "", true));
         path_ = directory / ("PlutoCapture-" + capture_ + ".jsonl");
         thread_ = std::thread([this] { Run(); });
@@ -536,7 +536,7 @@ void ObservationImpl(Player const* player, BotSnapshot const& s)
     }
     w.EndArray(); w.EndObject(); output->Push(buffer);
     output->Remember(s);
-    LevelingPolicy::Observe(s,cumulative,actor.deaths,sObjectMgr->GetXPForLevel(1));
+    LevelingPolicy::Observe(player,s,cumulative,actor.deaths,sObjectMgr->GetXPForLevel(1));
 }
 
 void ExecutedImpl(Player const* player, Intent const& intent, std::uint8_t result, bool exception)
