@@ -17,11 +17,11 @@
 // LaunchAcceptsInvite - the group_invite_accept rule asks it whether a launch bot takes an invite: always from a player on
 //   one of its quests (but for loners and griefers).
 //
-// idle:launch_party_build @849 - any launch bot but loners and griefers invites a solo player it sees within 30 y on one of
-//   its own unfinished quests ("same quest? lets group" in /say; Olo, 30 Oct). Before a quest pull too hard to take alone
-//   (Bot/QuestPull.h HardPull: three or more mobs, an elite, a mob two levels up) it invites anyone of about its level, and
-//   a party builder (LaunchStrategy::PartyBuilder) does so on any kill objective, with a "LF group" line in General the first
-//   time. Up to a group of three. Log: [party_build].
+// idle:launch_party_build @849 - for a difficult quest only (its next quest pull is too hard to take alone, Bot/QuestPull.h
+//   HardPull: three or more mobs, an elite, a mob two levels up; or a group quest), any launch bot but loners and griefers
+//   invites a solo player it sees within 30 y on one of its own unfinished quests ("same quest? lets group" in /say; Olo,
+//   30 Oct), else anyone of about its level with a "LF group" line in General the first time. A party builder
+//   (LaunchStrategy::PartyBuilder) asks on any kill objective. Up to a group of three. Log: [party_build].
 // idle:launch_chatter @420 - now and then a line in General (or /say) of the kind a launch crowd writes: the camp is
 //   crowded, where is the cave, LFG, first time in Classic. Casuals and friendly bots talk most, loners and racers least.
 // idle:launch_snipe @860 - a griefer (LaunchTemperament::Griefer: some grinders and questers) goes for untagged mobs another player stands next
@@ -251,6 +251,15 @@ ObjectGuid PartyRecruit(BotSnapshotView const& s, BotAI& ai, bool quest_only)
     return ObjectGuid::Empty;
 }
 
+// An unfinished group quest in the bot's log (QuestEntry::flags bit 5).
+bool OnGroupQuest(BotSnapshotView const& s)
+{
+    for (QuestEntry const& q : s.raw().quest_log.quests)
+        if (q.state == 0 && (q.flags & 0x20) != 0)
+            return true;
+    return false;
+}
+
 // Who idle:launch_party_build invites now (empty: nobody), and whether that is a player seen on one of the bot's quests.
 ObjectGuid PartyBuildTarget(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, bool& quest_mate)
 {
@@ -260,10 +269,14 @@ ObjectGuid PartyBuildTarget(BotSnapshotView const& s, BotAI& ai, GroupSnapshotVi
         return ObjectGuid::Empty;
     if (s.in_group() && g.member_count() >= 3)
         return ObjectGuid::Empty;
-    // Loners and griefers never ask. Everyone else groups with a solo player it sees on one of its own quests (Olo, 30 Oct:
-    // "group up whenever they see another player doing the quest").
+    // Loners and griefers never ask. Everyone else asks only for a difficult quest: its next quest pull is too hard to take
+    // alone (three or more mobs: Grik'nir among his whelps; an elite; a mob two levels up) or it is on a group quest. Then a
+    // solo player it sees on one of its own quests comes first (Olo, 30 Oct: "group up whenever they see another player doing
+    // the quest"), else anyone of about its level, as players do ("LFG Grik'nir"). Any shared quest at all grouped the
+    // whole crowd at the first quest giver (build77 guided60: 353 invites, none for a hard pull, 17 % fewer quests).
     bool const asks = lp.temperament != LaunchTemperament::Loner && lp.temperament != LaunchTemperament::Griefer;
-    if (asks)
+    bool const hard = HardPull(NextQuestPull(s), s.level()) || OnGroupQuest(s);
+    if (asks && hard)
         if (ObjectGuid const mate = PartyRecruit(s, ai, true); !mate.IsEmpty())
         {
             quest_mate = true;
@@ -275,9 +288,7 @@ ObjectGuid PartyBuildTarget(BotSnapshotView const& s, BotAI& ai, GroupSnapshotVi
         if (s.raw().quest_log.current_quest_id == 0 || obj.type != QUEST_OBJECTIVE_MONSTER || obj.progress >= obj.amount)
             return ObjectGuid::Empty;
     }
-    // Before a quest pull too hard to take alone (three or more mobs: Grik'nir among his whelps; an elite; a mob two levels up)
-    // anyone of about its level will do, as players do ("LFG Grik'nir").
-    else if (!asks || !HardPull(NextQuestPull(s), s.level()))
+    else if (!asks || !hard)
         return ObjectGuid::Empty;
     return PartyRecruit(s, ai, false);
 }

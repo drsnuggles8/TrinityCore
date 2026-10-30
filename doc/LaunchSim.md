@@ -293,10 +293,13 @@ guided60, 15 of the 19 deaths in the troll cave came mid-flee, and a third of al
 fights it was winning (one bot at 22 % from a single whelp at 59 %). Now a solo bot under its flee mark first reads the pace
 of the last 1.5-4 s (Bot/FightOutlook.h): if at that pace its attackers die 1.5 times sooner than it does, it fights on
 (`[solo_flee] <bot> fights on`). When it does run, it runs back along the way it came (Bot/FleeTrail.h: a point every 10 y
-it walked out of combat), after a town NPC ahead and before a quest hub. Groups: any launch bot but loners and griefers
-invites a solo player it sees within 30 y on one of its own unfinished quests ("same quest? lets group"), takes such an
-invite, and the group stays together while a member near it is still on the quest, up to 15 minutes (Olo: "group up
-whenever they see another player doing the quest"). Log: `[party_build] <bot> invites <guid> (same quest | hard pull)`.
+it walked out of combat), after a town NPC ahead and before a quest hub. Groups: for a difficult quest only (a hard next
+pull, or a group quest), any launch bot but loners and griefers invites a solo player it sees within 30 y on one of its own
+unfinished quests ("same quest? lets group"), else anyone of about its level; it takes such an invite, and the group stays
+together while a member near it is still on the quest, up to 15 minutes (Olo: "group up whenever they see another player
+doing the quest"). Log: `[party_build] <bot> invites <guid> (same quest | hard pull)`. Build77 asked for any shared quest:
+the whole crowd grouped at the first quest giver (guided60: 353 invites, none for a hard pull, 148 quests in 30 minutes
+against build76's 179), so it is held to difficult quests.
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and
 flee outcomes.
