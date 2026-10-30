@@ -148,29 +148,30 @@ bool TickScheduler::should_build_snapshot(BotId id, Ms now)
     if (it->second.next_snapshot.count() > now.count()) return false;
     // Burst cap for the slow tiers: after a long frame every bot is due at once (295 builds = 370 ms in one tick,
     // which stalls the next frame the same way). Combat/Active always build; Cruise/Idle/Parked bots beyond the cap
-    // simply stay due and build on the next frames (deadline untouched).
+    // simply stay due and build on the next frames (deadline untouched), the most overdue first
+    // (Threading/LazyBuildBudget.h).
     if (it->second.tier != ActivityTier::Combat && it->second.tier != ActivityTier::Active)
     {
-        if (now.count() != lazy_budget_now_)
+        if (now.count() != lazy_budget_.frame)
         {
-            lazy_budget_now_ = now.count();
-            lazy_budget_ = kLazyBuildsPerTick;
+            lazy_budget_.Begin(now.count());
             lazy_frame_start_ms_ = getMSTime();
         }
-        if (lazy_budget_ == 0) return false;
+        Ms const per = EffectivePeriod(it->second.tier, it->second.pvp_floor);
+        int64 const late_ms = now.count() - it->second.next_snapshot.count();
+        bool const starving = late_ms > 4 * per.count();
+        if (!lazy_budget_.CanTake(late_ms)) return false;
         if (lazy_ms_budget_)
         {
-            Ms const per = EffectivePeriod(it->second.tier, it->second.pvp_floor);
             bool const light = it->second.tier == ActivityTier::Idle || it->second.tier == ActivityTier::Hibernate;
             uint32 const limit = light ? lazy_ms_budget_ / 2u : lazy_ms_budget_;
-            bool const starving = now.count() - it->second.next_snapshot.count() > 4 * per.count();
             if (!starving && getMSTimeDiff(lazy_frame_start_ms_, getMSTime()) >= limit)
             {
                 ++n_budget_denied_;
                 return false;
             }
         }
-        --lazy_budget_;
+        lazy_budget_.Take();
     }
     // Advance using the tier's bot logic-tick period — snapshot cadence
     // matches bot tick cadence so an bot worker always sees fresh data

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "Bot/BotTypes.h"
+#include "LazyBuildBudget.h"
 #include <array>
 #include <chrono>
 #include <unordered_map>
@@ -65,10 +66,8 @@ public:
     std::array<uint32, 5> tier_counts() const;
 
 private:
-    // Slow-tier snapshot builds allowed per world frame (see should_build_snapshot).
-    static constexpr uint32 kLazyBuildsPerTick = 64;
-    int64  lazy_budget_now_ = -1;
-    uint32 lazy_budget_ = 0;
+    // Slow-tier snapshot builds allowed per world frame, the most overdue bots first (Threading/LazyBuildBudget.h).
+    LazyBuildBudget lazy_budget_;
     // Time budget for the slow tiers per world frame, in ms of wall time since the frame's first snapshot decision
     // (Playerbot.Perf.TickBudgetMs, 0 = off). The parked and idle tiers stop at half of it, the travelling tier at the whole
     // of it; Combat and Active (raid, battleground, grouped, owner-controlled and near-player bots) never wait. A bot that
