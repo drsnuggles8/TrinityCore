@@ -5,6 +5,7 @@
 #include "StateBase.h"
 #include "Util/TaxiFare.h"
 #include "Bot/BotAI.h"
+#include "Fleet/LevelingPolicy.h"
 #include "Bot/MeleeReach.h"
 #include "Bot/Formation.h"                      // StableJitter / MeleeArcSpot (SpreadOut)
 #include "Bot/BotSnapshotView.h"
@@ -1688,6 +1689,7 @@ void DispatchInCombat(BotAI& ai,
                       GroupSnapshotView group,
                       BotIntentEmitter& emit)
 {
+    if (V2::Fleet::LevelingPolicy::Tick(snapshot.raw(), ai, emit)) return;
     // Reports a damage bot that ends this tick with nothing to do ([dps_idle_reason]).
     CombatIdleProbe const idle_probe{ ai, snapshot, emit, emit.combat_action_count(), ai.rule_fire_seq() };
     ReFaceVictim(snapshot, emit);

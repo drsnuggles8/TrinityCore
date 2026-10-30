@@ -1,4 +1,5 @@
 #include "TrainingCapture.h"
+#include "LevelingPolicy.h"
 #include "TrainingPlayer.h"
 #include "TrainingTargetModel.h"
 #include "TrainingIntentRules.h"
@@ -194,8 +195,9 @@ public:
         Text(w, "episode_id", actor.episode); Text(w, "actor_guid", std::to_string(guid));
         w.Key("realm_id"); w.Int(realm_);
         w.Key("recorded_at_ms"); w.Uint(GameTime::GetGameTimeMS());
-        bool controlled = ControlsQuestTarget(guid);
-        Text(w, "behavior_policy", controlled ? "learned-quest-target-v1" : "scripted-v2");
+        bool leveling = LevelingPolicy::Controls(guid);
+        bool controlled = ControlsQuestTarget(guid) || leveling;
+        Text(w, "behavior_policy", leveling ? "learned-leveling-options-v1" : controlled ? "learned-quest-target-v1" : "scripted-v2");
         w.Key("model_authority"); w.Bool(controlled);
         w.Key("death_count"); w.Uint64(actor.deaths);
         w.Key("monster_killing_blows"); w.Uint64(actor.kills);
@@ -349,7 +351,7 @@ std::shared_ptr<Sink> Get(Player const* player)
 }
 std::shared_ptr<Sink> GetForBot(std::uint64_t guid)
 {
-    if (!ControlsQuestTarget(guid) || failed.load() || shutting_down.load()) return {};
+    if (!(ControlsQuestTarget(guid) || LevelingPolicy::Controls(guid)) || failed.load() || shutting_down.load()) return {};
     std::lock_guard lock(sink_mutex);
     return sink && sink->Accepting() ? sink : nullptr;
 }
@@ -363,7 +365,9 @@ void Event(Player const* player, char const* kind, bool reset = false, bool died
 
 void Initialize()
 {
-    if (!Enabled() || !sConfigMgr->GetBoolDefault("Playerbot.Training.TargetShadow.Enable", false, true)) return;
+    if (!Enabled()) return;
+    LevelingPolicy::Initialize();
+    if (!sConfigMgr->GetBoolDefault("Playerbot.Training.TargetShadow.Enable", false, true)) return;
     try
     {
         std::string path = sConfigMgr->GetStringDefault("Playerbot.Training.TargetShadow.ModelFile", "", true);
@@ -395,6 +399,15 @@ void Initialize()
 
 bool ControlsQuestTarget(std::uint64_t guid)
 { return control_enabled && shadow_model && IsTrainingPlayerGuid(guid) && control_guids.contains(guid); }
+
+bool PolicyRecordingAvailable(std::uint64_t guid) { return bool(GetForBot(guid)); }
+bool PolicyEvent(std::uint64_t guid,std::uint64_t source,char const* kind,std::string const& payload)
+{
+    auto output=GetForBot(guid);if (!output) return false;
+    auto actor=output->Context(guid);Buffer buffer;Writer w(buffer);output->HeaderForBot(w,kind,guid,actor);
+    w.Key("source_snapshot");w.Uint64(source);w.Key("leveling");w.RawValue(payload.c_str(),payload.size(),rapidjson::kObjectType);
+    w.EndObject();output->Push(buffer);return true;
+}
 
 NearbyUnit const* TryQuestTarget(BotSnapshot const& s, std::span<NearbyUnit const* const> menu, BotIntentEmitter& emitter)
 {
@@ -448,6 +461,7 @@ void Login(Player const* player)
 }
 void Logout(Player const* player)
 {
+    if (player) LevelingPolicy::Logout(player->GetGUID().GetCounter());
     Safely([&] {
         Event(player, "logout");
         auto output = Get(player); if (output) output->Forget(player->GetGUID().GetCounter());
@@ -522,6 +536,7 @@ void ObservationImpl(Player const* player, BotSnapshot const& s)
     }
     w.EndArray(); w.EndObject(); output->Push(buffer);
     output->Remember(s);
+    LevelingPolicy::Observe(s,cumulative,actor.deaths,sObjectMgr->GetXPForLevel(1));
 }
 
 void ExecutedImpl(Player const* player, Intent const& intent, std::uint8_t result, bool exception)
@@ -548,6 +563,7 @@ void ExecutedImpl(Player const* player, Intent const& intent, std::uint8_t resul
     { Text(w, "target", value->npc.ToString()); w.Key("quest_id"); w.Uint(value->quest_id); w.Key("reward_choice"); w.Uint(value->reward_choice); }
     else payload = false;
     w.EndObject(); w.Key("payload_captured"); w.Bool(payload); w.EndObject(); output->Push(buffer);
+    LevelingPolicy::Executed(intent.bot_id,exception?255:result);
     output->Shadow(player, actor, intent, result, exception);
 }
 

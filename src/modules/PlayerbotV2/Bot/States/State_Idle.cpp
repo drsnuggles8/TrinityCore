@@ -8,6 +8,7 @@
 #include "Bot/BotIntentEmitter.h"
 #include "Fleet/TrainingCapture.h"
 #include "Fleet/TrainingPlayer.h"
+#include "Fleet/LevelingPolicy.h"
 #include "Bot/TrainingIdleRecovery.h"
 #include "Bot/BotRegistry.h"
 #include "Bot/IdleRule.h"
@@ -20646,6 +20647,9 @@ void DispatchIdle(BotAI& ai,
                 wo.Clear();   // arrived (or gave up): carry on as a resident. A leaving bot waits where it is for the spawner to log it out
         }
     }
+
+    // A configured learned policy owns goal selection before scripted recovery/quest priorities.
+    if (V2::Fleet::LevelingPolicy::Tick(s.raw(), ai, emit)) return;
 
     // ---- World-wide idle watch ----
     // A world bot that has not moved for a long time with no reason to stand is given a new activity, whichever rule is holding it
