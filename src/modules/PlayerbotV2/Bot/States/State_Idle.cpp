@@ -17135,6 +17135,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                 if (q.state != 1) continue;          // not complete yet
                 if (!q.ender_resolved) continue;     // no spawn position
                 if (q.ender_map_id != my_map) continue;
+                if (ai.move_refused_recently(q.ender_x, q.ender_y, q.ender_z, s.published_at_ms())) continue;
                 const float dx = q.ender_x - bx;
                 const float dy = q.ender_y - by;
                 const float dsq = dx*dx + dy*dy;
@@ -17198,7 +17199,9 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                     }
                 }
                 // Full route to the ender — PathGenerator detours around obstacles.
-                emit.move_to(best_ex, best_ey, best_ez, /*run*/ true);
+                if (!emit.move_to(best_ex, best_ey, best_ez, /*run*/ true) &&
+                    !emit.move_already_emitted(best_ex, best_ey, best_ez))
+                    return false;
                 ai.set_last_rule_fired("idle:walk_to_quest_ender");
                 return true;
             }
@@ -18269,9 +18272,11 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                         if (dist > 0.1f)
                         {
                             const float scale = (dist - 3.0f) / dist;
-                            emit.move_to(bx + (best_far->x - bx) * scale,
-                                         by + (best_far->y - by) * scale,
-                                         best_far->z, /*run*/ true);
+                            float const tx = bx + (best_far->x - bx) * scale;
+                            float const ty = by + (best_far->y - by) * scale;
+                            if (!emit.move_to(tx, ty, best_far->z, /*run*/ true) &&
+                                !emit.move_already_emitted(tx, ty, best_far->z))
+                                return false;
                             ai.set_last_rule_fired("idle:quest_talk_walk");
                             return true;
                         }

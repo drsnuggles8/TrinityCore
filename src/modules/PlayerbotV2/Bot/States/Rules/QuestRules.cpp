@@ -137,6 +137,14 @@ bool QuestTurninFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
         const float dsq = dx*dx + dy*dy + dz*dz;
         if (dsq > kInteractSq)
         {
+            // A rejected walk cannot hold this high-priority rule until the next retry. In Coldridge the
+            // ender was visible through geometry: reselecting it starved every other quest all night.
+            if (ai.move_refused_recently(gx, gy, gz, now_ms))
+            {
+                if (s.current_quest_id() == tin.quest_id)
+                    ai.blacklist_current_objective(now_ms + 60000u);
+                continue;
+            }
             if (dsq < near_dsq) { near_dsq = dsq; near_gx = gx; near_gy = gy; near_gz = gz; have_near = true; }
             continue;
         }
@@ -164,7 +172,9 @@ bool QuestTurninFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
         // turnin sat starved at 430, this surfaced as the dominant wedge cluster once the
         // rule fired fleet-wide at 702. The path is short (<40y, ender is in scan) so it
         // is cheap. 2026-06-17.
-        emit.move_to(near_gx, near_gy, near_gz, /*run*/ true);
+        if (!emit.move_to(near_gx, near_gy, near_gz, /*run*/ true) &&
+            !emit.move_already_emitted(near_gx, near_gy, near_gz))
+            return false;
         ai.set_last_rule_fired("idle:walk_to_quest_ender");
         return true;
     }
@@ -861,7 +871,15 @@ bool QuestPursueGoalGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
                 if (o.guid == off.giver) { giver_inscan = true; break; }
         if (giver_inscan) return false;   // accept/close-approach owns this
     }
-    if (!s.raw().quest_discovery.quest_turnins.empty()) return false;  // turn-in owns this
+    for (auto const& tin : s.raw().quest_discovery.quest_turnins)
+    {
+        for (auto const& u : s.raw().combat.nearby_friends)
+            if (u.guid == tin.giver && !ai.move_refused_recently(u.x, u.y, u.z, s.published_at_ms()))
+                return false;
+        for (auto const& o : s.raw().world_objects.nearby_objects)
+            if (o.guid == tin.giver && !ai.move_refused_recently(o.x, o.y, o.z, s.published_at_ms()))
+                return false;
+    }
     // A loot walk under way finishes first (its own 40 s clock bounds it). This rule owns only the band beyond 80 y of the
     // goal, so a corpse on the near side flipped the bot between the two walks at the 80 y line until the loot clock ran out
     // (racer45, build41: 49 loot walks given up, the move orders alternating every 2 s).
@@ -991,7 +1009,14 @@ bool QuestPursueGoalFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
     // lower cascade / watchdog recovers instead of looping into a wall.
     if (ai.check_anchor_wedge("idle:pursue_quest_goal", s.path_blocked_count(), now_ms))
         return false;
-    emit.move_to(poi.x, poi.y, poi.z, /*run*/ true);
+    if (ai.move_refused_recently(poi.x, poi.y, poi.z, now_ms))
+    {
+        ai.blacklist_current_objective(now_ms + 60000u);
+        return false;
+    }
+    if (!emit.move_to(poi.x, poi.y, poi.z, /*run*/ true) &&
+        !emit.move_already_emitted(poi.x, poi.y, poi.z))
+        return false;
     ai.set_last_rule_fired("idle:pursue_quest_goal");
     return true;
 }
