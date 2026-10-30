@@ -241,9 +241,9 @@ bool LaunchPartyBuildGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView
         if (s.raw().quest_log.current_quest_id == 0 || obj.type != QUEST_OBJECTIVE_MONSTER || obj.progress >= obj.amount)
             return false;
     }
-    // Anyone else asks for a group only before a quest pull too hard to take alone (three or more mobs, or an elite: Grik'nir
-    // among his whelps), as players do ("LFG Grik'nir"); loners and griefers never do.
-    else if (lp.temperament == LaunchTemperament::Loner || lp.temperament == LaunchTemperament::Griefer || !HardPull(NextQuestPull(s)))
+    // Anyone else asks for a group only before a quest pull too hard to take alone (three or more mobs: Grik'nir among his
+    // whelps; an elite; a mob two levels up), as players do ("LFG Grik'nir"); loners and griefers never do.
+    else if (lp.temperament == LaunchTemperament::Loner || lp.temperament == LaunchTemperament::Griefer || !HardPull(NextQuestPull(s), s.level()))
         return false;
     return !PartyRecruit(s, ai).IsEmpty();
 }

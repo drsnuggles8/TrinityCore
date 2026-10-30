@@ -47,4 +47,19 @@ constexpr bool Ready(std::uint32_t size, std::int32_t health_pct, std::int32_t m
     return health_pct >= kReadyHealthPct && (!uses_mana || mana_pct >= kReadyManaPct);
 }
 
+// A pull a lone quester should not take on alone: three or more mobs, an elite or rare, or a mob two levels or more above it (an
+// orange or red name; the level is the one the bot sees, after content tuning).
+constexpr bool Hard(std::uint32_t size, bool elite_or_rare, std::uint32_t target_level, std::uint32_t bot_level)
+{
+    return size >= 3 || elite_or_rare || target_level >= bot_level + 2;
+}
+
+// The pull size a bot rests for (Ready): a hard pull counts as at least two, and so does any pull once the bot has sat down -
+// it finishes resting when the pack thins out for a moment (a whelp wanders off), instead of standing up at half health (build75
+// racer45: Hiroshi sat at 57 % and pulled 6 s later, Cooper at 36 %).
+constexpr std::uint32_t RestSize(std::uint32_t size, bool hard, bool resting)
+{
+    return (hard || resting) && size < 2 ? 2 : size;
+}
+
 } // namespace Playerbot::PullSize

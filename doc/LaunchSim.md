@@ -268,10 +268,12 @@ it and 2 turned it in, in racer45-build52 4 and 0. The route was right; the figh
 into the troll cave three times in 19 minutes, met two to four whelps at once each time, fled at 25 % health and started over
 from the cave mouth; the priest Narinah ground through and finished. A solo quester never sat down to eat near its quest
 targets, so it went in at whatever health it had. Now it sizes each pull first (`idle:prepare_pull`, Bot/PullSize.h): the
-quest target it would take next plus the idle aggressive mobs within 10 y of it. One mob is pulled as before; for two or more
-the bot eats, drinks or sits until 90 % health and 80 % mana (it gives up after 2 minutes without regeneration, for 1 minute).
-Log: `[prepare_pull] <bot> waits before pulling N mobs`. Before a pull too hard to take alone (three or more mobs, or an
-elite) a bot also asks for a group as players do ("LFG Grik'nir"): `idle:launch_party_build`, which only the partylead persona
+quest target it would take next plus the idle aggressive mobs within 10 y of it. One mob is pulled as before; for two or more,
+or a hard pull, the bot eats, drinks or sits until 90 % health and 80 % mana (it gives up after 2 minutes without regeneration,
+for 1 minute). Once it sits it finishes, even when the pack thins out for a moment: in build75's racer45 bots stood up after a
+few seconds at 36-57 % health because a whelp wandered off and the pull counted as one again.
+Log: `[prepare_pull] <bot> waits before pulling N mobs`. Before a pull too hard to take alone (three or more mobs, an
+elite, or a mob two levels or more above the bot as it sees it after content tuning) a bot also asks for a group as players do ("LFG Grik'nir"): `idle:launch_party_build`, which only the partylead persona
 ran before, now runs for every launch bot but loners and griefers, inviting solo players of about its level within 30 y up to a
 group of three. A group's kill now has one loot on the corpse under the group's loot method, with each member's quest items
 (Unit::Kill); retail gave every tapper a full loot of its own, so two grouped players looted twice as much.

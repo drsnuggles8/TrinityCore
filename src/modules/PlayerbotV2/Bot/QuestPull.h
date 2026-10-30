@@ -19,7 +19,8 @@ struct NextPull
 // The nearest idle creature in the scan that advances a kill or drop objective in the bot's log, and how many mobs pulling it brings.
 NextPull NextQuestPull(BotSnapshotView const& s);
 
-// A pull a lone quester should not take on alone: three or more mobs, or an elite / rare target.
-bool HardPull(NextPull const& next);
+// A pull a lone quester of `bot_level` should not take on alone (PullSize::Hard): three or more mobs, an elite / rare target, or
+// one two levels or more above the bot.
+bool HardPull(NextPull const& next, uint8 bot_level);
 
 } // namespace Playerbot

@@ -93,3 +93,23 @@ TEST_CASE("One mob never waits; two or more wait for 90 % health and 80 % mana",
     CHECK_FALSE(Ready(2, 85, 100, true));
     CHECK(Ready(2, 90, 80, true));
 }
+
+TEST_CASE("Three mobs, an elite or a mob two levels up is too hard alone", "[ClassicPullSize]")
+{
+    CHECK_FALSE(Hard(2, false, 3, 3));
+    CHECK(Hard(3, false, 3, 3));
+    CHECK(Hard(1, true, 3, 3));
+    // a level-5 mob: hard for a level-3 bot, not for a level-4 one
+    CHECK(Hard(1, false, 5, 3));
+    CHECK_FALSE(Hard(1, false, 5, 4));
+}
+
+TEST_CASE("A hard pull, or a bot already resting, rests as for two mobs", "[ClassicPullSize]")
+{
+    CHECK(RestSize(1, false, false) == 1);
+    CHECK(RestSize(1, true, false) == 2);
+    // the pack thinned out to one while the bot sat: it keeps resting
+    CHECK(RestSize(1, false, true) == 2);
+    CHECK_FALSE(Ready(RestSize(1, false, true), 57, 42, true));
+    CHECK(RestSize(3, false, true) == 3);
+}

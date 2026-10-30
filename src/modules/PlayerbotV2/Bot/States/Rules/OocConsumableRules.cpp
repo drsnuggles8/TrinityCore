@@ -286,8 +286,9 @@ bool RestFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, Bot
 
 // ---------- idle:prepare_pull ----------
 // A solo quester sizes its next pull before it walks into it: the quest target it would take next plus the idle aggressive mobs
-// next to it (Bot/PullSize.h). A single mob is pulled as before; for two or more the bot eats, drinks or sits until it has 90 %
-// health and 80 % mana (Olo, 29 Oct: guided and racer bots never finished The Stolen Journal - melee bots went into the Coldridge
+// next to it (Bot/PullSize.h). A single mob is pulled as before; for two or more, or a hard one (a mob two levels up), the bot
+// eats, drinks or sits until it has 90 % health and 80 % mana, and once it sits it finishes even if the pack thins out (Olo,
+// 29 Oct: guided and racer bots never finished The Stolen Journal - melee bots went into the Coldridge
 // troll cave at half health, met three whelps at once, fled and started over). Priority 704 sits above the quest walkers and every
 // engage path, so nothing pulls while the bot gets ready; corpses within 30 y are looted first (idle:loot_near, 780). A wait that
 // does not reach the mark in 2 minutes (no regeneration) gives up for a minute.
@@ -318,9 +319,9 @@ NextPull NextQuestPull(BotSnapshotView const& s)
     return next;
 }
 
-bool HardPull(NextPull const& next)
+bool HardPull(NextPull const& next, uint8 bot_level)
 {
-    return next.target && (next.size >= 3 || next.target->is_elite_or_rare);
+    return next.target && PullSize::Hard(next.size, next.target->is_elite_or_rare, next.target->level, bot_level);
 }
 
 namespace {
@@ -335,8 +336,10 @@ bool PreparePullGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
         return false;
 
     NextPull const next = NextQuestPull(s);
+    bool const resting = ai.prepare_pull_since_ms() != 0;
     bool const uses_mana = s.max_power(POWER_MANA) > 0;
-    if (!next.target || PullSize::Ready(next.size, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : 100, uses_mana))
+    uint32 const size = PullSize::RestSize(next.size, HardPull(next, s.level()), resting);
+    if ((!next.target && !resting) || PullSize::Ready(size, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : 100, uses_mana))
     {
         ai.set_prepare_pull_since_ms(0);
         return false;
