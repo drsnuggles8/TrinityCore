@@ -2783,6 +2783,7 @@ bool API::TryTerrainWalkFallback(float x, float y, float z, bool run)
 
     int const steps = std::max(2, int(reach / kSampleStep));
     float prevZ = sz;
+    float prevX = sx, prevY = sy;
     float endZ  = sz;
     for (int i = 1; i <= steps; ++i)
     {
@@ -2822,7 +2823,16 @@ bool API::TryTerrainWalkFallback(float x, float y, float z, bool run)
             tw_log("refuse:hazard", px, py, g);            // hazard / drown
             return false;
         }
-        prevZ = g;
+        // A continuous floor can still pass through a wall. Height-only validation let the terrain fallback
+        // strand actors inside geometry; ordinary player walking must respect static and dynamic collision.
+        constexpr float eye = 1.0f;
+        if (!mm->isInLineOfSight(p_->GetPhaseShift(), prevX, prevY, prevZ + eye, px, py, g + eye,
+                                 LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing))
+        {
+            tw_log("refuse:wall", px, py, g);
+            return false;
+        }
+        prevX = px; prevY = py; prevZ = g;
         if (i == steps) endZ = g;                          // validated ground at the segment end
     }
 

@@ -7,6 +7,8 @@
 #include "Bot/BotSnapshotView.h"
 #include "Bot/BotIntentEmitter.h"
 #include "Fleet/TrainingCapture.h"
+#include "Fleet/TrainingPlayer.h"
+#include "Bot/TrainingIdleRecovery.h"
 #include "Bot/BotRegistry.h"
 #include "Bot/IdleRule.h"
 #include "Bot/QuestDoable.h"
@@ -20667,6 +20669,12 @@ void DispatchIdle(BotAI& ai,
             w.prev_rule = lr;
         if (V2::IdleStuck(w, px, py, now, exempt))
         {
+            if (V2::Fleet::IsTrainingPlayerGuid(s.guid().GetCounter()) && V2::IdleHearthReady(w.strikes, s.can_hearth()) && emit.hearth())
+            {
+                w.has_target = false;
+                ai.set_last_rule_fired("idle:training_hearth_after_failed_walks");
+                return;
+            }
             // Found standing again and again while the quest approach (it only runs more than 80 y from the goal) was the last thing
             // to move it: the goal cannot be closed from here (Derno and Phili, Burning Steppes, strikes 1..5 for 45 minutes: a forced walk
             // to a hub ends and the quest rule walks them back to the same goal). Give that objective up so the picker takes another;
