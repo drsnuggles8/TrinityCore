@@ -326,6 +326,12 @@ Build81 guided30 (27 deaths against build79's 14 on the same roster): 34 of 41 f
 next to the bot, often with more health than at the start - the mob followed without hitting, and a mob only gives up once
 the bot is out of its reach from home (visibility range, at most 133 y) with 10 s unhit; 15 then turned and died. (8) A flee
 still chased (an attacker within 25 y) runs up to 60 s.
+Build82 guided30 (19 deaths, 182 quests): 7 were level-3 humans on the guide's ".xp 3+720" grind step. With no quest of their
+window left, `idle:travel_to_hub` walked them from the Echo Ridge kobolds toward an Elwynn hub, through the Defias Cutpurse camp
+at -9160,90; they fled, rested to full and walked back through it. (9) A guide-follower on a grind step inside its starting
+valley counts as a camp grinder (`identity.launch_camp`): the hub routers leave it alone, and farther than 120 y from the
+zone's grind spot (Northshire: the Echo Ridge kobolds) it walks there. `[face_stuck] <bot> refused | turned but still off`
+says why a combat re-face did not turn a bot (5 deaths over b80-b82 stood beside their mob with the angle never changing).
 
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and

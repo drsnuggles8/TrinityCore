@@ -3907,13 +3907,36 @@ Result API::face_target(ObjectGuid target, bool combat)
         if (u == p_ || !u->IsAlive())
             return Result::InvalidTarget;
         ClearStaleMoveFlags(p_);
+        // [face_stuck]: why a re-face did not turn the bot, at most every 10 s per bot. guided30-b82 (30 Oct): a shaman logged
+        // 29 "[facing] ... off=111deg action=refaced" in a minute beside a Ragged Young Wolf, never landed a swing and died;
+        // 5 deaths over the b80-b82 runs read like that, and the request alone does not say what refused it.
+        auto const stuck = [this, u](char const* why)
+        {
+            thread_local std::unordered_map<uint64, uint32> t_last;
+            uint32 const now = GameTime::GetGameTimeMS();
+            uint32& last = t_last[p_->GetGUID().GetCounter()];
+            if (last && now - last < 10000u)
+                return;
+            last = now ? now : 1u;
+            TC_LOG_INFO("playerbot.v2", "[face_stuck] {} {}: moving={} flags=0x{:X} spline_done={} motion={} lost_control={} stunned={} channel={} casting={} off={:.0f}deg",
+                p_->GetName(), why, int(p_->isMoving()), uint32(p_->GetUnitMovementFlags()), int(p_->movespline->Finalized()),
+                uint32(p_->GetMotionMaster()->GetCurrentMovementGeneratorType()), int(p_->HasUnitState(UNIT_STATE_LOST_CONTROL)),
+                int(p_->HasUnitState(UNIT_STATE_STUNNED)), int(p_->GetCurrentSpell(CURRENT_CHANNELED_SPELL) != nullptr),
+                int(p_->HasUnitState(UNIT_STATE_CASTING)),
+                Position::NormalizeOrientation(p_->GetOrientation() - p_->GetAbsoluteAngle(u)) * 180.0f / float(M_PI));
+        };
         if (p_->isMoving() || !p_->movespline->Finalized() || p_->HasUnitState(UNIT_STATE_LOST_CONTROL | UNIT_STATE_STUNNED) ||
             p_->GetCurrentSpell(CURRENT_CHANNELED_SPELL) || p_->HasUnitState(UNIT_STATE_CASTING))
+        {
+            stuck("refused");
             return Result::Locked;
+        }
         float const off = Position::NormalizeOrientation(p_->GetOrientation() - p_->GetAbsoluteAngle(u));
         if (off < 0.1f || off > 2.0f * float(M_PI) - 0.1f)
             return Result::Ok;
         p_->SetFacingToPoint(u->GetPosition(), /*force*/ true);
+        if (!p_->HasInArc(float(M_PI) / 2.0f, u))
+            stuck("turned but still off");
         return Result::Ok;
     }
     // Already facing it (within ~0.1 rad) and standing still: nothing to do.

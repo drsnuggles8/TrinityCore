@@ -1926,6 +1926,17 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
     snap->identity.launch_camp = bot_ai && bot_ai->launch().active && bot_ai->launch().strategy == LaunchStrategy::TrollGrinder &&
         LaunchPlaces::Exists(LaunchPlaces::kZones[LaunchPlaces::ZoneForRace(p->GetRace())].grind) &&
         p->GetLevel() < LaunchPlaces::kZones[LaunchPlaces::ZoneForRace(p->GetRace())].grind_until;
+    // A guide-follower on a grind step (RouteAction::Level, or an accept it is a level or two short of) in its starting valley
+    // grinds there as well, at the zone's camp: with no quest of its window left, idle:travel_to_hub walked it off to a hub
+    // outside (guided30-b82, 30 Oct: 7 of 19 deaths, level-3 humans on ".xp 3+720" walked from the Echo Ridge kobolds toward
+    // Elwynn, into the Defias Cutpurse camp at -9160,90, fled, rested and walked back through it).
+    if (launch_step && !snap->identity.launch_camp &&
+        (launch_step->action == V2::Fleet::RouteAction::Level || V2::Fleet::LaunchRoutes::Instance().WaitsForLevel(p, *launch_step)))
+    {
+        LaunchPlaces::StartZone const& zone = LaunchPlaces::kZones[LaunchPlaces::ZoneForRace(p->GetRace())];
+        snap->identity.launch_camp = LaunchPlaces::Exists(zone.grind) && p->GetMapId() == zone.map &&
+            LaunchPlaces::Dist2d(zone.center, p->GetPositionX(), p->GetPositionY()) < zone.radius * zone.radius;
+    }
     snap->identity.launch_zone = bot_ai && bot_ai->launch().active && p->GetLevel() < 10
         ? uint8(1 + LaunchPlaces::ZoneForRace(p->GetRace())) : uint8(0);
     snap->identity.xp            = p->GetXP();
@@ -9984,6 +9995,8 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
         float arrive = 40.f;
         if (strat == LaunchStrategy::TrollGrinder && LP::Exists(zone.grind) && lvl < zone.grind_until)
             go = &zone.grind;   // grind the zone's camp (Coldridge: the troll whelps); idle:engage_nearby_mob takes over within 50 y
+        else if (snap->identity.launch_camp)
+            go = &zone.grind, arrive = 120.f;   // a guide's grind step: grinds where it is when near the camp, else walks there
         else if (in_coldridge && LP::Exists(zone.town) &&
                  ((strat == LaunchStrategy::TrollGrinder && lvl >= zone.grind_until) || (strat == LaunchStrategy::Skipper && lvl >= 3)))
             go = &zone.town, arrive = 60.f;   // out of the starter valley early

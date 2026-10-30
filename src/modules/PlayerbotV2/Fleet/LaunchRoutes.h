@@ -23,7 +23,8 @@ namespace Playerbot::V2::Fleet {
 // TurnInIfDone: a guide's optional hand-in (".isQuestComplete Q" + ".turnin Q" in an #optional step): only while the quest is
 // complete, as Olo's Coldridge guide takes A New Threat (170) only if the troggs filled on the way.
 // Level: a guide's grind step (".xp 4", ".xp 3+1130", ".xp 10-1720"): the bot takes no quest of the route until it has that level
-// and XP, and grinds where it stands (idle:engage_nearby_mob); the steps after it wait (Olo, 29 Oct: Guided bots left Coldridge
+// and XP, and grinds where it stands (idle:engage_nearby_mob; in its starting valley at the zone's grind camp, the hub routers held
+// off: BotSnapshotBuilder, identity.launch_camp); the steps after it wait (Olo, 29 Oct: Guided bots left Coldridge
 // at level 3, the RestedXP guide there ends at about 5 1/3).
 enum class RouteAction : uint8 { None = 0, Accept = 1, Complete = 2, TurnIn = 3, Deathskip = 4, Hearth = 5, TurnInIfDone = 6, Level = 7 };
 
