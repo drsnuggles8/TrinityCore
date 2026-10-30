@@ -255,6 +255,12 @@ bool ItemCanGoIntoBag(ItemTemplate const* pProto, ItemTemplate const* pBagProto)
     switch (pBagProto->GetClass())
     {
         case ITEM_CLASS_CONTAINER:
+            // A profession bag holds the families it names itself as well. WoW Forever's satchels use families TrinityCore has
+            // no mask for: Apprentice's Skinning Satchel (277114, leatherworking subclass) names 0x2000000, the bit its Skinning
+            // Knife carries, and the knife was refused ("That item doesn't go in that container", Olo 30 Oct).
+            if (pBagProto->GetSubClass() != ITEM_SUBCLASS_CONTAINER && pBagProto->GetSubClass() != ITEM_SUBCLASS_REAGENT_CONTAINER &&
+                (pBagProto->GetBagFamily() & pProto->GetBagFamily()) != 0)
+                return true;
             switch (pBagProto->GetSubClass())
             {
                 case ITEM_SUBCLASS_CONTAINER:
