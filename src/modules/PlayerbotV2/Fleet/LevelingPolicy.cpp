@@ -85,6 +85,7 @@ std::shared_ptr<Actor> Get(std::uint64_t guid)
     if(episode_seeds.IsObject()&&episode_seeds.HasMember("participants")&&episode_seeds["participants"].HasMember(id.c_str()))
     {
         auto const& seed=episode_seeds["participants"][id.c_str()];
+        if(seed.HasMember("sampling_seed")&&seed["sampling_seed"].IsUint64())p->random.seed(seed["sampling_seed"].GetUint64());
         if(seed.HasMember("last_xp"))p->episode.Seed(seed);
         if(seed.HasMember("memory"))
         {
@@ -93,6 +94,9 @@ std::shared_ptr<Actor> Get(std::uint64_t guid)
             if(memory.HasMember("last_reward"))p->last_reward=Number(memory["last_reward"]);
             if(memory.HasMember("refusals"))p->last_refusals=Number(memory["refusals"]);
             if(memory.HasMember("move_progress"))p->last_move=Number(memory["move_progress"]);
+            if(memory.HasMember("goal_progress"))p->last_goal_progress=Number(memory["goal_progress"]);
+            if(memory.HasMember("health_delta"))p->hp_delta=Number(memory["health_delta"]);
+            if(memory.HasMember("mana_delta"))p->mana_delta=Number(memory["mana_delta"]);
             if(memory.HasMember("goal_failures"))for(auto it=memory["goal_failures"].MemberBegin();it!=memory["goal_failures"].MemberEnd();++it)p->goal_failures[it->name.GetString()]=Number(it->value);
         }
     }
@@ -128,7 +132,8 @@ std::vector<Choice> Affordances(Player const* player,BotSnapshot const& s)
             auto offer=[&](ObjectGuid id,float x,float y,float z)
             {
                 Choice& c=add(Kind::QuestItem,id,x,y,z);c.item=item.entry;c.spell=spell->Id;effects(spell,c);
-                c.operation=spell->GetSpellSpecific()==SPELL_SPECIFIC_FOOD?1:spell->GetSpellSpecific()==SPELL_SPECIFIC_DRINK?2:0;
+                auto specific=spell->GetSpellSpecific();
+                c.operation=specific==SPELL_SPECIFIC_FOOD?1:specific==SPELL_SPECIFIC_DRINK?2:specific==SPELL_SPECIFIC_FOOD_AND_DRINK?3:0;
                 for(auto const& q:s.quest_log.quests)if(q.source_item_id==item.entry)c.quest=q.quest_id;
             };
             if(spell->CheckTarget(player,player)==SPELL_CAST_OK)offer(s.guid,s.position.x,s.position.y,s.position.z);
@@ -243,6 +248,7 @@ void Memory(Writer& w,Actor const& actor)
 {
     w.Key("memory");w.StartObject();w.Key("last_kind");w.Int(actor.last_kind);w.Key("last_reward");w.Double(actor.last_reward);
     w.Key("refusals");w.Double(actor.last_refusals);w.Key("move_progress");w.Double(actor.last_move);
+    w.Key("goal_progress");w.Double(actor.last_goal_progress);w.Key("health_delta");w.Double(actor.hp_delta);w.Key("mana_delta");w.Double(actor.mana_delta);
     w.Key("goal_failures");w.StartObject();for(auto const& [key,value]:actor.goal_failures){w.Key(key.c_str());w.Double(value);}w.EndObject();w.EndObject();
 }
 std::string GoalKey(Choice const& c)
@@ -267,14 +273,21 @@ State Context(BotSnapshot const& s,Actor const& actor,Progress const& p)
     x[23]=std::min(1.f,float(s.combat.nearby_friends.size())/100);
     x[24]=std::min(2.f,float(std::log1p(std::max(0,s.inventory.gold))/std::log(10000.)));
     x[25]=float(std::min(2.,actor.episode.stagnant/task.stagnation));x[26]=float(std::min(2.,actor.episode.observed/task.maximum));x[27]=float(task.goal)/10;
-    x[29]=std::min(1.f,float(s.consumables.food_drink_count)/20);x[30]=x[29];x[31]=std::min(1.f,float(s.consumables.health_potion_count)/10);
+    x[31]=std::min(1.f,float(s.consumables.health_potion_count)/10);
     x[33]=Fraction(s.vendor_visit.estimated_repair_cost,std::max(1,s.inventory.gold));x[35]=std::min(1.f,float(s.gossip.gossip_options.size())/8);
+    std::unordered_set<uint32> food,water;
     for(auto const& c:actor.affordances)
     {
-        if(c.kind==Kind::QuestItem)x[28]+=1.f/12;
+        if(c.kind==Kind::QuestItem)
+        {
+            x[28]+=1.f/12;
+            if(c.operation&1&&food.insert(c.item).second)x[29]+=float(v.item_count(c.item))/20;
+            if(c.operation&2&&water.insert(c.item).second)x[30]+=float(v.item_count(c.item))/20;
+        }
         if(c.kind==Kind::Train)x[32]+=1.f/8;
         if(c.kind==Kind::Loot)x[34]+=1.f/8;
     }
+    for(auto index:{28,29,30,32,34})x[index]=std::min(1.f,x[index]);
     x[45]=actor.pending.active?std::min(1.f,float(std::uint32_t(p.ms-actor.pending.before.ms))/60000):0;
     ApplyMemory(x,actor);return x;
 }
@@ -291,6 +304,7 @@ void Finish(std::uint64_t guid,Actor& actor,Frame& frame,bool terminal,bool trun
     actor.last_move=std::hypot(frame.progress.x-p.before.x,frame.progress.y-p.before.y);
     actor.hp_delta=frame.progress.hp-p.before.hp;actor.mana_delta=frame.progress.mana-p.before.mana;
     bool move=p.action.kind==Kind::QuestGoal||p.action.kind==Kind::Approach||p.action.kind==Kind::LocalMove||p.action.kind==Kind::Retreat;
+    actor.last_goal_progress=move?std::hypot(p.action.x-p.before.x,p.action.y-p.before.y)-std::hypot(p.action.x-frame.progress.x,p.action.y-frame.progress.y):0;
     if(move&&p.refusals&&actor.last_move<1)
     {
         if(actor.goal_failures.size()>=64)actor.goal_failures.erase(actor.goal_failures.begin());
@@ -325,13 +339,20 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,std::
         c.features[68]=std::log1p(std::hypot(x-s.position.x,y-s.position.y)/10)/std::log(5.f);c.features[69]=std::clamp((z-s.position.z)/10,-2.f,2.f);
         c.features[73]=quest!=0;
         for(auto const& q:s.quest_log.quests)if(q.quest_id==quest)c.features[74]=std::min(5.f,float(q.xp_reward)/400);
-        c.features[75]=1;menu.push_back(c);return &menu.back();
+        c.features[75]=1;
+        for(auto const& q:s.quest_log.quests)if(q.quest_id==quest)
+        {
+            double remaining=0;for(auto const& o:q.objectives)if(o.amount>0)remaining+=std::clamp(double(o.amount-o.progress)/o.amount,0.,1.);
+            c.features[83]=q.objectives.empty()?float(q.state==0):float(remaining/q.objectives.size());
+        }
+        menu.push_back(c);return &menu.back();
     };
     auto own=[&](Kind kind){return add(kind,s.guid,s.position.x,s.position.y,s.position.z);};
     own(Kind::Baseline);
     if(v.is_casting())return menu;
     for(auto const& option:affordances)
     {
+        if((option.kind==Kind::Cast||option.kind==Kind::Heal)&&!v.is_ready(option.spell))continue;
         if(ai.move_refused_recently(option.x,option.y,option.z,s.published_at_ms)&&(option.kind==Kind::Approach))continue;
         auto c=add(option.kind,option.target,option.x,option.y,option.z,option.quest,option.item,option.spell);if(!c)break;
         c->operation=option.operation;c->bag=option.bag;c->slot=option.slot;c->equip_slot=option.equip_slot;

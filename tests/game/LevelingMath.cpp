@@ -62,6 +62,13 @@ TEST_CASE("Episode failure survives recorder restarts and completion requires qu
     p.ms+=50000;REQUIRE(restarted.Advance(p,6,credits,rewards,task));REQUIRE(restarted.terminal=="failed_no_progress");
     Episode success;rewards={233};REQUIRE(success.Advance(p,6,credits,rewards,task));REQUIRE(success.terminal=="completed_task");
 }
+TEST_CASE("Task reward parsing retains time discount precision", "[LevelingMath]")
+{
+    rapidjson::Document d;d.Parse(R"({"id":"test","goal_level":6,"max_seconds":5400,"no_progress_seconds":900,"required_quests":[94375],"eligible_quests":[94375],"reward":{"xp":1,"quest":1,"death":1,"completion":4,"failure":2,"time":0.0005,"stall":0.001,"potential":0.1,"refusal":0.01,"gamma_per_second":0.9998}})");
+    auto task=Task::Parse(d);REQUIRE(task.reward.gamma==.9998);REQUIRE(task.required.front()==94375);
+    Progress a,b;a.ms=1000;b.ms=6000;auto r=Outcome(a,b,false,400,task.reward);
+    REQUIRE(r.discount==std::pow(.9998,5));
+}
 TEST_CASE("Leveling masked sampling preserves probabilities for every selected index", "[LevelingMath]")
 {
     std::array<float,3> scores{0,1,2};
