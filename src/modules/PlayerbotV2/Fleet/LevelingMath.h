@@ -15,16 +15,16 @@
 namespace Playerbot::V2::Fleet::Leveling
 {
 constexpr std::array<std::string_view,16> Kinds{"baseline","attack","accept","turnin","loot","quest_goal","approach","local_move",
-    "rest","heal","retreat","hearth","wait","quest_item","interact","cast"};
+    "rest","heal","retreat","hearth","jump","quest_item","interact","cast"};
 constexpr std::array<std::string_view,48> Features{"health","mana","level","xp_fraction","in_combat","bag_space","quest_count","turnin_count",
     "offer_count","visible_enemies","attackers","stationary_time","elapsed_time","deaths","durability","hearth_ready","x","y","z",
     "goal_distance","has_goal","has_quest_tool","quest_potential","visible_friends","action_baseline","action_attack","action_accept",
     "action_turnin","action_loot","action_quest_goal","action_approach","action_local_move","action_rest","action_heal","action_retreat",
-    "action_hearth","action_wait","action_quest_item","action_interact","action_cast","distance","height","target_health","relative_health",
+    "action_hearth","action_jump","action_quest_item","action_interact","action_cast","distance","height","target_health","relative_health",
     "level_difference","quest_relevant","quest_xp","line_of_sight"};
 using State = std::array<float,24>;
 using ActionFeatures = std::array<float,48>;
-enum class Kind : std::uint8_t { Baseline,Attack,Accept,Turnin,Loot,QuestGoal,Approach,LocalMove,Rest,Heal,Retreat,Hearth,Wait,QuestItem,Interact,Cast };
+enum class Kind : std::uint8_t { Baseline,Attack,Accept,Turnin,Loot,QuestGoal,Approach,LocalMove,Rest,Heal,Retreat,Hearth,Jump,QuestItem,Interact,Cast };
 
 inline rapidjson::Value const& Field(rapidjson::Value const& value,char const* name)
 {

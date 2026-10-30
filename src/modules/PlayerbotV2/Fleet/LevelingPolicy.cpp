@@ -126,7 +126,7 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,Objec
     if(v.is_casting())return menu;
     if(!s.vitals.in_combat)
     {
-        own(Kind::Wait);
+        add(Kind::Jump,{},s.position.x+std::cos(s.position.o)*3,s.position.y+std::sin(s.position.o)*3,s.position.z);
         if(state[0]<.95f||state[1]<.9f)own(Kind::Rest);
         if(v.can_hearth())own(Kind::Hearth);
     }
@@ -229,7 +229,7 @@ bool Execute(Choice const& c,BotSnapshot const&,BotIntentEmitter& emit)
         case Kind::Heal:case Kind::Cast:return emit.cast(c.spell,c.target);
         case Kind::Hearth:emit.stop_movement();return emit.hearth();
         case Kind::Rest:emit.stop_movement();return emit.sit();
-        case Kind::Wait:return emit.stop_movement();
+        case Kind::Jump:return emit.jump(3.f);
         case Kind::QuestItem:return emit.use_item_by_entry(c.item,c.target);
         case Kind::Interact:
             if(c.target.IsGameObject())return emit.use_game_object(c.target);
@@ -306,7 +306,7 @@ bool Tick(BotSnapshot const& s,BotAI& ai,BotIntentEmitter& emit)
         if(a->pending.active)Finish(s.bot_id,*a,*frame,false,false);
         if(v.is_casting())return false;
         auto menu=Menu(s,ai,frame->state,corpse);std::vector<float> scores;for(auto const& c:menu)scores.push_back(model->actor.Score(c.features));
-        auto sampled=Select(scores,std::generate_canonical<double,53>(a->random));auto const& choice=menu[sampled.index];
+        auto sampled=Select(scores,std::generate_canonical<double,53>(a->random));
         if(evaluation)
         {
             sampled.index=std::size_t(std::max_element(scores.begin(),scores.end())-scores.begin());
