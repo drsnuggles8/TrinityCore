@@ -81,10 +81,14 @@ TEST_CASE("Neutral, fighting, dead and player units stay out of the pull", "[Cla
     CHECK(Estimate(mobs[0], mobs) == 1);
 }
 
-TEST_CASE("One mob never waits; two or more wait for 90 % health and 80 % mana", "[ClassicPullSize]")
+TEST_CASE("One mob waits for 70 % health and 40 % mana from a careful bot; two or more for 90 % and 80 %", "[ClassicPullSize]")
 {
-    // a pull of one: as before, whatever the bot has
-    CHECK(Ready(1, 40, 10, true));
+    // a pull of one: a careless persona takes it as it is, a careful one wants 70 % health and 40 % mana
+    CHECK(Ready(1, 40, 10, true, false));
+    CHECK_FALSE(Ready(1, 53, 100, true));   // back from the spirit healer at about half health
+    CHECK_FALSE(Ready(1, 80, 30, true));
+    CHECK(Ready(1, 70, 40, true));
+    CHECK(Ready(1, 70, 0, false));
     // a warrior (no mana) before three whelps
     CHECK_FALSE(Ready(3, 55, 0, false));
     CHECK(Ready(3, 90, 0, false));

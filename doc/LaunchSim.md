@@ -300,6 +300,16 @@ together while a member near it is still on the quest, up to 15 minutes (Olo: "g
 doing the quest"). Log: `[party_build] <bot> invites <guid> (same quest | hard pull)`. Build77 asked for any shared quest:
 the whole crowd grouped at the first quest giver (guided60: 353 invites, none for a hard pull, 148 quests in 30 minutes
 against build76's 179), so it is held to difficult quests.
+**Deaths, 30 Oct:** "bots shouldn't really die that often, unless they are deathskipping or their personality makes them play
+bad" (Olo). Build77 guided60's 46 deaths (`dynrespawn/death-patterns.py`): 19 fled from one or two mobs for 30 s, still had
+them on their back, turned and died; 12 fled from a pull of three or more; 10 died running; 5 pulled the next mob straight
+from the spirit healer at 50 %; one wait gave up at 15 % health after a flee and pulled as it was. In Classic a mob that hits a
+runner from behind dazes it, so a run on foot only works toward help or with an escape spell. Now: (1) with one or two
+attackers and neither an escape tool ready nor a town NPC in the scan, `combat:solo_flee` stands and fights
+(`[solo_flee] <bot> stands`); a big pull still runs. (2) A careful bot takes even a single-mob quest pull only at 70 % health
+and 40 % mana (PullSize::Ready), resting to 90 / 80 % once it sits; casual, idle and skipper personas pull as they are.
+(3) The wait-before-pull's 2 minutes count resting only: a fight or a death starts it over.
+
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and
 flee outcomes.

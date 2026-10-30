@@ -326,10 +326,28 @@ bool HardPull(NextPull const& next, uint8 bot_level)
 
 namespace {
 
+// A careful bot does not start even a single-mob quest pull half-hurt (PullSize::Ready). Careless: the launch personas that play
+// badly on purpose - casual (reads everything, plays slowly), idle (AFK, distracted) and the skipper who death-skips out of
+// the starting area (Olo, 30 Oct: "bots shouldn't really die that often, unless they are deathskipping by following a guide or
+// their personality makes them play bad / casual").
+bool CarefulPuller(BotAI& ai)
+{
+    LaunchProfile const& lp = ai.launch();
+    if (!lp.active)
+        return true;
+    return lp.strategy != LaunchStrategy::Casual && lp.strategy != LaunchStrategy::Idle && lp.strategy != LaunchStrategy::Skipper;
+}
+
 bool PreparePullGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32 now_ms)
 {
     if (!s.is_alive() || s.in_combat() || s.is_casting() || !s.victim().IsEmpty() || s.attackers_count() > 0)
+    {
+        // A fight (or death) ends the wait: its 2 minutes count resting only (build77: a bot "gave up" at 15 % after a flee and
+        // pulled as it was).
+        if (s.in_combat() || s.attackers_count() > 0 || !s.is_alive())
+            ai.set_prepare_pull_since_ms(0);
         return false;
+    }
     if (s.in_group() || s.raw().movement.is_mounted || s.is_in_dungeon() || s.in_battleground())
         return false;
     if (now_ms < ai.prepare_pull_skip_until_ms())
@@ -339,7 +357,8 @@ bool PreparePullGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView cons
     bool const resting = ai.prepare_pull_since_ms() != 0;
     bool const uses_mana = s.max_power(POWER_MANA) > 0;
     uint32 const size = PullSize::RestSize(next.size, HardPull(next, s.level()), resting);
-    if ((!next.target && !resting) || PullSize::Ready(size, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : 100, uses_mana))
+    if ((!next.target && !resting) ||
+        PullSize::Ready(size, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : 100, uses_mana, CarefulPuller(ai)))
     {
         ai.set_prepare_pull_since_ms(0);
         return false;

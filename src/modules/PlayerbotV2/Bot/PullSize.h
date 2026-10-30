@@ -38,12 +38,17 @@ std::uint32_t Estimate(Unit const& target, std::vector<Unit> const& units)
     return size;
 }
 
-// Ready for a pull of `size` mobs: any bot takes one mob (its usual recovery rules apply); two or more want kReadyHealthPct health
-// and, for a class with mana, kReadyManaPct mana.
-constexpr bool Ready(std::uint32_t size, std::int32_t health_pct, std::int32_t mana_pct, bool uses_mana)
+constexpr std::int32_t kEngageHealthPct = 70;  // a careful bot takes even one mob only with this much health ...
+constexpr std::int32_t kEngageManaPct = 40;    // ... and this much mana
+
+// Ready for a pull of `size` mobs: two or more want kReadyHealthPct health and, for a class with mana, kReadyManaPct mana. One mob
+// wants kEngageHealthPct / kEngageManaPct from a careful bot; a careless one (a casual, idle or death-skipping persona) takes it
+// as it is. Build77 guided60: 5 of 46 deaths were bots back from the spirit healer at 50 % that pulled the next mob at once, and
+// the flees that ended in a death mostly began with a fight started half-hurt.
+constexpr bool Ready(std::uint32_t size, std::int32_t health_pct, std::int32_t mana_pct, bool uses_mana, bool careful = true)
 {
     if (size < 2)
-        return true;
+        return !careful || (health_pct >= kEngageHealthPct && (!uses_mana || mana_pct >= kEngageManaPct));
     return health_pct >= kReadyHealthPct && (!uses_mana || mana_pct >= kReadyManaPct);
 }
 

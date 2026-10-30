@@ -1414,6 +1414,46 @@ struct SoloFleeClock
 std::mutex g_solo_flee_mu;
 std::unordered_map<uint64, SoloFleeClock> g_solo_flee;
 
+// The class escape tools of a run, in the order they are tried.
+struct SoloFleeTool { uint8 cls; uint32 spell; float near_yd; bool on_nearest; bool moving; uint32 need_n; uint32 skip_aura; };
+constexpr SoloFleeTool kSoloFleeTools[] = {
+    { CLASS_HUNTER,  5384, 0.f,  false, false, 1, 0    },   // Feign Death
+    { CLASS_HUNTER,   781, 8.f,  false, false, 1, 0    },   // Disengage
+    { CLASS_MAGE,     122, 9.f,  false, false, 1, 0    },   // Frost Nova
+    { CLASS_MAGE,    1953, 12.f, false, true,  1, 0    },   // Blink (facing = run heading)
+    { CLASS_PRIEST,    17, 0.f,  false, false, 1, 6788 },   // Power Word: Shield (not while Weakened Soul)
+    { CLASS_PRIEST,  8122, 8.f,  false, false, 1, 0    },   // Psychic Scream
+    { CLASS_PRIEST,   586, 0.f,  false, false, 1, 0    },   // Fade
+    { CLASS_WARLOCK, 6789, 28.f, true,  false, 1, 0    },   // Death Coil
+    { CLASS_WARLOCK, 5484, 9.f,  false, false, 2, 0    },   // Howl of Terror
+    { CLASS_ROGUE,   1856, 0.f,  false, false, 1, 0    },   // Vanish
+    { CLASS_ROGUE,   2983, 0.f,  false, false, 1, 0    },   // Sprint
+    { CLASS_WARRIOR, 5246, 9.f,  false, false, 1, 0    },   // Intimidating Shout
+    { CLASS_DRUID,  22812, 0.f,  false, false, 1, 0    },   // Barkskin
+    { CLASS_DRUID,   1850, 0.f,  false, false, 1, 0    },   // Dash (cat form only, below)
+    { CLASS_PALADIN,  853, 10.f, true,  false, 1, 0    },   // Hammer of Justice
+};
+
+// A run can work: an escape tool of the bot's class is ready for its attackers (`n`, the nearest `nearest_d2` away), or a town
+// NPC is in the scan (guards and the townsfolk's help close by).
+bool SoloFleeCanEscape(BotSnapshotView const& s, uint32 n, float nearest_d2)
+{
+    for (SoloFleeTool const& t : kSoloFleeTools)
+    {
+        if (t.cls != s.cls() || !s.knows_spell(t.spell) || !s.is_ready(t.spell) || n < t.need_n) continue;
+        if (t.skip_aura && s.has_aura(t.skip_aura)) continue;
+        if (t.spell == 1850 && !s.has_aura(768)) continue;
+        if (t.near_yd > 0.f && nearest_d2 > t.near_yd * t.near_yd) continue;
+        return true;
+    }
+    constexpr uint32 kTownMask = uint32(UNIT_NPC_FLAG_VENDOR) | uint32(UNIT_NPC_FLAG_FLIGHTMASTER) |
+                                 uint32(UNIT_NPC_FLAG_INNKEEPER) | uint32(UNIT_NPC_FLAG_REPAIR);
+    for (NearbyUnit const& f : s.raw().combat.nearby_friends)
+        if ((f.npc_flags & kTownMask) != 0 && f.hp > 0)
+            return true;
+    return false;
+}
+
 bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& g, BotIntentEmitter& emit,
                   bool survival_item_used)
 {
@@ -1510,6 +1550,20 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
             ai.set_last_rule_fired("combat:solo_flee_lay_on_hands");
             return true;
         }
+        // Running on foot from one or two melee mobs only works toward help or with an escape tool: a mob that hits a runner from
+        // behind dazes it, and the bot loses health while dealing none (build77 guided60: 19 of 46 deaths fled for 30 s with the
+        // mob still on them, turned and died; 10 more died running). Without either it stands and fights: a big pull still runs.
+        if (n <= 2 && !SoloFleeCanEscape(s, n, nearest ? nearest_d2 : 1e9f))
+        {
+            if (now - snap.last_fight_on_log_ms >= 5000u)
+            {
+                TC_LOG_INFO("playerbot.v2", "[solo_flee] {} stands: hp={}% attackers={} victim_hp<={}%, no escape tool ready and no town near",
+                    s.name(), s.hp_pct(), n, max_hp_pct);
+                std::lock_guard<std::mutex> lock(g_solo_flee_mu);
+                g_solo_flee[key].last_fight_on_log_ms = now;
+            }
+            return false;
+        }
         if (s.is_casting() && s.raw().cast.current_cast_remaining.count() > 0 && s.hp_pct() > 10) return false;
     }
 
@@ -1557,25 +1611,7 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
     bool cast_this_tick = false;
     if (n > 0 && s.can_cast() && snap.tools < 3 && (snap.last_tool_ms == 0 || now - snap.last_tool_ms >= 1200u))
     {
-        struct Tool { uint8 cls; uint32 spell; float near_yd; bool on_nearest; bool moving; uint32 need_n; uint32 skip_aura; };
-        static constexpr Tool kTools[] = {
-            { CLASS_HUNTER,  5384, 0.f,  false, false, 1, 0    },   // Feign Death
-            { CLASS_HUNTER,   781, 8.f,  false, false, 1, 0    },   // Disengage
-            { CLASS_MAGE,     122, 9.f,  false, false, 1, 0    },   // Frost Nova
-            { CLASS_MAGE,    1953, 12.f, false, true,  1, 0    },   // Blink (facing = run heading)
-            { CLASS_PRIEST,    17, 0.f,  false, false, 1, 6788 },   // Power Word: Shield (not while Weakened Soul)
-            { CLASS_PRIEST,  8122, 8.f,  false, false, 1, 0    },   // Psychic Scream
-            { CLASS_PRIEST,   586, 0.f,  false, false, 1, 0    },   // Fade
-            { CLASS_WARLOCK, 6789, 28.f, true,  false, 1, 0    },   // Death Coil
-            { CLASS_WARLOCK, 5484, 9.f,  false, false, 2, 0    },   // Howl of Terror
-            { CLASS_ROGUE,   1856, 0.f,  false, false, 1, 0    },   // Vanish
-            { CLASS_ROGUE,   2983, 0.f,  false, false, 1, 0    },   // Sprint
-            { CLASS_WARRIOR, 5246, 9.f,  false, false, 1, 0    },   // Intimidating Shout
-            { CLASS_DRUID,  22812, 0.f,  false, false, 1, 0    },   // Barkskin
-            { CLASS_DRUID,   1850, 0.f,  false, false, 1, 0    },   // Dash (cat form only, below)
-            { CLASS_PALADIN,  853, 10.f, true,  false, 1, 0    },   // Hammer of Justice
-        };
-        for (Tool const& t : kTools)
+        for (SoloFleeTool const& t : kSoloFleeTools)
         {
             if (t.cls != s.cls() || !s.knows_spell(t.spell) || !s.is_ready(t.spell)) continue;
             if (t.skip_aura && s.has_aura(t.skip_aura)) continue;
