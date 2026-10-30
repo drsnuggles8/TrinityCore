@@ -22,6 +22,8 @@
 //   invites a solo player it sees within 30 y on one of its own unfinished quests ("same quest? lets group" in /say; Olo,
 //   30 Oct), else anyone of about its level with a "LF group" line in General the first time. A party builder
 //   (LaunchStrategy::PartyBuilder) asks on any kill objective. Up to a group of three. Log: [party_build].
+// idle:launch_take_add @706 - a healthy solo bot (not a loner) takes the untagged extra mob off a solo player within 30 y who
+//   fights two or more: it tags it and the player is left with one. Log: [take_add].
 // idle:launch_chatter @420 - now and then a line in General (or /say) of the kind a launch crowd writes: the camp is
 //   crowded, where is the cave, LFG, first time in Classic. Casuals and friendly bots talk most, loners and racers least.
 // idle:launch_snipe @860 - a griefer (LaunchTemperament::Griefer: some grinders and questers) goes for untagged mobs another player stands next
@@ -43,6 +45,7 @@
 #include "Bot/BotIntent.h"
 #include "Bot/LaunchPlaces.h"
 #include "Bot/LaunchProfile.h"
+#include "Bot/PullSize.h"
 #include "Bot/QuestPull.h"
 #include "Log.h"
 #include "QuestDef.h"
@@ -325,6 +328,75 @@ bool LaunchPartyBuildFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView
     return true;
 }
 
+// idle:launch_take_add: the untagged extra mob on a solo player who fights two or more, for a healthy solo bot close by. Under
+// the Classic first-tag rule that add pays nobody yet: the bot tags it and takes it off the other player, as players do when
+// they see someone pull one too many (Olo, 30 Oct: "when one solo bot fights 2 monsters but only tags 1 of them, and another
+// solo bot is nearby, that 2nd bot might take the untagged 2nd monster"). Loners keep to themselves; a mob more than one level
+// above the bot is left alone, and so is everything while the bot itself is not ready for a pull (PullSize::Ready).
+ObjectGuid TakeAddTarget(BotSnapshotView const& s, BotAI& ai)
+{
+    LaunchProfile const& lp = ai.launch();
+    if (!lp.active || lp.temperament == LaunchTemperament::Loner)
+        return ObjectGuid::Empty;
+    if (!s.is_alive() || s.in_combat() || s.attackers_count() > 0 || !s.victim().IsEmpty() || s.is_casting())
+        return ObjectGuid::Empty;
+    if (s.in_group() || s.raw().movement.is_mounted || s.is_in_dungeon() || s.in_battleground())
+        return ObjectGuid::Empty;
+    bool const uses_mana = s.max_power(POWER_MANA) > 0;
+    if (!PullSize::Ready(1, s.hp_pct(), uses_mana ? s.power_pct(POWER_MANA) : 100, uses_mana))
+        return ObjectGuid::Empty;
+    float bx, by, bz;
+    s.position(bx, by, bz);
+    for (NearbyUnit const& u : s.nearby_enemies())
+    {
+        if (u.hp <= 0 || u.is_player || u.tapped || u.untargetable || u.victim.IsEmpty() || u.victim == s.raw().guid)
+            continue;
+        if (u.level > s.level() + 1)
+            continue;
+        float const dx = u.x - bx, dy = u.y - by;
+        if (dx * dx + dy * dy > 30.0f * 30.0f)
+            continue;
+        bool solo_player = false;
+        for (NearbyUnit const& f : s.raw().combat.nearby_friends)
+            if (f.guid == u.victim)
+            {
+                solo_player = f.is_player && !f.is_in_group && f.hp > 0;
+                break;
+            }
+        if (!solo_player)
+            continue;
+        uint32 on_victim = 0;
+        for (NearbyUnit const& o : s.nearby_enemies())
+            if (o.hp > 0 && o.victim == u.victim)
+                ++on_victim;
+        if (on_victim >= 2)
+            return u.guid;
+    }
+    return ObjectGuid::Empty;
+}
+
+bool LaunchTakeAddGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
+{
+    return !TakeAddTarget(s, ai).IsEmpty();
+}
+
+bool LaunchTakeAddFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32)
+{
+    ObjectGuid const add = TakeAddTarget(s, ai);
+    if (add.IsEmpty() || !emit.start_attack(add))
+        return false;
+    for (NearbyUnit const& u : s.nearby_enemies())
+        if (u.guid == add)
+        {
+            TC_LOG_INFO("playerbot.v2", "[take_add] {} takes the untagged {} (entry {}) off {}", s.name(), add.ToString(), u.entry,
+                u.victim.ToString());
+            break;
+        }
+    ai.note_engage(add, s.published_at_ms());
+    ai.set_last_rule_fired("idle:launch_take_add");
+    return true;
+}
+
 // Minutes between two lines, by temperament (Neutral, Friendly, Greedy, Loner, Griefer); scaled by pace, so a casual talks
 // more than a racer. 0 = never.
 constexpr std::array<uint16, 5> kChatEveryMin = {25, 15, 40, 0, 20};
@@ -577,6 +649,14 @@ void RegisterLaunchRules(IdleRuleRegistry& r)
         rule.gate     = &LaunchPartyBuildGate;
         rule.fire     = &LaunchPartyBuildFire;
         rule.min_interval_ms = 8000;   // per bot
+        r.register_rule(std::move(rule));
+    }
+    {
+        IdleRule rule;
+        rule.name     = "idle:launch_take_add";
+        rule.priority = 706;   // above idle:prepare_pull (704) and every quest engage: an add on a neighbour comes first
+        rule.gate     = &LaunchTakeAddGate;
+        rule.fire     = &LaunchTakeAddFire;
         r.register_rule(std::move(rule));
     }
     {

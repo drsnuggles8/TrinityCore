@@ -9,6 +9,7 @@
 #include "Bot/BotRegistry.h"
 #include "Bot/IdleRule.h"
 #include "Bot/QuestDoable.h"
+#include "Bot/QuestPull.h"
 #include "Travel/ReachMemory.h"
 #include "Bot/ClassTables.h"
 #include "Bot/Gear/BotGearGenerator.h"   // RaidGearActive / RaidEquipUpgrade (raid-gear upgrade test)
@@ -16223,6 +16224,10 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                                        (now_ms - ai.last_engage_at_ms() < 8000u);
             constexpr float kEngageRangeSq = 40.0f * 40.0f;
             constexpr float kInteractRangeSq = 5.0f * 5.0f;
+            // One mob at a time: when a quest target standing alone is the pick (Bot/QuestPull.h NextQuestPull: the nearest one
+            // would bring its neighbours), the kill dispatches below take that one and leave the pack for later.
+            NextPull const pull = NextQuestPull(s);
+            ObjectGuid const lone_pick = pull.target && pull.size == 1 ? pull.target->guid : ObjectGuid::Empty;
 
             // Skip the head objective if we've already chosen current_objective
             // and a per-type rule below will fire — actually no, we want the
@@ -16249,6 +16254,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                 {
                     if (!combat_capable) continue;
                     if (recent_active && ao.source_guid == recent) continue;
+                    if (!lone_pick.IsEmpty() && ao.source_guid != lone_pick) continue;
                     NearbyUnit const* match = nullptr;
                     for (auto const& u : s.raw().combat.nearby_enemies)
                         if (u.guid == ao.source_guid)
@@ -16275,6 +16281,7 @@ bool AutoactDispatch(BotSnapshotView const& s, BotAI& ai,
                     {
                         if (!combat_capable) continue;
                         if (recent_active && ao.source_guid == recent) continue;
+                        if (!lone_pick.IsEmpty() && ao.source_guid != lone_pick) continue;
                         NearbyUnit const* match = nullptr;
                         for (auto const& u : s.raw().combat.nearby_enemies)
                             if (u.guid == ao.source_guid) { match = &u; break; }

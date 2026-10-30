@@ -295,28 +295,43 @@ bool RestFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, Bot
 
 } // namespace
 
-// Bot/QuestPull.h. The objectives are the ones the eat rule above keeps a solo bot on its feet for.
+// Bot/QuestPull.h. The objectives are the ones the eat rule above keeps a solo bot on its feet for. The nearest idle target,
+// unless pulling it brings its neighbours and a target standing alone is at most kLoneDetourYards farther: then that one (Olo,
+// 30 Oct: "bots really should get better at pulling only 1 monster"; build77 guided60: 12 of 46 deaths fled from a pull of 3+).
 NextPull NextQuestPull(BotSnapshotView const& s)
 {
-    NextPull next;
-    float best_dsq = 0.0f;
+    constexpr float kLoneDetourYards = 30.0f;
+    NextPull nearest, lone;
+    float nearest_d = 0.0f, lone_d = 0.0f;
     for (auto const& ao : s.actionable_objectives())
     {
         if (!(ao.type == /*MONSTER*/ 0 || ao.type == /*KILL_WITH_LABEL*/ 21 || (ao.type == /*ITEM*/ 1 && ao.source_guid.IsCreature())))
             continue;
-        if (next.target && ao.distance_sq >= best_dsq)
-            continue;
         for (NearbyUnit const& u : s.nearby_enemies())
-            if (u.guid == ao.source_guid && u.hp > 0 && u.victim.IsEmpty() && !u.unit_in_combat && !u.untargetable)
+        {
+            if (u.guid != ao.source_guid)
+                continue;
+            if (u.hp > 0 && u.victim.IsEmpty() && !u.unit_in_combat && !u.untargetable)
             {
-                next.target = &u;
-                best_dsq = ao.distance_sq;
-                break;
+                float const d = std::sqrt(ao.distance_sq);
+                uint32 const size = PullSize::Estimate(u, s.nearby_enemies());
+                if (!nearest.target || d < nearest_d)
+                {
+                    nearest = NextPull{&u, size};
+                    nearest_d = d;
+                }
+                if (size == 1 && (!lone.target || d < lone_d))
+                {
+                    lone = NextPull{&u, size};
+                    lone_d = d;
+                }
             }
+            break;
+        }
     }
-    if (next.target)
-        next.size = PullSize::Estimate(*next.target, s.nearby_enemies());
-    return next;
+    if (nearest.target && nearest.size >= 2 && lone.target && lone_d <= nearest_d + kLoneDetourYards)
+        return lone;
+    return nearest;
 }
 
 bool HardPull(NextPull const& next, uint8 bot_level)

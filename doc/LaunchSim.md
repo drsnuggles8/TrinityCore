@@ -309,6 +309,11 @@ attackers and neither an escape tool ready nor a town NPC in the scan, `combat:s
 (`[solo_flee] <bot> stands`); a big pull still runs. (2) A careful bot takes even a single-mob quest pull only at 70 % health
 and 40 % mana (PullSize::Ready), resting to 90 / 80 % once it sits; casual, idle and skipper personas pull as they are.
 (3) The wait-before-pull's 2 minutes count resting only: a fight or a death starts it over.
+(4) One mob at a time (Olo: "bots really should get better at pulling only 1 monster"): when the nearest quest target would
+bring its neighbours (PullSize::Estimate), a target standing alone at most 30 y farther is pulled first (NextQuestPull; the
+quest-kill dispatch in State_Idle follows that pick). (5) `idle:launch_take_add` (@706): a healthy solo bot, not a loner,
+takes the untagged extra mob off a solo player within 30 y who fights two or more (at most one level above the bot): it tags
+it, and the player is left with one (Olo: "that 2nd bot might take the untagged 2nd monster"). Log: `[take_add]`.
 
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and
