@@ -563,7 +563,7 @@ void ExecutedImpl(Player const* player, Intent const& intent, std::uint8_t resul
     { Text(w, "target", value->npc.ToString()); w.Key("quest_id"); w.Uint(value->quest_id); w.Key("reward_choice"); w.Uint(value->reward_choice); }
     else payload = false;
     w.EndObject(); w.Key("payload_captured"); w.Bool(payload); w.EndObject(); output->Push(buffer);
-    LevelingPolicy::Executed(intent.bot_id,exception?255:result);
+    LevelingPolicy::Executed(intent.bot_id,intent.source_snapshot,exception?255:result);
     output->Shadow(player, actor, intent, result, exception);
 }
 

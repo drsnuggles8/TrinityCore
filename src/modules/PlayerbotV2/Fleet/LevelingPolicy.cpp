@@ -29,6 +29,7 @@ using namespace Leveling;
 using Writer=rapidjson::Writer<rapidjson::StringBuffer>;
 std::shared_ptr<Model const> model;
 std::unordered_set<std::uint64_t> guids;
+bool evaluation=false;
 struct Choice
 {
     Kind kind=Kind::Baseline;ObjectGuid target;std::uint32_t quest=0,item=0,spell=0;
@@ -182,7 +183,8 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,Objec
     }
     else
     {
-        if(!corpse.IsEmpty())add(Kind::Loot,corpse,s.position.x,s.position.y,s.position.z);
+        if(!corpse.IsEmpty())
+            if(auto c=add(Kind::Loot,corpse,s.position.x,s.position.y,s.position.z)) {c->features[40]=2;c->features[47]=0;}
         auto const& poi=s.quest_log.current_objective_poi;
         if(poi.valid&&poi.map_id==s.position.map_id&&!ai.move_refused_recently(poi.x,poi.y,poi.z,s.published_at_ms))
             add(Kind::QuestGoal,{},poi.x,poi.y,poi.z,s.quest_log.current_quest_id);
@@ -221,7 +223,7 @@ bool Execute(Choice const& c,BotSnapshot const&,BotIntentEmitter& emit)
         case Kind::Attack:return emit.start_attack(c.target);
         case Kind::Accept:return emit.accept_quest(c.target,c.quest);
         case Kind::Turnin:return emit.complete_quest(c.target,c.quest,0xFF);
-        case Kind::Loot:return emit.loot(c.target);
+        case Kind::Loot:return emit.emit(LootIntent{c.target});
         case Kind::QuestGoal:case Kind::Approach:case Kind::LocalMove:return emit.move_to(c.x,c.y,c.z,true);
         case Kind::Retreat:emit.stop_attack();return emit.move_to(c.x,c.y,c.z,true);
         case Kind::Heal:case Kind::Cast:return emit.cast(c.spell,c.target);
@@ -250,6 +252,7 @@ void Initialize()
     try
     {
         guids=ParseTrainingPlayerGuids(sConfigMgr->GetStringDefault("Playerbot.Training.Leveling.PlayerGuids","",true));
+        evaluation=sConfigMgr->GetBoolDefault("Playerbot.Training.Leveling.Evaluation",false,true);
         if(guids.empty()||guids.size()>100)throw std::runtime_error("Leveling policy requires 1..100 configured training players");
         for(auto guid:guids)if(!IsTrainingPlayerGuid(guid))throw std::runtime_error("Leveling controller GUID is not a training player");
         auto path=sConfigMgr->GetStringDefault("Playerbot.Training.Leveling.ModelFile","",true);
@@ -304,9 +307,16 @@ bool Tick(BotSnapshot const& s,BotAI& ai,BotIntentEmitter& emit)
         if(v.is_casting())return false;
         auto menu=Menu(s,ai,frame->state,corpse);std::vector<float> scores;for(auto const& c:menu)scores.push_back(model->actor.Score(c.features));
         auto sampled=Select(scores,std::generate_canonical<double,53>(a->random));auto const& choice=menu[sampled.index];
+        if(evaluation)
+        {
+            sampled.index=std::size_t(std::max_element(scores.begin(),scores.end())-scores.begin());
+            std::fill(sampled.probabilities.begin(),sampled.probabilities.end(),0);sampled.probabilities[sampled.index]=1;
+        }
+        auto const& chosen=menu[sampled.index];
         double value=model->critic.Score(frame->state),logp=std::log(std::max(1e-30,sampled.probabilities[sampled.index]));
         std::uint64_t id=++a->sequence;
         rapidjson::StringBuffer buffer;Writer w(buffer);w.StartObject();Text(w,"checkpoint_sha256",model->checkpoint);
+        Text(w,"mode",evaluation?"evaluation":"training");
         w.Key("epoch");w.Uint64(model->epoch);w.Key("decision_id");w.Uint64(id);w.Key("segment");w.Uint64(a->segment);
         Array(w,"state",frame->state);w.Key("selected");w.Uint64(sampled.index);w.Key("log_probability");w.Double(logp);w.Key("value");w.Double(value);
         w.Key("candidates");w.StartArray();
@@ -319,15 +329,16 @@ bool Tick(BotSnapshot const& s,BotAI& ai,BotIntentEmitter& emit)
         }
         w.EndArray();w.EndObject();
         if(!TrainingCapture::PolicyEvent(s.bot_id,s.version,"leveling_decision",buffer.GetString()))return false;
-        a->pending={true,id,a->segment,frame->progress,frame->state,value,logp,choice,0};
-        if(!Execute(choice,s,emit))++a->pending.refusals;
-        ai.set_last_rule_fired("learned:leveling_option");return choice.kind!=Kind::Baseline;
+        a->pending={true,id,a->segment,frame->progress,frame->state,value,logp,chosen,0};
+        if(!Execute(chosen,s,emit))++a->pending.refusals;
+        ai.set_last_rule_fired("learned:leveling_option");return chosen.kind!=Kind::Baseline;
     }
     catch(std::exception const& e){a->pending.active=false;TC_LOG_ERROR("playerbot.v2","[leveling_policy] actor={} decision rejected: {}",s.bot_id,e.what());return false;}
 }
-void Executed(std::uint64_t guid,std::uint8_t result)
+void Executed(std::uint64_t guid,std::uint64_t source,std::uint8_t result)
 {
-    if(!Controls(guid)||result==0)return;auto a=Get(guid);if(!a)return;std::lock_guard lock(a->mutex);if(a->pending.active)++a->pending.refusals;
+    if(!Controls(guid)||result==0)return;auto a=Get(guid);if(!a)return;std::lock_guard lock(a->mutex);
+    if(a->pending.active&&source>=a->pending.before.version)++a->pending.refusals;
 }
 void Logout(std::uint64_t guid)
 {
