@@ -5449,6 +5449,42 @@ void ObjectMgr::LoadQuests()
             }
         }
 
+        // The reward counts were taken from the row before the checks above removed rewards: the offer-reward window then
+        // announced the removed choices as empty slots, the client drew no choice at all, and the turn-in was refused for want
+        // of a pick (Olo, 30 Oct: The Troll Cave's four Anvilmar weapons, which had no Item row). Close the gaps and recount.
+        {
+            uint32 n = 0;
+            for (uint8 j = 0; j < QUEST_REWARD_CHOICES_COUNT; ++j)
+            {
+                if (!qinfo->RewardChoiceItemId[j])
+                    continue;
+                qinfo->RewardChoiceItemType[n] = qinfo->RewardChoiceItemType[j];
+                qinfo->RewardChoiceItemId[n] = qinfo->RewardChoiceItemId[j];
+                qinfo->RewardChoiceItemCount[n] = qinfo->RewardChoiceItemCount[j];
+                qinfo->RewardChoiceItemDisplayId[n] = qinfo->RewardChoiceItemDisplayId[j];
+                ++n;
+            }
+            qinfo->_rewChoiceItemsCount = n;
+            for (; n < QUEST_REWARD_CHOICES_COUNT; ++n)
+            {
+                qinfo->RewardChoiceItemType[n] = LootItemType::Item;
+                qinfo->RewardChoiceItemId[n] = qinfo->RewardChoiceItemCount[n] = qinfo->RewardChoiceItemDisplayId[n] = 0;
+            }
+
+            n = 0;
+            for (uint8 j = 0; j < QUEST_REWARD_ITEM_COUNT; ++j)
+            {
+                if (!qinfo->RewardItemId[j])
+                    continue;
+                qinfo->RewardItemId[n] = qinfo->RewardItemId[j];
+                qinfo->RewardItemCount[n] = qinfo->RewardItemCount[j];
+                ++n;
+            }
+            qinfo->_rewItemsCount = n;
+            for (; n < QUEST_REWARD_ITEM_COUNT; ++n)
+                qinfo->RewardItemId[n] = qinfo->RewardItemCount[n] = 0;
+        }
+
         for (uint8 j = 0; j < QUEST_REWARD_REPUTATIONS_COUNT; ++j)
         {
             if (qinfo->RewardFactionId[j])
