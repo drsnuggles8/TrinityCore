@@ -1398,7 +1398,7 @@ void ReFaceVictim(BotSnapshotView const& s, BotIntentEmitter& emit)
 // fresh mobs - straight away from the attackers led deeper into the Coldridge troll cave), else to a quest hub ahead, else
 // straight away from them (or turned 40 / 80 degrees); the first of these whose run passes no idle aggressive mob wins, else
 // the one that passes the fewest (FleeTrail::Crowd). A bot that is winning at the pace of the last seconds
-// (Bot/FightOutlook.h) fights on instead.
+// (Bot/FightOutlook.h) fights on instead; one losing so fast it would be dead within 6 s runs at up to 50 % health.
 // The flee is committed for
 // at least 3 s and ends once no attacker is within 25 y for 4 s (or after 30 s, 60 s while one still is); then a 20 s cooldown applies, and
 // the rest (ooc eat / drink / bandage) takes over once combat drops. A bot already using a survival item this tick
@@ -1490,6 +1490,14 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
             for (auto it = g_solo_flee.begin(); it != g_solo_flee.end();)
                 it = (!it->second.active && now - it->second.last_seen_ms > 300'000u) ? g_solo_flee.erase(it) : std::next(it);
         SoloFleeClock& c = g_solo_flee[key];
+        // This tick runs only in combat, so a run whose fight ended without it (the bot died, the mob died to someone else or
+        // leashed) is still active at the next fight, ends there and starts the cooldown inside it: guided30-b85, 4 of 9 runs
+        // begun under 15 % health came exactly 20 s into such a fight. It ended when the bot was last seen here.
+        if (c.active && c.last_seen_ms != 0 && now - c.last_seen_ms > 5000u)
+        {
+            c.active = false;
+            c.last_end_ms = c.last_seen_ms;
+        }
         c.last_seen_ms = now;
         if (n > 0)
             c.pace.Add({now, s.hp(), int32(std::min<int64>(mobs_hp, std::numeric_limits<int32>::max()))});
@@ -1497,6 +1505,7 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
     }
 
     // ---- Trigger ----
+    uint32 dies_in_ms = FightOutlook::kNoEnd;
     if (!snap.active)
     {
         if (n == 0 || survival_item_used) return false;
@@ -1511,10 +1520,15 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
         bool const heals = (s.cls() == CLASS_PRIEST || s.cls() == CLASS_PALADIN || s.cls() == CLASS_DRUID ||
                             s.cls() == CLASS_SHAMAN) && s.power_pct(POWER_MANA) >= 20 && n == 1;
         if (heals) thr = std::min(thr, 15);
-        if (s.hp_pct() > thr) return false;
+        FightOutlook::Sample const* const ref = snap.pace.Reference(now);
+        bool const winning = ref && FightOutlook::Winning(*ref, snap.pace.Newest());
+        // Losing fast (FightOutlook::kRunWhenDeadInMs): run before the class threshold, while there is health left to run on.
+        if (ref && !winning && !heals) dies_in_ms = FightOutlook::MsToDie(*ref, snap.pace.Newest());
+        bool const dying_fast = s.hp_pct() <= FightOutlook::kRunEarlyBelowPct && dies_in_ms < FightOutlook::kRunWhenDeadInMs;
+        if (s.hp_pct() > thr && !dying_fast) return false;
         if (max_hp_pct <= 25) return false;   // it is about to die: finish it
         // Winning at the pace of the last seconds: the mobs die well before the bot does, so it fights on.
-        if (FightOutlook::Sample const* ref = snap.pace.Reference(now); ref && FightOutlook::Winning(*ref, snap.pace.Newest()))
+        if (winning)
         {
             if (now - snap.last_fight_on_log_ms >= 5000u)
             {
@@ -1566,8 +1580,8 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
     {
         snap.active = true; snap.start_ms = now ? now : 1u; snap.calm_since_ms = 0;
         snap.tools = 0; snap.last_tool_ms = 0; snap.has_dest = false; snap.trail_at = -1;
-        TC_LOG_INFO("playerbot.v2", "[solo_flee] {} runs: hp={}% attackers={} (melee {}) victim_hp<={}%",
-            s.name(), s.hp_pct(), n, n_melee, max_hp_pct);
+        TC_LOG_INFO("playerbot.v2", "[solo_flee] {} runs: hp={}% attackers={} (melee {}) victim_hp<={}% dies_in_ms={}",
+            s.name(), s.hp_pct(), n, n_melee, max_hp_pct, dies_in_ms == FightOutlook::kNoEnd ? -1 : int64(dies_in_ms));
         if (!s.victim().IsEmpty()) ai.note_engage(s.victim(), now, 60'000u);
         if (!s.pet_guid().IsEmpty()) emit.pet_set_command_state(1 /*COMMAND_FOLLOW*/);
     }

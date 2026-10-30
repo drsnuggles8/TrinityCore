@@ -39,6 +39,25 @@ constexpr bool Winning(Sample const& then, Sample const& now)
     return double(now.own_hp) * double(dealt) > kMargin * double(now.mobs_hp) * double(lost);
 }
 
+// A bot losing at a pace that kills it within kRunWhenDeadInMs runs at up to kRunEarlyBelowPct health instead of waiting for its
+// class threshold (25-35 %). guided30-b85: 9 of 12 flees begun under 15 % health ended in death, 3 of 56 begun at 25 % or more;
+// a level 2 paladin (about 60 hp) under two Defias Cutpurses had under 2 s left at its 25 %.
+constexpr std::uint32_t kNoEnd = 0xFFFFFFFFu;
+constexpr std::uint32_t kRunWhenDeadInMs = 6000;
+constexpr int kRunEarlyBelowPct = 50;
+
+// The time the bot has left at the pace between `then` and `now`: kNoEnd when it is not losing health or there is no pace yet.
+constexpr std::uint32_t MsToDie(Sample const& then, Sample const& now)
+{
+    if (now.at_ms - then.at_ms < kMinWindowMs)
+        return kNoEnd;
+    std::int64_t const lost = std::int64_t(then.own_hp) - now.own_hp;
+    if (lost <= 0)
+        return kNoEnd;
+    std::int64_t const ms = std::int64_t(now.own_hp > 0 ? now.own_hp : 0) * std::int64_t(now.at_ms - then.at_ms) / lost;
+    return ms >= std::int64_t(kNoEnd) ? kNoEnd : std::uint32_t(ms);
+}
+
 // The last samples of a fight, kSampleEveryMs apart.
 struct History
 {

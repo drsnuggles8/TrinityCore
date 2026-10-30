@@ -44,6 +44,19 @@ TEST_CASE("No pace, no fight on; a bot not losing health always fights on", "[Cl
     CHECK_FALSE(Winning(Sample{1000, 27, 64}, Sample{4000, 18, 64}));  // dealing nothing
 }
 
+TEST_CASE("The time a bot has left at the pace of its fight", "[ClassicFightOutlook]")
+{
+    using FightOutlook::MsToDie;
+    using FightOutlook::kNoEnd;
+    // a level 2 paladin under two cutpurses: 60 -> 33 hp in 3 s, 9 hp a second, 33 hp left is 3.7 s
+    CHECK(MsToDie(Sample{1000, 60, 200}, Sample{4000, 33, 180}) == 3666);
+    CHECK(MsToDie(Sample{1000, 60, 200}, Sample{4000, 33, 180}) < FightOutlook::kRunWhenDeadInMs);
+    // one whelp on a level 6 bot: 150 -> 141 hp in 3 s leaves 47 s
+    CHECK(MsToDie(Sample{1000, 150, 90}, Sample{4000, 141, 60}) == 47000);
+    CHECK(MsToDie(Sample{1000, 60, 200}, Sample{2000, 33, 180}) == kNoEnd);   // no pace yet
+    CHECK(MsToDie(Sample{1000, 33, 200}, Sample{4000, 40, 180}) == kNoEnd);   // healed
+}
+
 TEST_CASE("The pace is read over the last 4 s of the same fight", "[ClassicFightOutlook]")
 {
     FightOutlook::History h;

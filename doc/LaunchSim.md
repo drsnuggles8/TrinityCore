@@ -334,6 +334,13 @@ zone's grind spot (Northshire: the Echo Ridge kobolds) it walks there. `[face_st
 says why a combat re-face did not turn a bot (5 deaths over b80-b82 stood beside their mob with the angle never changing).
 Build84 caught one: a standing shaman (no spline, no cast, idle motion) stayed 93 degrees off after the facing spline; (10) when
 the spline turn does not land, the server orientation is set outright (`turned but still off, orientation set`).
+Build85 (two guided30 runs on the same roster: 193 / 181 quests, 10 / 9 deaths, none with a stuck turn; the 12-quest spread of
+one build is wider than any gap between builds 83-85): 9 of 12 flees begun under 15 % health ended in death, 3 of 56 begun at
+25 % or more. Two causes. A run whose fight ended without the flee tick (the bot died, the mob died to another player or
+leashed) stayed active, ended at the next fight and started the 20 s cooldown inside it: 4 of the 9 low runs came exactly 20 s
+into such a fight. (11) A run unseen for 5 s ended when it was last seen. A level 2 paladin under two Defias Cutpurses (about
+60 hp, 9 hp a second) had under 2 s left at its 25 % threshold; (12) a bot that is not winning and would be dead within 6 s at
+the pace of the last seconds (FightOutlook::MsToDie) runs at up to 50 % health (`[solo_flee] <bot> runs: ... dies_in_ms=N`).
 
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and
