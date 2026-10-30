@@ -10,7 +10,7 @@
 #include "Config.h"
 #include "GameTime.h"
 #include "Log.h"
-#include "SHA256.h"
+#include "CryptoHash.h"
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 #include <deque>
