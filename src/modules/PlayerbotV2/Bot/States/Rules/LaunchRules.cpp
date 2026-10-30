@@ -12,13 +12,16 @@
 // idle:launch_ask_invite @850 - a launch bot that wants a mob another player has tagged (its quest needs the mob) whispers
 //   the tagger "inv?" (Fleet/LaunchSim::OnAskInvite answers for a launch bot). Greedy bots ask most, loners never.
 // idle:launch_leave_group @852 - leaves the group out of combat once it has stayed long enough for its temperament:
-//   greedy bots and loners right after the kill, friendly ones after a while.
-// LaunchAcceptsInvite - the group_invite_accept rule asks it whether a launch bot takes an invite.
+//   greedy bots and loners right after the kill, friendly ones after a while; never while a member within 30 y is still
+//   on one of its quests (NearbyUnit::shares_quest), up to 15 minutes.
+// LaunchAcceptsInvite - the group_invite_accept rule asks it whether a launch bot takes an invite: always from a player on
+//   one of its quests (but for loners and griefers).
 //
-// idle:launch_party_build @849 - a party builder (LaunchStrategy::PartyBuilder) working a kill objective invites solo
-//   players of about its level close by, up to a group of three, with a "LF group" line the first time. Any other bot but
-//   loners and griefers does the same before a quest pull too hard to take alone (Bot/QuestPull.h HardPull: three or more
-//   mobs, or an elite), so Grik'nir among his whelps gets groups as on launch day.
+// idle:launch_party_build @849 - any launch bot but loners and griefers invites a solo player it sees within 30 y on one of
+//   its own unfinished quests ("same quest? lets group" in /say; Olo, 30 Oct). Before a quest pull too hard to take alone
+//   (Bot/QuestPull.h HardPull: three or more mobs, an elite, a mob two levels up) it invites anyone of about its level, and
+//   a party builder (LaunchStrategy::PartyBuilder) does so on any kill objective, with a "LF group" line in General the first
+//   time. Up to a group of three. Log: [party_build].
 // idle:launch_chatter @420 - now and then a line in General (or /say) of the kind a launch crowd writes: the camp is
 //   crowded, where is the cave, LFG, first time in Classic. Casuals and friendly bots talk most, loners and racers least.
 // idle:launch_snipe @860 - a griefer (LaunchTemperament::Griefer: some grinders and questers) goes for untagged mobs another player stands next
@@ -41,6 +44,7 @@
 #include "Bot/LaunchPlaces.h"
 #include "Bot/LaunchProfile.h"
 #include "Bot/QuestPull.h"
+#include "Log.h"
 #include "QuestDef.h"
 #include <algorithm>
 #include <array>
@@ -119,6 +123,7 @@ constexpr std::array<uint8, 5>  kAskPct    = {12, 8, 35, 0, 20};      // asks th
 constexpr std::array<uint8, 5>  kAcceptPct = {65, 100, 70, 10, 50};   // takes an invite it did not ask for
 constexpr std::array<uint16, 5> kStayLoS   = {60, 150, 20, 10, 30};   // stays in a group this long (s), up to twice as long (it follows the leader meanwhile)
 constexpr uint32 kAskEveryMs = 90000;   // 300 bots at 40 s asked ~24 times a minute
+constexpr uint32 kQuestStayMaxMs = 15 * 60 * 1000;   // a group on a shared quest stays together at most this long
 
 uint8 Temper(LaunchProfile const& lp) { return std::min<uint8>(uint8(lp.temperament), 4); }
 
@@ -171,7 +176,17 @@ bool LaunchAskInviteFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView 
     return true;
 }
 
-bool LaunchLeaveGroupGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32)
+// A player within 30 y on one of the bot's unfinished quests (NearbyUnit::shares_quest): in the bot's group when `g` is given,
+// else a solo one the bot could invite.
+ObjectGuid QuestPartner(BotSnapshotView const& s, GroupSnapshotView const& g, bool in_group = true)
+{
+    for (NearbyUnit const& u : s.raw().combat.nearby_friends)
+        if (u.is_player && u.shares_quest && u.guid != s.raw().guid && u.hp > 0 && (in_group ? g.has_member(u.guid) : !u.is_in_group))
+            return u.guid;
+    return ObjectGuid::Empty;
+}
+
+bool LaunchLeaveGroupGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32)
 {
     LaunchProfile const& lp = ai.launch();
     if (!lp.active)
@@ -186,6 +201,10 @@ bool LaunchLeaveGroupGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView
     if (soc.group_since_ms == 0)
         soc.group_since_ms = now;
     if (s.in_combat() || !s.is_alive())
+        return false;
+    // A group still on a quest together stays for it (up to kQuestStayMaxMs): a member within 30 y has one of this bot's
+    // unfinished quests unfinished too.
+    if (now - soc.group_since_ms < kQuestStayMaxMs && !QuestPartner(s, g).IsEmpty())
         return false;
     uint32 const lo = kStayLoS[Temper(lp)] * 1000u;
     uint32 const stay = lo + Mix(lp.seed, soc.group_since_ms / 1000u) % (lo + 1u);
@@ -207,13 +226,17 @@ bool LaunchLeaveGroupFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView
     return true;
 }
 
-ObjectGuid PartyRecruit(BotSnapshotView const& s, BotAI& ai)
+// A solo player of about the bot's level within 30 y that it has not asked lately; with `quest_only`, one it can see on one of
+// its own unfinished quests (NearbyUnit::shares_quest).
+ObjectGuid PartyRecruit(BotSnapshotView const& s, BotAI& ai, bool quest_only)
 {
     float bx, by, bz;
     s.position(bx, by, bz);
     for (NearbyUnit const& u : s.raw().combat.nearby_friends)
     {
         if (!u.is_player || u.is_in_group || u.guid == s.raw().guid || !u.victim.IsEmpty())
+            continue;
+        if (quest_only && !(u.shares_quest && u.in_los))
             continue;
         int32 const dl = int32(u.level) - int32(s.level());
         if (dl > 2 || dl < -2)
@@ -228,38 +251,63 @@ ObjectGuid PartyRecruit(BotSnapshotView const& s, BotAI& ai)
     return ObjectGuid::Empty;
 }
 
-bool LaunchPartyBuildGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32)
+// Who idle:launch_party_build invites now (empty: nobody), and whether that is a player seen on one of the bot's quests.
+ObjectGuid PartyBuildTarget(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, bool& quest_mate)
 {
+    quest_mate = false;
     LaunchProfile const& lp = ai.launch();
     if (!lp.active || !s.is_alive() || s.in_combat() || s.has_group_invite())
-        return false;
+        return ObjectGuid::Empty;
     if (s.in_group() && g.member_count() >= 3)
-        return false;
+        return ObjectGuid::Empty;
+    // Loners and griefers never ask. Everyone else groups with a solo player it sees on one of its own quests (Olo, 30 Oct:
+    // "group up whenever they see another player doing the quest").
+    bool const asks = lp.temperament != LaunchTemperament::Loner && lp.temperament != LaunchTemperament::Griefer;
+    if (asks)
+        if (ObjectGuid const mate = PartyRecruit(s, ai, true); !mate.IsEmpty())
+        {
+            quest_mate = true;
+            return mate;
+        }
     if (lp.strategy == LaunchStrategy::PartyBuilder)
     {
         auto const& obj = s.raw().quest_log.current_objective;
         if (s.raw().quest_log.current_quest_id == 0 || obj.type != QUEST_OBJECTIVE_MONSTER || obj.progress >= obj.amount)
-            return false;
+            return ObjectGuid::Empty;
     }
-    // Anyone else asks for a group only before a quest pull too hard to take alone (three or more mobs: Grik'nir among his
-    // whelps; an elite; a mob two levels up), as players do ("LFG Grik'nir"); loners and griefers never do.
-    else if (lp.temperament == LaunchTemperament::Loner || lp.temperament == LaunchTemperament::Griefer || !HardPull(NextQuestPull(s), s.level()))
-        return false;
-    return !PartyRecruit(s, ai).IsEmpty();
+    // Before a quest pull too hard to take alone (three or more mobs: Grik'nir among his whelps; an elite; a mob two levels up)
+    // anyone of about its level will do, as players do ("LFG Grik'nir").
+    else if (!asks || !HardPull(NextQuestPull(s), s.level()))
+        return ObjectGuid::Empty;
+    return PartyRecruit(s, ai, false);
 }
 
-bool LaunchPartyBuildFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, BotIntentEmitter& emit, uint32)
+bool LaunchPartyBuildGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32)
 {
-    ObjectGuid const who = PartyRecruit(s, ai);
+    bool quest_mate = false;
+    return !PartyBuildTarget(s, ai, g, quest_mate).IsEmpty();
+}
+
+bool LaunchPartyBuildFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, BotIntentEmitter& emit, uint32)
+{
+    bool quest_mate = false;
+    ObjectGuid const who = PartyBuildTarget(s, ai, g, quest_mate);
     if (who.IsEmpty())
         return false;
     uint32 const now = s.published_at_ms();
     if (!s.in_group() && !ai.action_recently_tried(BotAI::ActionKind::InviteOther, 0, now))
     {
+        // Someone on the same quest is asked in /say; a group for a hard pull is asked for in General.
         static constexpr std::array<char const*, 4> kLf = {"LF group for this, inv up", "anyone want to group?", "grp?", "LFG, send inv"};
-        emit.say_world(kLf[Mix(ai.launch().seed, now / 60000u) % kLf.size()]);
-        ai.note_action_retry(BotAI::ActionKind::InviteOther, 0, now);   // key 0: the shout, once in 5 minutes
+        static constexpr std::array<char const*, 4> kSame = {"same quest? lets group", "want to group for this?", "grp up?", "inv, same quest"};
+        uint32 const h = Mix(ai.launch().seed, now / 60000u);
+        if (quest_mate)
+            emit.say(kSame[h % kSame.size()]);
+        else
+            emit.say_world(kLf[h % kLf.size()]);
+        ai.note_action_retry(BotAI::ActionKind::InviteOther, 0, now);   // key 0: the line, once in 5 minutes
     }
+    TC_LOG_INFO("playerbot.v2", "[party_build] {} invites {} ({})", s.name(), who.ToString(), quest_mate ? "same quest" : "hard pull");
     ai.note_action_retry(BotAI::ActionKind::InviteOther, who.GetCounter(), now);
     emit.invite_to_group(who);
     ai.set_last_rule_fired("idle:launch_party_build");
@@ -445,6 +493,11 @@ bool LaunchAcceptsInvite(BotSnapshotView const& s, BotAI& ai)
     uint64 const leader = s.group_invite_leader().GetCounter();
     if (leader != 0 && leader == ai.launch_social().asked_low)
         return true;
+    // An invite from a player it sees on one of its own quests: yes, but for loners and griefers.
+    if (lp.temperament != LaunchTemperament::Loner && lp.temperament != LaunchTemperament::Griefer)
+        for (NearbyUnit const& u : s.raw().combat.nearby_friends)
+            if (u.guid == s.group_invite_leader() && u.shares_quest)
+                return true;
     return Mix(lp.seed, uint32(leader)) % 100u < kAcceptPct[Temper(lp)];
 }
 

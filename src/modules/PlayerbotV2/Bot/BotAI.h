@@ -15,6 +15,7 @@
 #include "Battleground/BgTactics.h"          // BgTactics::StallWatch (bg_stall_ member)
 #include "Battleground/BattlegroundScript.h"  // BattlegroundAdvice — bg_advice_cache_ member needs full type
 #include "Formation.h"
+#include "FleeTrail.h"
 #include "BotPersonality.h"
 #include "BotArchetype.h"
 #include "BotRng.h"
@@ -1305,6 +1306,8 @@ public:
     void       set_prepare_pull_since_ms(uint32 ms) { prepare_pull_since_ms_ = ms; }
     uint32     prepare_pull_skip_until_ms() const { return prepare_pull_skip_until_ms_; }
     void       set_prepare_pull_skip_until_ms(uint32 ms) { prepare_pull_skip_until_ms_ = ms; }
+    // The way the bot came out of combat (Bot/FleeTrail.h): combat:solo_flee runs back along it. Noted by Tick.
+    FleeTrail const& flee_trail() const { return flee_trail_; }
     // shield_ms: how long engage rules must skip this target. Default 8s
     // covers the transient case (LoS flicker, pathing hiccup). The opener
     // give-up path passes minutes — a target the bot demonstrably could
@@ -3903,6 +3906,7 @@ private:
     uint32         last_engage_shield_ms_ = 8000;
     uint32         prepare_pull_since_ms_ = 0;
     uint32         prepare_pull_skip_until_ms_ = 0;
+    FleeTrail      flee_trail_;
     struct GiveUp { ObjectGuid target; uint32 at_ms = 0; uint32 shield_ms = 0; };
     std::array<GiveUp, 8> give_ups_{};   // the last mobs given up on, see note_engage
     uint8          give_up_next_ = 0;

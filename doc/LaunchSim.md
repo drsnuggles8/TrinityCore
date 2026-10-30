@@ -278,6 +278,20 @@ ran before, now runs for every launch bot but loners and griefers, inviting solo
 group of three. A group's kill now has one loot on the corpse under the group's loot method, with each member's quest items
 (Unit::Kill); retail gave every tapper a full loot of its own, so two grouped players looted twice as much.
 
+**The Stolen Journal, 30 Oct:** resting and hard-pull groups did not move it (build75 1 of 17, build76 0 of 11). In build76's
+guided60, 15 of the 19 deaths in the troll cave came mid-flee, and a third of all flees ended in death within 40 s
+(`flee-outcome.py`). `combat:solo_flee` ran straight away from its attackers, which in a cave is deeper in, and it ran from
+fights it was winning (one bot at 22 % from a single whelp at 59 %). Now a solo bot under its flee mark first reads the pace
+of the last 1.5-4 s (Bot/FightOutlook.h): if at that pace its attackers die 1.5 times sooner than it does, it fights on
+(`[solo_flee] <bot> fights on`). When it does run, it runs back along the way it came (Bot/FleeTrail.h: a point every 10 y
+it walked out of combat), after a town NPC ahead and before a quest hub. Groups: any launch bot but loners and griefers
+invites a solo player it sees within 30 y on one of its own unfinished quests ("same quest? lets group"), takes such an
+invite, and the group stays together while a member near it is still on the quest, up to 15 minutes (Olo: "group up
+whenever they see another player doing the quest"). Log: `[party_build] <bot> invites <guid> (same quest | hard pull)`.
+The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
+with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and
+flee outcomes.
+
 ## Capacity and performance
 
 Measurements go here, each with the build, bot count and what changed.

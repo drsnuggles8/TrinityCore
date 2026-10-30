@@ -143,6 +143,14 @@ public:
     bool       is_party() const { return g_ && !g_->is_raid; }
     bool       is_lfg() const { return g_ && g_->is_lfg; }
     size_t     member_count() const { return g_ ? g_->members.size() : 0; }
+    bool       has_member(ObjectGuid guid) const
+    {
+        if (g_)
+            for (auto const& m : g_->members)
+                if (m.guid == guid)
+                    return true;
+        return false;
+    }
     ObjectGuid leader() const { return g_ ? g_->leader : ObjectGuid::Empty; }
     uint8      loot_method() const { return g_ ? g_->loot_method : uint8(0); }
     uint8      loot_threshold() const { return g_ ? g_->loot_threshold : uint8(0); }

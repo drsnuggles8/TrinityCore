@@ -5174,6 +5174,12 @@ std::shared_ptr<BotSnapshot const> BotSnapshotBuilder::Build(Player* p, BotAI* b
                 u.is_player = true;
                 u.is_in_group = pp->GetGroup() != nullptr ||
                                 pp->GetGroupInvite() != nullptr;
+                // One of the bot's unfinished quests is unfinished for this player too (world thread: both quest logs are
+                // safe to read). Only within 30 y, the reach of the party builder and of a group that stays for the quest.
+                bool const near30 = t->GetExactDist2dSq(p) <= 30.0f * 30.0f;
+                for (uint8 slot = 0; slot < MAX_QUEST_LOG_SIZE && near30 && !u.shares_quest; ++slot)
+                    if (uint32 const q = p->GetQuestSlotQuestId(slot))
+                        u.shares_quest = p->GetQuestStatus(q) == QUEST_STATUS_INCOMPLETE && pp->GetQuestStatus(q) == QUEST_STATUS_INCOMPLETE;
                 u.guild_id = pp->GetGuildId();
                 uint8  cls  = pp->GetClass();
                 uint16 spec = uint16(::Playerbot::Classic::EffectiveSpecId(pp));

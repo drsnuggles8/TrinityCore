@@ -586,6 +586,11 @@ void BotAI::tick(BotSnapshotView snapshot,
         transition_to(BotState::Idle);
     }
 
+    // The way the bot came, for combat:solo_flee (Bot/FleeTrail.h): walked ground out of combat, not on a flight or a mount.
+    if (snapshot.is_alive() && !snapshot.in_combat() && snapshot.raw().combat.attackers.empty() && !snapshot.is_mounted() &&
+        !snapshot.is_in_instance())
+        flee_trail_.Note(snapshot.map_id(), snapshot.raw().position.x, snapshot.raw().position.y, snapshot.raw().position.z);
+
     // Map-change reset for per-run contribution counters. When the bot
     // crosses a map boundary (entering or leaving an instance), the
     // previous run's kill/death tally should reset so /diag reflects

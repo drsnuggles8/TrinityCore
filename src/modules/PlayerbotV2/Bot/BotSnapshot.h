@@ -414,6 +414,10 @@ struct NearbyUnit
     // but pre-filtering keeps the rule cheap and the dispatch slot free
     // for productive emits).
     bool       is_in_group = false;
+    // Player-only (nearby_friends, within 30 y): it has one of the bot's own unfinished quests unfinished too, so
+    // idle:launch_party_build invites it (Olo, 30 Oct: group up with anyone you see doing your quest) and a group with it
+    // stays together for the quest (idle:launch_leave_group).
+    bool       shares_quest = false;
 
     // True when the unit is a Player (TYPEID_PLAYER). Without this, bots
     // can't distinguish a hostile player attacker from an angry boar —

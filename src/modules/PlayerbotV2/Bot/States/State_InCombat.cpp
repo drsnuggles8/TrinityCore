@@ -15,6 +15,8 @@
 #include "Bot/ClassicUpkeep.h"                   // Classic::PickCombatHealthItem / PickCombatManaItem
 #include "Bot/ClassTables.h"                     // ClassOocHeal — combat:pve_heal_focus
 #include "Bot/MarkGate.h"                       // Playerbot.Behavior.MarksNeedOrder
+#include "Bot/FightOutlook.h"                    // combat:solo_flee fights on when winning
+#include "Bot/FleeTrail.h"                       // combat:solo_flee runs back the way it came
 #include "Bot/RacialRules.h"                    // EscapeArtistWanted
 #include "Bot/ThreatDiscipline.h"                // opening lead + [raid_threat] / [raid_pull] log pacing
 #include "Bot/ThreatLimits.h"                    // hard threat ratios shared with the raid brain
@@ -1392,7 +1394,10 @@ void ReFaceVictim(BotSnapshotView const& s, BotIntentEmitter& emit)
 // losing a fight to mobs that are not about to die: it uses its class escape tools (Feign Death / Disengage,
 // Frost Nova + Blink, Psychic Scream / Fade, Death Coil, Vanish / Sprint, Intimidating Shout, Barkskin, Hammer of
 // Justice; a paladin Lay on Hands heals instead of fleeing), then runs from the attackers toward the nearest
-// friendly town NPC or quest hub that is not behind them (else straight away from them). The flee is committed for
+// friendly town NPC that is not behind them, else back along the way the bot came (Bot/FleeTrail.h: walked ground, no
+// fresh mobs - straight away from the attackers led deeper into the Coldridge troll cave), else to a quest hub ahead, else
+// straight away from them. A bot that is winning at the pace of the last seconds (Bot/FightOutlook.h) fights on instead.
+// The flee is committed for
 // at least 3 s and ends once no attacker is within 25 y for 4 s (or after 30 s); then a 20 s cooldown applies, and
 // the rest (ooc eat / drink / bandage) takes over once combat drops. A bot already using a survival item this tick
 // waits for it. The mobs leash / evade on their own. Healers with mana and a single mob keep healing down to 15%.
@@ -1400,9 +1405,11 @@ struct SoloFleeClock
 {
     bool   active = false;
     bool   has_dest = false;
-    uint32 start_ms = 0, calm_since_ms = 0, last_end_ms = 0, last_tool_ms = 0, last_seen_ms = 0;
+    uint32 start_ms = 0, calm_since_ms = 0, last_end_ms = 0, last_tool_ms = 0, last_seen_ms = 0, last_fight_on_log_ms = 0;
     uint8  tools = 0;
+    int8   trail_at = -1;   // the FleeTrail point the run heads for (-1: none)
     float  dx = 0.f, dy = 0.f, dz = 0.f;
+    FightOutlook::History pace;
 };
 std::mutex g_solo_flee_mu;
 std::unordered_map<uint64, SoloFleeClock> g_solo_flee;
@@ -1432,13 +1439,14 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
     float nearest_d2 = 0.f, cx = 0.f, cy = 0.f, near25_d2 = 25.f * 25.f;
     uint32 n = 0, n_melee = 0;
     int32 max_hp_pct = 0;
+    int64 mobs_hp = 0;
     bool any_player = false, any_near25 = false;
     for (NearbyUnit const& u : s.attackers())
     {
         if (u.hp <= 0) continue;
         if (u.is_player) { any_player = true; continue; }
         float const ddx = u.x - bx, ddy = u.y - by, d2 = ddx * ddx + ddy * ddy;
-        ++n; cx += u.x; cy += u.y;
+        ++n; cx += u.x; cy += u.y; mobs_hp += u.hp;
         if (d2 <= 9.f * 9.f) ++n_melee;
         if (d2 <= near25_d2) any_near25 = true;
         if (!nearest || d2 < nearest_d2) { nearest = &u; nearest_d2 = d2; }
@@ -1461,6 +1469,8 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
                 it = (!it->second.active && now - it->second.last_seen_ms > 300'000u) ? g_solo_flee.erase(it) : std::next(it);
         SoloFleeClock& c = g_solo_flee[key];
         c.last_seen_ms = now;
+        if (n > 0)
+            c.pace.Add({now, s.hp(), int32(std::min<int64>(mobs_hp, std::numeric_limits<int32>::max()))});
         snap = c;
     }
 
@@ -1481,6 +1491,19 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
         if (heals) thr = std::min(thr, 15);
         if (s.hp_pct() > thr) return false;
         if (max_hp_pct <= 25) return false;   // it is about to die: finish it
+        // Winning at the pace of the last seconds: the mobs die well before the bot does, so it fights on.
+        if (FightOutlook::Sample const* ref = snap.pace.Reference(now); ref && FightOutlook::Winning(*ref, snap.pace.Newest()))
+        {
+            if (now - snap.last_fight_on_log_ms >= 5000u)
+            {
+                FightOutlook::Sample const& cur = snap.pace.Newest();
+                TC_LOG_INFO("playerbot.v2", "[solo_flee] {} fights on: hp={}% attackers={} lost {} hp and dealt {} in {} ms, mobs_hp={}",
+                    s.name(), s.hp_pct(), n, ref->own_hp - cur.own_hp, ref->mobs_hp - cur.mobs_hp, cur.at_ms - ref->at_ms, cur.mobs_hp);
+                std::lock_guard<std::mutex> lock(g_solo_flee_mu);
+                g_solo_flee[key].last_fight_on_log_ms = now;
+            }
+            return false;
+        }
         // A paladin's Lay on Hands is the survival tool: heal to full and fight on.
         if (s.cls() == CLASS_PALADIN && s.knows_spell(633) && s.is_ready(633) && s.can_cast() && emit.cast(633, s.guid()))
         {
@@ -1514,7 +1537,7 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
     else
     {
         snap.active = true; snap.start_ms = now ? now : 1u; snap.calm_since_ms = 0;
-        snap.tools = 0; snap.last_tool_ms = 0; snap.has_dest = false;
+        snap.tools = 0; snap.last_tool_ms = 0; snap.has_dest = false; snap.trail_at = -1;
         TC_LOG_INFO("playerbot.v2", "[solo_flee] {} runs: hp={}% attackers={} (melee {}) victim_hp<={}%",
             s.name(), s.hp_pct(), n, n_melee, max_hp_pct);
         if (!s.victim().IsEmpty()) ai.note_engage(s.victim(), now, 60'000u);
@@ -1605,6 +1628,18 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
             float const fx = f.x - bx, fy = f.y - by;
             if (fx * fx + fy * fy > 150.f * 150.f || !ahead(f.x, f.y)) continue;
             tx = f.x; ty = f.y; tz = f.z; kind = "town_npc"; found = true; break;
+        }
+        // Back the way it came: the newest trail point 15 y off first, then one point further back on each arrival.
+        if (!found)
+        {
+            FleeTrail const& trail = ai.flee_trail();
+            int const at = snap.trail_at < 0 ? trail.First(bx, by) : snap.trail_at + 1;
+            if (at >= 0 && at < trail.count)
+            {
+                FleeTrail::Point const& p = trail.At(uint8(at));
+                tx = p.x; ty = p.y; tz = p.z; kind = "trail"; found = true;
+                snap.trail_at = int8(at);
+            }
         }
         if (!found)
             if (auto const* hub = Services::Hubs().GetNearestQuestHub(s.raw()))
