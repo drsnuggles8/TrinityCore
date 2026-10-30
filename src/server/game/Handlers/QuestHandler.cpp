@@ -415,12 +415,31 @@ void WorldSession::HandleQuestgiverChooseRewardOpcode(WorldPackets::Quest::Quest
         return;
     }
 
+    // A quest with reward choices needs one: without, RewardQuest hands out no choice item at all and says nothing (Olo, 30 Oct:
+    // the Troll Cave's and the Stolen Journal's weapons never arrived). The reward window opens again for a pick.
+    if (quest->GetRewChoiceItemsCount() > 0 && !packet.Choice.Item.ItemID)
+    {
+        TC_LOG_INFO("player.items", "[reward] {} {} turned in quest {} with no reward choice ({} offered): refused, reward window sent again",
+            _player->GetName(), _player->GetGUID().ToString(), packet.QuestID, quest->GetRewChoiceItemsCount());
+        _player->PlayerTalkClass->SendQuestGiverOfferReward(quest, packet.QuestGiverGUID, true);
+        return;
+    }
+
     if (_player->CanRewardQuest(quest, true)) // First, check if player is allowed to turn the quest in (all objectives completed). If not, we send players to the offer reward screen
     {
         if (_player->CanRewardQuest(quest, packet.Choice.LootItemType, packet.Choice.Item.ItemID, true)) // Then check if player can receive the reward item (if inventory is not full, if player doesn't have too many unique items, and so on). If not, the client will close the gossip window
         {
-            _player->RewardQuest(quest, packet.Choice.LootItemType, packet.Choice.Item.ItemID, object);
+            uint32 const choice = packet.Choice.Item.ItemID;
+            uint32 const had = choice ? _player->GetItemCount(choice, true) : 0;
+            _player->RewardQuest(quest, packet.Choice.LootItemType, choice, object);
+            if (!IsBot())
+                TC_LOG_INFO("player.items", "[reward] {} {} quest {} choice {} (type {}): now holds {} (had {})",
+                    _player->GetName(), _player->GetGUID().ToString(), packet.QuestID, choice, uint32(packet.Choice.LootItemType),
+                    choice ? _player->GetItemCount(choice, true) : 0, had);
         }
+        else if (!IsBot())
+            TC_LOG_INFO("player.items", "[reward] {} {} quest {} choice {}: refused, the reward does not fit",
+                _player->GetName(), _player->GetGUID().ToString(), packet.QuestID, packet.Choice.Item.ItemID);
     }
     else
         _player->PlayerTalkClass->SendQuestGiverOfferReward(quest, packet.QuestGiverGUID, true);

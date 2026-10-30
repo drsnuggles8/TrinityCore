@@ -4509,6 +4509,8 @@ Logger.sql.updates=3,Console Server
 Logger.mmaps=3,Server
 # Same as root; its own line so that TC_LOGGER_MAPS_RESPAWN=2,Server (debug) can trace each dynamic respawn and combat wait
 Logger.maps.respawn=5,Console Server CrashRing
+# A real player's quest rewards (the choice received, refused, what landed), sells and destroys: [reward] [sell] [destroy]
+Logger.player.items=3,Console Server
 
 #Logger.addon=3,Console Server
 #Logger.ahbot=3,Console Server

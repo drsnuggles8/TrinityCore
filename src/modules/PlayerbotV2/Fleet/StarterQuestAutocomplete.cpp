@@ -86,17 +86,17 @@ bool IsStarterQuestForBot(Quest const* q, Player* bot)
     return true;
 }
 
-// Walk the quest's choice-reward array and pick the highest-scoring index.
+// Walk the quest's choice-reward array and pick the highest-scoring item.
 // Defers to Playerbot::Gear::ScoreItemForBot for the per-item scoring -
 // same scorer used by the runtime quest turn-in path (PlayerbotAPI's
-// ScoreQuestReward) and the gear distributor.
+// ScoreQuestReward) and the gear distributor. Returns the item id, which is
+// what Player::RewardQuest takes (an index there gave no item at all), or 0
+// when there is no choice.
 uint32 PickBestRewardChoice(Quest const* q, Player* bot)
 {
     uint32 const n = q->GetRewChoiceItemsCount();
-    if (n <= 1) return 0;
-
     int32 best_score = std::numeric_limits<int32>::min();
-    uint32 best_idx  = 0;
+    uint32 best_item = 0;
     for (uint32 i = 0; i < n && i < QUEST_REWARD_CHOICES_COUNT; ++i)
     {
         if (q->RewardChoiceItemType[i] != LootItemType::Item) continue;
@@ -104,9 +104,9 @@ uint32 PickBestRewardChoice(Quest const* q, Player* bot)
         if (!entry) continue;
         ItemTemplate const* tpl = sObjectMgr->GetItemTemplate(entry);
         int32 s = ::Playerbot::Gear::ScoreItemForBot(tpl, bot);
-        if (s > best_score) { best_score = s; best_idx = i; }
+        if (s > best_score) { best_score = s; best_item = entry; }
     }
-    return best_idx;
+    return best_item;
 }
 
 // Locate a real spawned quest-ender Creature in the bot's neighborhood. We
@@ -224,8 +224,8 @@ RunForResult StarterQuestAutocomplete::RunFor(Player* bot)
 
             bot->AddQuest(q, quest_giver);
             bot->CompleteQuest(qid);
-            uint32 reward_idx = PickBestRewardChoice(q, bot);
-            bot->RewardQuest(q, LootItemType::Item, reward_idx,
+            uint32 const reward_item = PickBestRewardChoice(q, bot);
+            bot->RewardQuest(q, LootItemType::Item, reward_item,
                              quest_giver, /*announce=*/false);
 
             completed.insert(qid);

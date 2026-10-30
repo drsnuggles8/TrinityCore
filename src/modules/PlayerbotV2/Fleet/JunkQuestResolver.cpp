@@ -49,15 +49,15 @@ bool IsProfSpecQuest(uint32 quest_id, uint16* out_skill = nullptr)
 std::unordered_map<uint32, bool> g_resolvable_cache;
 std::shared_mutex                g_resolvable_mtx;
 
-// Walk the quest's choice-reward array and pick the highest-scoring index for
-// this bot (same scorer the runtime turn-in path uses). Returns 0 when there
-// is at most one choice.
+// Walk the quest's choice-reward array and pick the highest-scoring item for
+// this bot (same scorer the runtime turn-in path uses). Returns the item id,
+// which is what Player::RewardQuest takes (an index there gave no item at all),
+// or 0 when there is no choice.
 uint32 PickBestRewardChoice(Quest const* q, Player* bot)
 {
     uint32 const n = q->GetRewChoiceItemsCount();
-    if (n <= 1) return 0;
     int32 best_score = std::numeric_limits<int32>::min();
-    uint32 best_idx = 0;
+    uint32 best_item = 0;
     for (uint32 i = 0; i < n && i < QUEST_REWARD_CHOICES_COUNT; ++i)
     {
         if (q->RewardChoiceItemType[i] != LootItemType::Item) continue;
@@ -65,9 +65,9 @@ uint32 PickBestRewardChoice(Quest const* q, Player* bot)
         if (!entry) continue;
         ItemTemplate const* tpl = sObjectMgr->GetItemTemplate(entry);
         int32 s = ::Playerbot::Gear::ScoreItemForBot(tpl, bot);
-        if (s > best_score) { best_score = s; best_idx = i; }
+        if (s > best_score) { best_score = s; best_item = entry; }
     }
-    return best_idx;
+    return best_item;
 }
 
 // Prefer a real spawned quest-ender Creature as the reward giver so the
@@ -92,8 +92,8 @@ void ForceComplete(Player* bot, Quest const* q)
     Object* giver = ResolveRewardGiver(q, bot);
     if (bot->GetQuestStatus(qid) != QUEST_STATUS_COMPLETE)
         bot->CompleteQuest(qid);
-    uint32 idx = PickBestRewardChoice(q, bot);
-    bot->RewardQuest(q, LootItemType::Item, idx, giver, /*announce=*/false);
+    uint32 const item = PickBestRewardChoice(q, bot);
+    bot->RewardQuest(q, LootItemType::Item, item, giver, /*announce=*/false);
 }
 
 } // anonymous

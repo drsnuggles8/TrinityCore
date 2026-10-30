@@ -71,6 +71,21 @@ was never seen. Quest objective ids use a private range: 990000000 + quest x 10 
 Not changed: 9324, 9325, 9330, 9331, 9386 (Midsummer foods Questie lists are not on Wowhead Forever; 9324 and 9331 also
 carry 23247 twice). 79097 got its reward but has no giver or ender in our database.
 
+## Rewards that never arrived (30 Oct)
+
+Olo's Jarreway turned in The Troll Cave (182) and The Stolen Journal (218) but holds neither the Anvilmar Hammer nor the
+Smooth Walking Staff his guide picks (OloGuides `.turnin 182,2` / `.turnin 218,2`); the armour picks of 170, 179 and 183
+arrived. The server data is right (822 bots hold 5761 from 182, 137 of 138 a 218 item), so the loss is on the turn-in.
+Two things now leave a trace:
+
+- A quest with reward choices turned in with no choice is refused and its reward window sent again (`[reward] ... no
+  reward choice`); before, `Player::RewardQuest` gave no choice item and said nothing.
+- Logger `player.items` (Server.log) records each real player's turn-in (the choice received and whether it landed) and
+  every item sold or destroyed: `[reward]`, `[sell]`, `[destroy]`. The next choice turn-in shows where the item goes.
+
+The bots' starter-quest and junk-quest completion (`StarterQuestAutocomplete`, `JunkQuestResolver`) passed the choice's
+index where `RewardQuest` takes an item id, so those quests gave bots no choice item; they pass the item now.
+
 ## Still missing (105 quests with an item reward, 629 in all)
 
 Questie has 629 quest ids our database lacks; the 116 with an item reward were checked one by one:

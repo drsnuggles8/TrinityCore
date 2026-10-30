@@ -360,6 +360,10 @@ void WorldSession::HandleDestroyItemOpcode(WorldPackets::Item::DestroyItem& dest
         return;
     }
 
+    if (!IsBot())
+        TC_LOG_INFO("player.items", "[destroy] {} {} destroys item {} x{}", _player->GetName(), _player->GetGUID().ToString(),
+            item->GetEntry(), destroyItem.Count ? destroyItem.Count : item->GetCount());
+
     if (destroyItem.Count)
         _player->DestroyItemCount(item, destroyItem.Count, true);
     else
@@ -435,9 +439,14 @@ void WorldSession::HandleSellItemOpcode(WorldPackets::Item::SellItem const& sell
 
     uint32 amount = sellItem.Amount ? sellItem.Amount : pItem->GetCount();
 
+    uint32 const entry = pItem->GetEntry();
     Optional<SellResult> sellResult = _player->CanSellItemToVendor(pItem, amount);
     if (!sellResult)
+    {
         sellResult = _player->SellItemToVendor(pItem, amount);
+        if (!sellResult && !IsBot())
+            TC_LOG_INFO("player.items", "[sell] {} {} sells item {} x{}", _player->GetName(), _player->GetGUID().ToString(), entry, amount);
+    }
 
     if (sellResult)
         _player->SendSellError(*sellResult, creature, sellItem.ItemGUID);
