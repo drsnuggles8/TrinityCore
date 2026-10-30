@@ -7755,6 +7755,9 @@ Result API::apply_classic_talents()
 Result API::restock_class_supplies()
 {
     if (!p_) return Result::Other;
+    // Training players earn class-quest rewards and purchase their supplies. A free Earth Totem also blocks
+    // Call of Earth's unique-item reward, leaving a completed quest permanently unrewardable.
+    if (V2::Fleet::IsTrainingPlayer(p_)) return Result::Locked;
     if (!p_->IsAlive()) return Result::Locked;
 
     uint32 added = 0;
@@ -9290,6 +9293,7 @@ Result API::trainer_buy_all_available(ObjectGuid trainer_npc,
 uint32 API::learn_trainer_spells_free()
 {
     if (!p_) return 0;
+    if (V2::Fleet::IsTrainingPlayer(p_)) return 0;
     uint32 total = 0;
     // Why the first pass rejected what it did: a pass that teaches nothing may mean "everything is already known" (a reused
     // character) or a data problem, and the counts tell which.
@@ -9492,6 +9496,7 @@ bool KnowsSpellOrHigherRank(Player const* p, SpellInfo const* info)
 uint32 API::learn_class_quest_spells_free()
 {
     if (!p_) return 0;
+    if (V2::Fleet::IsTrainingPlayer(p_)) return 0;
     static std::vector<ClassQuestTeach> const teaches = BuildClassQuestTeaches();
     static bool const petSpellsChecked = []
     {
@@ -9613,6 +9618,7 @@ API::StarterPetResult API::grant_starter_hunter_pet(uint32 entry)
 uint32 API::learn_weapon_skills_free()
 {
     if (!p_) return 0;
+    if (V2::Fleet::IsTrainingPlayer(p_)) return 0;
     // Defense and Unarmed are not weapon skills, but they are in the same table of the combat rules (crushing blows, glancing
     // blows, dodge and parry, miss): a bot's Defense used to stay at whatever skill-ups gave it (181 for a levelled warrior,
     // 52 for a paladin), so a level 63 boss crushed it on 80-95% of its swings (vanilla at 300 Defense: 15%).
@@ -9670,6 +9676,7 @@ bool API::RaceMountSpells(uint8 race, uint32& normal, uint32& swift)
 uint32 API::learn_riding_free()
 {
     if (!p_) return 0;
+    if (V2::Fleet::IsTrainingPlayer(p_)) return 0;
     uint32 changed = 0;
     ::Playerbot::V2::World::RidingFix const fix = ::Playerbot::V2::World::PlanRiding(p_->GetLevel(), p_->GetSkillValue(SKILL_RIDING));
     // Below level 40 a bot has no riding and no mount (a bot of an earlier build, or a retail trainer pass, may have both).
