@@ -261,7 +261,7 @@ State Context(BotSnapshot const& s,Actor const& actor,Progress const& p)
     x[6]=std::min(1.f,float(s.quest_log.quests.size())/25);x[7]=std::min(1.f,float(s.quest_discovery.quest_turnins.size())/10);
     x[8]=std::min(1.f,float(s.quest_discovery.quest_offers.size())/10);x[9]=std::min(1.f,float(s.combat.nearby_enemies.size())/8);
     x[10]=std::min(1.f,float(v.attackers_count())/8);x[11]=std::min(1.f,float(std::uint32_t(p.ms-actor.moved))/60000);
-    x[12]=std::min(1.f,float(std::uint32_t(p.ms-actor.born))/900000);x[13]=std::min(1.f,float(p.deaths)/5);
+    x[12]=std::min(1.f,float(std::uint32_t(p.ms-actor.born))/900000);x[13]=std::min(1.f,float(actor.episode.deaths)/5);
     x[14]=float(v.lowest_equipped_durability_pct())/100;x[15]=v.can_hearth();
     x[16]=std::clamp((s.position.x+6200)/1000,-2.f,2.f);x[17]=std::clamp(s.position.y/1000,-2.f,2.f);x[18]=std::clamp(s.position.z/1000,-2.f,2.f);
     float goal_distance=2001;

@@ -44,6 +44,7 @@ struct Episode
         for(auto it=credits.MemberBegin();it!=credits.MemberEnd();++it)peaks[it->name.GetString()]=std::int32_t(EpisodeNumber(it->value));
         for(auto const& q:Field(value,"rewarded_quests").GetArray())rewarded.insert(q.GetUint());
         if(value.HasMember("terminal_reason"))terminal=value["terminal_reason"].GetString();
+        if(value.HasMember("deaths")){if(!value["deaths"].IsUint64())throw std::runtime_error("Invalid episode death count");deaths=value["deaths"].GetUint64();}
         initialized=true;
     }
     bool Advance(Progress const& p,std::uint32_t level,std::span<Credit const> credit,std::span<std::uint32_t const> rewards,Task const& task)
@@ -53,6 +54,7 @@ struct Episode
         if(elapsed>60)throw std::runtime_error("Unobserved episode clock gap");
         bool advanced=initialized&&p.xp>last_xp;
         if(has_frame&&p.xp<last_xp)throw std::runtime_error("Episode seed XP rewound");
+        if(has_frame){if(p.deaths<last_deaths)throw std::runtime_error("Episode death count rewound");deaths+=p.deaths-last_deaths;}
         for(auto q:rewards)if(initialized&&!rewarded.contains(q))advanced=true;
         for(auto const& c:credit)
         {
