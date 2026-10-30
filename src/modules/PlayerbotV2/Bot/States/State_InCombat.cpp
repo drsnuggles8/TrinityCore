@@ -1400,7 +1400,7 @@ void ReFaceVictim(BotSnapshotView const& s, BotIntentEmitter& emit)
 // the one that passes the fewest (FleeTrail::Crowd). A bot that is winning at the pace of the last seconds
 // (Bot/FightOutlook.h) fights on instead.
 // The flee is committed for
-// at least 3 s and ends once no attacker is within 25 y for 4 s (or after 30 s); then a 20 s cooldown applies, and
+// at least 3 s and ends once no attacker is within 25 y for 4 s (or after 30 s, 60 s while one still is); then a 20 s cooldown applies, and
 // the rest (ooc eat / drink / bandage) takes over once combat drops. A bot already using a survival item this tick
 // waits for it. The mobs leash / evade on their own. Healers with mana and a single mob keep healing down to 15%.
 struct SoloFleeClock
@@ -1545,7 +1545,11 @@ bool SoloFleeTick(BotAI& ai, BotSnapshotView const& s, GroupSnapshotView const& 
         if (any_near25) snap.calm_since_ms = 0;
         else if (snap.calm_since_ms == 0) snap.calm_since_ms = now ? now : 1u;
         calm_done = ran >= 3000u && snap.calm_since_ms != 0 && now - snap.calm_since_ms >= 4000u;
-        if (ran >= 30'000u) calm_done = true;
+        // A mob gives up the chase only once the bot is out of its reach from home (Creature::CanCreatureAttack: the
+        // visibility range, at most 133 y) and it has not been hit for 10 s, so a run still chased keeps going to 60 s
+        // (build81 guided30: 34 of 41 flees ended at 30 s with the mob next to the bot, often at more health than they began
+        // with - the mob followed without hitting; 15 then turned and died).
+        if (ran >= (any_near25 ? 60'000u : 30'000u)) calm_done = true;
         if (calm_done)
         {
             {

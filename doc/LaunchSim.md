@@ -322,6 +322,10 @@ quest walkers pull any hostile in their path, and the walk only stopped below 50
 careful bot below the engage floor even with no quest target in sight (`[prepare_pull] <bot> rests before it walks on`).
 (7) A flee takes the first of its destinations (town NPC, trail, hub, away and away turned 40 / 80 degrees) whose run passes
 no idle aggressive mob within 12 y, else the one passing the fewest (FleeTrail::Crowd; `heads <kind> ... idle mobs on the way N`).
+Build81 guided30 (27 deaths against build79's 14 on the same roster): 34 of 41 flees ended at the 30 s cap with the mob still
+next to the bot, often with more health than at the start - the mob followed without hitting, and a mob only gives up once
+the bot is out of its reach from home (visibility range, at most 133 y) with 10 s unhit; 15 then turned and died. (8) A flee
+still chased (an attacker within 25 y) runs up to 60 s.
 
 The cave bench (`~/forever/cave.sh BOTS MINUTES LABEL`, test realm only) starts dwarf and gnome guide followers at level 4
 with every guide quest before The Stolen Journal handed in, and counts 218 taken / Grik'nir kills / handed in, cave deaths and
