@@ -90,9 +90,12 @@ State Context(BotSnapshot const& s,Actor const& actor,Progress const& p)
     x[12]=std::min(1.f,float(std::uint32_t(p.ms-actor.born))/900000);x[13]=std::min(1.f,float(p.deaths)/5);
     x[14]=float(v.lowest_equipped_durability_pct())/100;x[15]=v.can_hearth();
     x[16]=std::clamp((s.position.x+6200)/1000,-2.f,2.f);x[17]=std::clamp(s.position.y/1000,-2.f,2.f);x[18]=std::clamp(s.position.z/1000,-2.f,2.f);
-    auto const& poi=s.quest_log.current_objective_poi;
-    x[19]=poi.valid?std::min(2.f,std::hypot(poi.x-s.position.x,poi.y-s.position.y)/500):0;
-    x[20]=poi.valid;x[21]=s.quest_log.current_objective_tool.valid;x[22]=float(p.potential);
+    float goal_distance=2001;
+    for(auto const& goal:actor.goals)
+        for(auto const& q:s.quest_log.quests)if(q.quest_id==goal.quest&&q.state==0)
+            goal_distance=std::min(goal_distance,std::hypot(goal.x-s.position.x,goal.y-s.position.y));
+    x[19]=goal_distance<=2000?std::min(4.f,goal_distance/500):0;
+    x[20]=goal_distance<=2000;x[21]=s.quest_log.current_objective_tool.valid;x[22]=float(p.potential);
     x[23]=std::min(1.f,float(s.combat.nearby_friends.size())/100);return x;
 }
 void Finish(std::uint64_t guid,Actor& actor,Frame const& frame,bool terminal,bool truncated)
@@ -195,13 +198,10 @@ std::vector<Choice> Menu(BotSnapshot const& s,BotAI& ai,State const& state,Objec
     {
         if(!corpse.IsEmpty())
             if(auto c=add(Kind::Loot,corpse,s.position.x,s.position.y,s.position.z)) {c->features[40]=2;c->features[47]=0;}
-        auto const& poi=s.quest_log.current_objective_poi;
         for(auto const& goal:goals)
             for(auto const& q:s.quest_log.quests)
                 if(q.quest_id==goal.quest&&q.state==0&&!ai.move_refused_recently(goal.x,goal.y,goal.z,s.published_at_ms))
                     add(Kind::QuestGoal,{},goal.x,goal.y,goal.z,goal.quest);
-        if(poi.valid&&poi.map_id==s.position.map_id&&!ai.move_refused_recently(poi.x,poi.y,poi.z,s.published_at_ms))
-            add(Kind::QuestGoal,{},poi.x,poi.y,poi.z,s.quest_log.current_quest_id);
         std::size_t goals=0;
         for(auto const& q:s.quest_log.quests)
         {
