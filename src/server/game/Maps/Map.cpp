@@ -2083,8 +2083,10 @@ bool Map::CheckRespawn(RespawnInfo* info)
         return false;
     }
 
-    // A creature does not come back on top of a fight at its spawn point (continents only)
-    if (info->type == SPAWN_TYPE_CREATURE && !Instanceable())
+    // A creature does not come back on top of a fight at its spawn point (continents only). A spawn whose own timer is shorter
+    // than the longest wait is meant to be back mid-fight (a quest boss such as Grik'nir the Cold, 2 s) and does not wait.
+    if (info->type == SPAWN_TYPE_CREATURE && !Instanceable() &&
+        uint32(data->spawntimesecs) >= sWorld->getIntConfig(CONFIG_RESPAWN_COMBAT_WAIT_MAX))
     {
         if (uint32 const step = sWorld->getIntConfig(CONFIG_RESPAWN_COMBAT_WAIT_STEP))
         {

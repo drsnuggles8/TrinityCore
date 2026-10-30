@@ -2112,9 +2112,11 @@ Creature.RegenHPCannotReachTargetInRaid = 1
 #
 #    Respawn.MinCheckIntervalMS
 #        Description: Minimum time that needs to pass between respawn checks for any given map.
-#        Default:     5000 - 5 seconds
+#                     Forever: 1 s, so a quest boss with a 2 s timer (Grik'nir the Cold) is back in 2-3 s as on
+#                     WoW Forever; at 5 s it took up to 7 s. A check only pops the due entries of the respawn heap.
+#        Default:     1000 - 1 second (TrinityCore: 5000)
 
-Respawn.MinCheckIntervalMS = 5000
+Respawn.MinCheckIntervalMS = 1000
 
 #
 #    Respawn.GuidWarnLevel
