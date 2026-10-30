@@ -100,7 +100,8 @@ void Finish(std::uint64_t guid,Actor& actor,Frame const& frame,bool terminal,boo
     auto& p=actor.pending;if(!p.active)return;
     if (frame.progress.ms==p.before.ms) {p.active=false;return;}
     auto reward=Outcome(p.before,frame.progress,terminal,actor.xp_reference);
-    double refusal=-.01*std::min<std::uint32_t>(p.refusals,25);reward.total+=refusal;
+    double refusal=-.01*std::min<std::uint32_t>(p.refusals,25);
+    double completion=terminal&&frame.level>=6&&p.state[2]<.6f?2.:0.;reward.total+=refusal+completion;
     rapidjson::StringBuffer buffer;Writer w(buffer);w.StartObject();
     Text(w,"checkpoint_sha256",model->checkpoint);w.Key("decision_id");w.Uint64(p.id);w.Key("segment");w.Uint64(p.segment);
     w.Key("previous_source_snapshot");w.Uint64(p.before.version);w.Key("seconds");w.Double(reward.seconds);
@@ -109,7 +110,7 @@ void Finish(std::uint64_t guid,Actor& actor,Frame const& frame,bool terminal,boo
     w.Key("next_value");w.Double(terminal?0:model->critic.Score(frame.state));Array(w,"next_state",frame.state);
     w.Key("reward_terms");w.StartObject();
     for (auto [key,value]:{std::pair{"xp",reward.xp},std::pair{"quest",reward.quest},std::pair{"death",reward.death},
-         std::pair{"time",reward.time},std::pair{"stall",reward.stall},std::pair{"potential",reward.potential},std::pair{"refusal",refusal}})
+         std::pair{"time",reward.time},std::pair{"stall",reward.stall},std::pair{"potential",reward.potential},std::pair{"refusal",refusal},std::pair{"completion",completion}})
     {w.Key(key);w.Double(value);}w.EndObject();
     w.Key("xp_before");w.Uint64(p.before.xp);w.Key("xp_after");w.Uint64(frame.progress.xp);
     w.Key("quests_before");w.Uint64(p.before.quests);w.Key("quests_after");w.Uint64(frame.progress.quests);

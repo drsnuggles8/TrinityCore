@@ -144,7 +144,7 @@ inline Reward Outcome(Progress const& before,Progress const& after,bool terminal
     Reward r;r.seconds=double(std::uint32_t(after.ms-before.ms))/1000;
     if (!(r.seconds>0&&r.seconds<=1200) || !(xp_reference>0) || after.xp<before.xp || after.quests<before.quests || after.deaths<before.deaths)
         throw std::runtime_error("Non-monotonic leveling progress");
-    r.discount=std::pow(.999,r.seconds);r.xp=double(after.xp-before.xp)/xp_reference;r.quest=.25*double(after.quests-before.quests);
+    r.discount=std::pow(.9998,r.seconds);r.xp=double(after.xp-before.xp)/xp_reference;r.quest=.25*double(after.quests-before.quests);
     r.death=-.5*double(after.deaths-before.deaths);r.time=-.0005*r.seconds;
     double distance=std::hypot(after.x-before.x,after.y-before.y);
     if (!after.combat && after.hp>=.9 && after.mana>=.9 && distance<1 && after.xp==before.xp && after.quests==before.quests) r.stall=-.001*r.seconds;
