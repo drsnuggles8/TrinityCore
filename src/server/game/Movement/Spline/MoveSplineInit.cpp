@@ -18,6 +18,7 @@
 #include "MoveSplineInit.h"
 #include "Log.h"
 #include "Creature.h"
+#include "MotionMaster.h"
 #include "MoveSpline.h"
 #include "MovementPackets.h"
 #include "PathGenerator.h"
@@ -131,22 +132,34 @@ namespace Movement
         // The client rejects a path with a non-finite point or a segment shorter than 0.1 y (BadSpline / FLT_DIVIDE_BY_ZERO) and
         // Validate() does not check the first segment: the corrected start can coincide with path[1]. Drop such points so the server
         // spline has no zero-length segment either. Paths whose points are indexed (cyclic, catmullrom, parabolic, falling, spell
-        // effect) are left alone.
+        // effect) are left alone. The points between the first and the last travel as packed offsets in 0.25 y steps, so two of
+        // them, or one and the destination, closer than 0.5 y can arrive as the same point: those keep 0.5 y apart (the 1.60
+        // client stopped with "BadSpline: node 1 of 4" next to a patrol whose second point was 0.4 y from the first, and with
+        // FLT_DIVIDE_BY_ZERO next to a hunter pet's follow path; danielcipriano1979 b0dc24a233 / 905b0545ec).
         if (!args.flags.Cyclic && !args.flags.Catmullrom && !args.flags.Parabolic && !args.flags.Falling &&
             !args.spellEffectExtra && args.effect_start_point == 0)
         {
             auto const isFinite = [](Vector3 const& v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); };
+            constexpr float kMinSegmentSq = 0.1f * 0.1f;     // full-precision ends
+            // a packed (0.25 y) point and its neighbours; waypoint paths report their points by index and keep the 0.1 y rule
+            float const kMinPackedSq = unit->GetMotionMaster()->GetCurrentMovementGeneratorType() == WAYPOINT_MOTION_TYPE
+                ? kMinSegmentSq : 0.5f * 0.5f;
             size_t kept = 1;    // path[0] is the corrected start
             for (size_t i = 1; i < args.path.size(); ++i)
             {
                 if (!isFinite(args.path[i]))
                     continue;
-                if ((args.path[i] - args.path[kept - 1]).squaredLength() < 0.01f)
+                bool const destination = i == args.path.size() - 1;
+                if (destination)
                 {
-                    if (i == args.path.size() - 1 && kept > 1)
-                        args.path[kept - 1] = args.path[i];     // keep the exact destination
-                    continue;
+                    // a packed point next to the destination goes; the destination itself stays
+                    while (kept > 1 && (args.path[i] - args.path[kept - 1]).squaredLength() < kMinPackedSq)
+                        --kept;
+                    if ((args.path[i] - args.path[kept - 1]).squaredLength() < kMinSegmentSq)
+                        continue;
                 }
+                else if ((args.path[i] - args.path[kept - 1]).squaredLength() < kMinPackedSq)
+                    continue;
                 args.path[kept++] = args.path[i];
             }
             args.path.resize(kept);
