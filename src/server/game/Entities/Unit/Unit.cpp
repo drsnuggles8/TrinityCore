@@ -1099,6 +1099,12 @@ bool Unit::HasBreakableByDamageCrowdControlAura(Unit const* excludeCasterChannel
     if (spellProto && spellProto->HasAttribute(SPELL_ATTR3_NO_DURABILITY_LOSS))
         durabilityLoss = false;
 
+    // Freeze attribution before a killing blow can award XP and level the attacker.
+    auto sourceOwner=attacker?attacker->GetCharmerOrOwnerPlayerOrPlayerItself():nullptr;
+    auto targetOwner=victim->GetCharmerOrOwnerPlayerOrPlayerItself();
+    uint32 sourceOwnerLevel=sourceOwner?sourceOwner->GetLevel():0;
+    uint32 targetOwnerLevel=targetOwner?targetOwner->GetLevel():0;
+    uint32 targetLevel=victim->GetLevel();
     if (killed)
         Unit::Kill(attacker, victim, durabilityLoss, skipSettingDeathState);
     else
@@ -1215,6 +1221,7 @@ bool Unit::HasBreakableByDamageCrowdControlAura(Unit const* excludeCasterChannel
         victim->SetStandState(UNIT_STAND_STATE_STAND);
 
     auto resolved=MeasureDamageResolution(damageTaken,health,victim->GetHealth());
+    resolved.source_owner_level=sourceOwnerLevel;resolved.target_owner_level=targetOwnerLevel;resolved.target_level=targetLevel;
     resolved.spell=spellProto;resolved.school_mask=damageSchoolMask;
     resolved.damage_type=uint8(damagetype);resolved.attack_type=cleanDamage?uint8(cleanDamage->attackType):0;
     resolved.auto_attack=!spellProto&&damagetype==DIRECT_DAMAGE;

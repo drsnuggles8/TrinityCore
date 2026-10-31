@@ -371,10 +371,10 @@ std::shared_ptr<Sink> GetForBot(std::uint64_t guid)
     std::lock_guard lock(sink_mutex);
     return sink && sink->Accepting() ? sink : nullptr;
 }
-void MetricsIdentity(Writer& w,Player const* player)
+void MetricsIdentity(Writer& w,Player const* player,std::uint32_t level=0)
 {
     w.Key("metrics_schema");w.String("leveling-metrics-v1");
-    w.Key("level");w.Uint(player->GetLevel());w.Key("class");w.Uint(player->GetClass());w.Key("race");w.Uint(player->GetRace());
+    w.Key("level");w.Uint(level?level:player->GetLevel());w.Key("class");w.Uint(player->GetClass());w.Key("race");w.Uint(player->GetRace());
     Text(w,"checkpoint_sha256",LevelingPolicy::Checkpoint(player->GetGUID().GetCounter()));
     w.Key("model_epoch");w.Uint64(LevelingPolicy::Epoch(player->GetGUID().GetCounter()));
 }
@@ -551,11 +551,11 @@ void ResolvedDamage(Unit* attacker,Unit* victim,DamageResolution const& hit)
         auto record=[&](Player* player,char const* direction)
         {
             auto output=Get(player);if(!output)return;auto actor=output->Context(player->GetGUID().GetCounter());
-            Buffer buffer;Writer w(buffer);output->Header(w,"combat_damage",player,actor);MetricsIdentity(w,player);
+            Buffer buffer;Writer w(buffer);output->Header(w,"combat_damage",player,actor);MetricsIdentity(w,player,player==dealer?hit.source_owner_level:hit.target_owner_level);
             Text(w,"direction",direction);Text(w,"source_guid",attacker?attacker->GetGUID().ToString():std::string{});
             Text(w,"target_guid",victim->GetGUID().ToString());
             w.Key("source_entry");w.Uint(attacker?attacker->GetEntry():0);w.Key("target_entry");w.Uint(victim->GetEntry());
-            w.Key("target_level");w.Uint(victim->GetLevel());w.Key("actor_is_source");w.Bool(attacker==player);
+            w.Key("target_level");w.Uint(hit.target_level);w.Key("actor_is_source");w.Bool(attacker==player);
             w.Key("actor_is_target");w.Bool(victim==player);w.Key("in_combat");w.Bool(player->IsInCombat());
             w.Key("spell_id");w.Uint(hit.spell?hit.spell->Id:0);
             Text(w,"spell_name",hit.spell?hit.spell->SpellName->Str[LOCALE_enUS]:hit.auto_attack?"Auto attack":"Unattributed");

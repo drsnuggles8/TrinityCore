@@ -10,6 +10,7 @@ struct DamageResolution
 {
     SpellInfo const* spell = nullptr;
     std::uint32_t resolved = 0, effective = 0, health_removed = 0, overkill = 0, health_before = 0, health_after = 0, school_mask = 0;
+    std::uint32_t source_owner_level = 0, target_owner_level = 0, target_level = 0;
     std::uint8_t damage_type = 0, attack_type = 0, melee_outcome = 255;
     bool auto_attack = false;
 };
