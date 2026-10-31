@@ -427,6 +427,13 @@ Fixed in our fork; candidates for upstream (forever-bots) once Olo says so.
 - **Decisions taken 28 Oct (Olo):** LatvjuAvs's bot fixes taken (cherry-picks and ports, not the branch); Forever kill XP
   for lower mobs (mob base, forever-bugs#138) taken; Trixx34 master and Sakhwoow forever-bots-merge reviewed (two SQL
   fixes taken, the rest is infrastructure, localisation or already in).
+- **Fork review 31 Oct:** open advocaite PRs and the forks pushed since 30 Oct (LatvjuAvs `bots`, Trixx34
+  Trinity-Forever-Modules): dqhoang's Orgrimmar duplicate spawns (#267) and Hidden Enemies map blob (#263) taken; the rest
+  is in already, Trixx34's external bot SDK, or does not apply here (LatvjuAvs's name-pool join on `characters`: the test
+  realm shares the name pool and would free live bots' names; config files in name order: one active file). Not taken
+  yet: Karrz1's bot module releases (github.com/Karrz1/Karrz-playerbots-wow-forever, 0.1.22-0.1.27.1, 27-31 Oct; upstream
+  `forever-bots` 9df935e holds the 27 Oct state). Ours is the 20 Oct module (#71) plus ~7000 lines of our own; the
+  27 Oct update alone is +28700 / -7800 lines in 254 module files.
 - **Explorer persona off** until the real routes (Rothie's, mafsen's LevelForge guides) can be imported; the stop,
   give-up, spirit-healer and route-check machinery stays (`~/forever/routecheck.sh` checks every leg in 15 s).
 - **Questie review list** (contrib/launch-sim/questie/prequests-review-2026-10-27.txt): pre-quests not taken over,
