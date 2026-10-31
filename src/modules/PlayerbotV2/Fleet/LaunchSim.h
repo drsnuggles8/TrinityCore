@@ -77,6 +77,9 @@ private:
         uint32      login_sent_ms = 0;
         bool        cohort = false;   // added for a new level-1 player after the launch (playerbot_launch_cohort)
         uint32      zone = 0;         // the area-table zone it was last in (characters.zone; 0 = its race's start zone)
+        // Where the minute report last saw it and since when it has stayed within 3 y of there (Report's stuck count).
+        mutable float  still_x = 0.f, still_y = 0.f;
+        mutable uint32 still_since_ms = 0;
     };
 
     // An answer to an "inv?" whisper, sent by `from` (a launch bot) once due: an invite, or a whisper back.

@@ -58,7 +58,7 @@ struct LaunchProfile
 
     // Pauses, in the snapshot clock (BotSnapshotView::published_at_ms, the world's game-time ms).
     uint32 login_ms = 0;            // when the bot entered the world
-    uint32 setup_ms = 0;            // UI / keybind setup at the start: stands still this long after login
+    uint32 setup_ms = 0;            // UI / keybind setup at the start: stands still this long after its first login (0 after)
     uint32 read_min_ms = 0;         // reading a quest's text before accepting / turning it in
     uint32 read_max_ms = 0;
     uint32 afk_every_ms = 0;        // mean time between AFK breaks (0 = never)

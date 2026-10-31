@@ -33,11 +33,13 @@
 #include "WorldSession.h"
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <map>
 #include <optional>
 #include <random>
 #include <shared_mutex>
 #include <sstream>
+#include <tuple>
 
 namespace Playerbot::V2::Fleet {
 
@@ -678,6 +680,13 @@ std::string LaunchSim::Report() const
     // what a player sees as "idle bots" (Olo: ~5% at the spawn after 5 minutes).
     uint32 still = 0, still_spawn = 0;
     std::map<std::string, uint32> still_rules;
+    // "still" is one instant and counts a bot between two steps. Stuck: alive, out of combat and within 3 y of where the
+    // previous reports saw it for 60 s or more, not on a deliberate launch hold (setup / AFK / browsing). The longest three
+    // are named with their position.
+    uint32 const now = GameTime::GetGameTimeMS();
+    uint32 stuck = 0;
+    std::map<std::string, uint32> stuck_rules;
+    std::vector<std::tuple<uint32, Entry const*, std::string>> stuck_longest;
     for (Entry const& e : roster_)
     {
         if (e.state != BotState::Online)
@@ -704,6 +713,20 @@ std::string LaunchSim::Report() const
                 if (info->createPosition.Loc.GetMapId() == p->GetMapId() && p->GetExactDist2d(&info->createPosition.Loc) < 30.f)
                     ++still_spawn;
         }
+        float const dx = p->GetPositionX() - e.still_x, dy = p->GetPositionY() - e.still_y;
+        if (!e.still_since_ms || !p->IsAlive() || p->IsInCombat() || dx * dx + dy * dy > 9.f)
+        {
+            e.still_x = p->GetPositionX();
+            e.still_y = p->GetPositionY();
+            e.still_since_ms = now;
+        }
+        else if (now - e.still_since_ms >= 60000u && !(rule && std::strncmp(rule, "idle:launch_", 12) == 0 &&
+                     (!std::strcmp(rule + 12, "setup") || !std::strcmp(rule + 12, "afk") || !std::strcmp(rule + 12, "browse"))))
+        {
+            ++stuck;
+            ++stuck_rules[rule ? rule : "-"];
+            stuck_longest.emplace_back(now - e.still_since_ms, &e, rule ? rule : "-");
+        }
     }
     std::ostringstream o;
     o << "T0+" << (phase_ == Phase::Running ? (GameTime::GetGameTimeMS() - t0_ms_) / 60000u : 0u) << "min online=" << online
@@ -727,6 +750,21 @@ std::string LaunchSim::Report() const
     std::sort(top.rbegin(), top.rend());
     for (size_t i = 0; i < top.size() && i < 8; ++i)
         o << ' ' << top[i].second << '=' << top[i].first;
+    o << " | stuck60=" << stuck << " (" << (online ? stuck * 100u / online : 0u) << "%) stuck_rules:";
+    top.clear();
+    for (auto const& [r, n] : stuck_rules)
+        top.emplace_back(n, r);
+    std::sort(top.rbegin(), top.rend());
+    for (size_t i = 0; i < top.size() && i < 8; ++i)
+        o << ' ' << top[i].second << '=' << top[i].first;
+    std::sort(stuck_longest.begin(), stuck_longest.end(),
+        [](auto const& a, auto const& b) { return std::get<0>(a) > std::get<0>(b); });
+    o << " longest:";
+    for (size_t i = 0; i < stuck_longest.size() && i < 3; ++i)
+    {
+        auto const& [ms, e, r] = stuck_longest[i];
+        o << ' ' << e->name << ' ' << r << ' ' << ms / 1000u << "s (" << int(e->still_x) << ',' << int(e->still_y) << ')';
+    }
     return o.str();
 }
 
@@ -1118,7 +1156,11 @@ bool LaunchSim::OnBotLogin(Player* p, BotAI* ai)
     lp.pace = Lerp(pr.pace_lo, pr.pace_hi, Unit01(e.seed, 1));
     lp.contest_tags = true;
     lp.login_ms = e.online_since_ms;
-    lp.setup_ms = uint32(Lerp(pr.setup_lo_s, pr.setup_hi_s, Unit01(e.seed, 2)) * 1000.0f);
+    // The UI setup pause belongs to a character's first login only. A resumed run logs every bot in within a minute, and each
+    // stood its 0-150 s again, together (Olo, 31 Oct: crowds standing around after a resume, 477 of 872 still bots in
+    // idle:launch_setup a minute in).
+    if (p->GetTotalPlayedTime() < 60)
+        lp.setup_ms = uint32(Lerp(pr.setup_lo_s, pr.setup_hi_s, Unit01(e.seed, 2)) * 1000.0f);
     lp.read_min_ms = uint32(pr.read_lo_s * 1000.0f);
     lp.read_max_ms = uint32(pr.read_hi_s * 1000.0f);
     if (pr.afk_every_min)

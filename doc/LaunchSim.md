@@ -21,7 +21,9 @@ Podman, 32 GB host; the user slice is capped at MemoryHigh 3 GB / MemoryMax 4 GB
   them following a guide (RestedXP, Olo's route), each bot's surname is its persona; random arrival after T0, AFK /
   UI-setup / quest-reading pauses, first tag only, "inv?" requests and temperament-based answers, griefers that snipe
   tags, class trainer visits, grind camps per zone, leavers to the next zone (Coldridge through North Gate Pass to
-  Thelsamar), a minute report in the log (`[launch] report`).
+  Thelsamar), a minute report in the log (`[launch] report`: `still=` bots standing at that instant, `stuck60=` bots
+  within 3 y of the same spot for 60 s or more out of combat and not on a launch hold, with their last rules and the
+  three longest by name and position).
 - **27 Oct, the day's fixes:** launch bots take full paths to far goals (path cap 512 polygons, A* pool 32768 nodes: the
   Coldridge Pass tunnel and the walks out of every starting zone are complete now); hunters close in or melee when Auto Shot
   cannot fire (opener give-ups 327 -> 16 per test); spell ranks resolve to the known rank (paladins had no seal); 17 fork
@@ -90,7 +92,7 @@ roster again: zones, races, classes, genders, personas, the bots' seeds and arri
 |---|---|---|
 | Roster | `Fleet/LaunchSim.{h,cpp}`, table `playerbot_launch_bot` | characters, persona, arrival, session length, seed |
 | Persona -> profile | `LaunchSim::OnBotLogin`, `Bot/LaunchProfile.h` | strategy, temperament, pace, pauses; read-only after login |
-| Pauses | `Bot/States/Rules/LaunchRules.cpp` `idle:launch_hold` @995 | UI setup after login, AFK breaks, browsing a trainer |
+| Pauses | `Bot/States/Rules/LaunchRules.cpp` `idle:launch_hold` @995 | UI setup after a character's first login (not on a resumed run), AFK breaks, browsing a trainer |
 | Quest reading | `Bot/States/Rules/QuestRules.cpp` | accept delay from the profile's read range |
 | Guide routes | `Fleet/LaunchRoutes.{h,cpp}`, table `playerbot_launch_route_step`, `contrib/launch-sim/import_route.py` | the step a bot is on is derived from its quest log every build |
 | Places | `Bot/LaunchPlaces.h`, builder block "Launch strategies that steer by place" | troll camp, Kharanos, Thelsamar |
