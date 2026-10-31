@@ -486,6 +486,8 @@ bool Hold(Choice const& c,BotSnapshot const& s)
 
 bool Controls(std::uint64_t guid) {return bool(model)&&guids.contains(guid)&&IsTrainingPlayerGuid(guid);}
 bool Participant(std::uint64_t guid) {return bool(model)&&participants.contains(guid)&&IsTrainingPlayerGuid(guid);}
+std::string Checkpoint(std::uint64_t guid) {return Controls(guid)?model->checkpoint:std::string{};}
+std::uint64_t Epoch(std::uint64_t guid) {return Controls(guid)?model->epoch:0;}
 std::uint64_t XPRewardCap()
 { std::uint64_t cap=0;for(std::uint32_t level=1;level<task.goal;++level)cap+=sObjectMgr->GetXPForLevel(level);return cap; }
 void Initialize()

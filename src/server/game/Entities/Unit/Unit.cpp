@@ -18,6 +18,7 @@
 #include "Unit.h"
 #include "ClassicArmor.h"
 #include "DeathRecap.h"
+#include "DamageResolution.h"
 #include "AbstractFollower.h"
 #include "Battlefield.h"
 #include "BattlefieldMgr.h"
@@ -1213,6 +1214,12 @@ bool Unit::HasBreakableByDamageCrowdControlAura(Unit const* excludeCasterChannel
     if (victim->GetStandState() && victim->IsPlayer() && damagetype != NODAMAGE && damagetype != DOT)
         victim->SetStandState(UNIT_STAND_STATE_STAND);
 
+    auto resolved=MeasureDamageResolution(damageTaken,health,victim->GetHealth());
+    resolved.spell=spellProto;resolved.school_mask=damageSchoolMask;
+    resolved.damage_type=uint8(damagetype);resolved.attack_type=cleanDamage?uint8(cleanDamage->attackType):0;
+    resolved.auto_attack=!spellProto&&damagetype==DIRECT_DAMAGE;
+    if(resolved.auto_attack&&cleanDamage)resolved.melee_outcome=uint8(cleanDamage->hitOutCome);
+    sScriptMgr->OnDamageResolved(attacker,victim,resolved);
     return damageTaken;
 }
 

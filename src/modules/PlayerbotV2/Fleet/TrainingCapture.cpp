@@ -13,6 +13,10 @@
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "Creature.h"
+#include "DamageResolution.h"
+#include "Item.h"
+#include "ItemTemplate.h"
+#include "SpellInfo.h"
 #include <random>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -43,6 +47,7 @@ std::shared_ptr<TrainingTarget::Model const> shadow_model;
 bool control_enabled = false;
 std::unordered_set<std::uint64_t> control_guids;
 double control_temperature = 1;
+bool metrics_enabled = false;
 struct ControlState
 {
     ObjectGuid target;
@@ -113,7 +118,14 @@ public:
         if (killed) ++actor.kills;
         return actor;
     }
-    void Forget(std::uint64_t guid) { std::lock_guard lock(actors_mutex_); actors_.erase(guid); shadows_.erase(guid); }
+    void Forget(std::uint64_t guid) { std::lock_guard lock(actors_mutex_); actors_.erase(guid); shadows_.erase(guid); gear_.erase(guid); }
+    bool GearChanged(std::uint64_t guid,std::string const& identity)
+    {
+        std::lock_guard lock(actors_mutex_);
+        if(auto it=gear_.find(guid);it!=gear_.end()&&it->second==identity)return false;
+        if(!gear_.contains(guid)&&gear_.size()>=128)throw std::runtime_error("Equipment telemetry actor bound exceeded");
+        gear_[guid]=identity;return true;
+    }
     // Both hooks run on the world thread. Store only bounded, owned feature values, never Player/snapshot pointers.
     void Remember(BotSnapshot const& s)
     {
@@ -202,6 +214,7 @@ public:
         w.Key("death_count"); w.Uint64(actor.deaths);
         w.Key("monster_killing_blows"); w.Uint64(actor.kills);
         w.Key("dropped_before"); w.Uint64(dropped_.load(std::memory_order_relaxed));
+        if(metrics_enabled){w.Key("combat_metrics_version");w.Uint(1);}
     }
     void Push(Buffer const& buffer)
     {
@@ -320,6 +333,7 @@ private:
     boost::lockfree::queue<std::string*, boost::lockfree::capacity<4096>> queue_;
     std::unordered_map<std::uint64_t, Actor> actors_;
     std::unordered_map<std::uint64_t, ShadowState> shadows_;
+    std::unordered_map<std::uint64_t, std::string> gear_;
     std::atomic<bool> stopping_{false}, error_{false}, budget_{false};
     std::atomic<std::uint64_t> active_producers_{0}, enqueued_{0};
     std::thread thread_;
@@ -357,6 +371,45 @@ std::shared_ptr<Sink> GetForBot(std::uint64_t guid)
     std::lock_guard lock(sink_mutex);
     return sink && sink->Accepting() ? sink : nullptr;
 }
+void MetricsIdentity(Writer& w,Player const* player)
+{
+    w.Key("metrics_schema");w.String("leveling-metrics-v1");
+    w.Key("level");w.Uint(player->GetLevel());w.Key("class");w.Uint(player->GetClass());w.Key("race");w.Uint(player->GetRace());
+    Text(w,"checkpoint_sha256",LevelingPolicy::Checkpoint(player->GetGUID().GetCounter()));
+    w.Key("model_epoch");w.Uint64(LevelingPolicy::Epoch(player->GetGUID().GetCounter()));
+}
+void ItemDetails(Writer& w,Player const* player,Item const* item,int slot)
+{
+    w.StartObject();w.Key("slot");w.Int(slot);w.Key("item_entry");w.Uint(item?item->GetEntry():0);
+    Text(w,"item_guid",item?item->GetGUID().ToString():std::string{});
+    if(item)
+    {
+        auto proto=item->GetTemplate();Text(w,"name",proto->GetName(LOCALE_enUS));
+        w.Key("item_level");w.Uint(item->GetItemLevel(player));w.Key("base_delay_ms");w.Uint(proto->GetDelay());
+        w.Key("permanent_enchant");w.Uint(item->GetEnchantmentId(PERM_ENCHANTMENT_SLOT));
+        w.Key("temporary_enchant");w.Uint(item->GetEnchantmentId(TEMP_ENCHANTMENT_SLOT));
+        w.Key("durability");w.Uint(*item->m_itemData->Durability);w.Key("max_durability");w.Uint(*item->m_itemData->MaxDurability);
+    }
+    w.EndObject();
+}
+void Equipment(std::shared_ptr<Sink> const& output,Player const* player,Actor const& actor,std::uint64_t source)
+{
+    if(!metrics_enabled)return;
+    std::array<std::uint64_t,1+19*4> identity{};identity[0]=player->GetLevel();
+    for(std::size_t slot=0;slot<19;++slot)
+        if(auto item=player->GetItemByPos(INVENTORY_SLOT_BAG_0,uint8(slot)))
+        {
+            identity[1+slot*4]=item->GetGUID().GetCounter();identity[2+slot*4]=item->GetEntry();
+            identity[3+slot*4]=item->GetEnchantmentId(PERM_ENCHANTMENT_SLOT);identity[4+slot*4]=item->GetEnchantmentId(TEMP_ENCHANTMENT_SLOT);
+        }
+    auto bytes=std::string(reinterpret_cast<char const*>(identity.data()),sizeof(identity));
+    if(!output->GearChanged(player->GetGUID().GetCounter(),bytes))return;
+    Buffer buffer;Writer w(buffer);output->Header(w,"equipment",player,actor);MetricsIdentity(w,player);
+    w.Key("source_snapshot");w.Uint64(source);w.Key("timing_basis");w.String("first_observation_or_identity_enchant_level_change");
+    w.Key("items");w.StartArray();
+    for(uint8 slot=0;slot<19;++slot)ItemDetails(w,player,player->GetItemByPos(INVENTORY_SLOT_BAG_0,slot),slot);
+    w.EndArray();w.EndObject();output->Push(buffer);
+}
 void Event(Player const* player, char const* kind, bool reset = false, bool died = false)
 {
     auto output = Get(player); if (!output) return;
@@ -368,6 +421,7 @@ void Event(Player const* player, char const* kind, bool reset = false, bool died
 void Initialize()
 {
     if (!Enabled()) return;
+    metrics_enabled=sConfigMgr->GetBoolDefault("Playerbot.Training.Capture.CombatMetrics.Enable",false,true);
     LevelingPolicy::Initialize();
     if (!sConfigMgr->GetBoolDefault("Playerbot.Training.TargetShadow.Enable", false, true)) return;
     try
@@ -487,10 +541,51 @@ void MonsterKill(Player const* player, Creature const* creature)
     });
 }
 
+void ResolvedDamage(Unit* attacker,Unit* victim,DamageResolution const& hit)
+{
+    if(!metrics_enabled||!victim)return;
+    Safely([&]
+    {
+        Player* dealer=attacker?attacker->GetCharmerOrOwnerPlayerOrPlayerItself():nullptr;
+        Player* receiver=victim->GetCharmerOrOwnerPlayerOrPlayerItself();
+        auto record=[&](Player* player,char const* direction)
+        {
+            auto output=Get(player);if(!output)return;auto actor=output->Context(player->GetGUID().GetCounter());
+            Buffer buffer;Writer w(buffer);output->Header(w,"combat_damage",player,actor);MetricsIdentity(w,player);
+            Text(w,"direction",direction);Text(w,"source_guid",attacker?attacker->GetGUID().ToString():std::string{});
+            Text(w,"target_guid",victim->GetGUID().ToString());
+            w.Key("source_entry");w.Uint(attacker?attacker->GetEntry():0);w.Key("target_entry");w.Uint(victim->GetEntry());
+            w.Key("target_level");w.Uint(victim->GetLevel());w.Key("actor_is_source");w.Bool(attacker==player);
+            w.Key("actor_is_target");w.Bool(victim==player);w.Key("in_combat");w.Bool(player->IsInCombat());
+            w.Key("spell_id");w.Uint(hit.spell?hit.spell->Id:0);
+            Text(w,"spell_name",hit.spell?hit.spell->SpellName->Str[LOCALE_enUS]:hit.auto_attack?"Auto attack":"Unattributed");
+            w.Key("damage_source");w.String(hit.auto_attack?"autoattack":hit.spell?"spell":"unattributed");
+            w.Key("damage_type");w.Uint(hit.damage_type);w.Key("school_mask");w.Uint(hit.school_mask);
+            w.Key("attack_type");w.Uint(hit.attack_type);w.Key("melee_outcome");if(hit.melee_outcome==255)w.Null();else w.Uint(hit.melee_outcome);
+            w.Key("resolved_damage");w.Uint(hit.resolved);w.Key("effective_damage");w.Uint(hit.effective);
+            w.Key("net_health_removed");w.Uint(hit.health_removed);
+            w.Key("overkill");w.Uint(hit.overkill);w.Key("target_health_before");w.Uint(hit.health_before);w.Key("target_health_after");w.Uint(hit.health_after);
+            Item const* weapon=nullptr;int slot=-1;
+            if(attacker==player&&(hit.auto_attack||(hit.spell&&(hit.spell->DmgClass==SPELL_DAMAGE_CLASS_MELEE||hit.spell->DmgClass==SPELL_DAMAGE_CLASS_RANGED))))
+            {
+                auto type=WeaponAttackType(hit.attack_type);if(type<MAX_ATTACK)weapon=player->GetWeaponForAttack(type,true);
+                slot=type==OFF_ATTACK?EQUIPMENT_SLOT_OFFHAND:type==RANGED_ATTACK?EQUIPMENT_SLOT_RANGED:EQUIPMENT_SLOT_MAINHAND;
+            }
+            w.Key("weapon");ItemDetails(w,player,weapon,slot);
+            w.Key("weapon_basis");w.String("equipped_at_resolution_not_cast_time");
+            w.Key("main_hand_entry");auto mh=player->GetItemByPos(INVENTORY_SLOT_BAG_0,EQUIPMENT_SLOT_MAINHAND);w.Uint(mh?mh->GetEntry():0);
+            w.EndObject();output->Push(buffer);
+        };
+        if(dealer==receiver&&dealer)record(dealer,"self");
+        else{if(dealer)record(dealer,"dealt");if(receiver)record(receiver,"taken");}
+    });
+}
+
 void ObservationImpl(Player const* player, BotSnapshot const& s)
 {
     auto output = Get(player); if (!output) return;
     auto actor = output->Context(s.bot_id);
+    Equipment(output,player,actor,s.version);
     Buffer buffer; Writer w(buffer); output->Header(w, "observation", player, actor);
     w.Key("snapshot_version"); w.Uint64(s.version);
     w.Key("world_tick"); w.Uint64(s.world_tick);

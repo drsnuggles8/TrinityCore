@@ -2392,6 +2392,11 @@ void ScriptMgr::OnDamage(Unit* attacker, Unit* victim, uint32& damage)
     FOREACH_SCRIPT(UnitScript)->OnDamage(attacker, victim, damage);
 }
 
+void ScriptMgr::OnDamageResolved(Unit* attacker, Unit* victim, DamageResolution const& result)
+{
+    FOREACH_SCRIPT(UnitScript)->OnDamageResolved(attacker, victim, result);
+}
+
 void ScriptMgr::ModifyPeriodicDamageAurasTick(Unit* target, Unit* attacker, uint32& damage)
 {
     FOREACH_SCRIPT(UnitScript)->ModifyPeriodicDamageAurasTick(target, attacker, damage);
@@ -2774,6 +2779,10 @@ void UnitScript::OnDamageSpell(Unit* /*attacker*/, Unit* /*victim*/, uint32 /*da
 }
 
 void UnitScript::OnDamage(Unit* /*attacker*/, Unit* /*victim*/, uint32& /*damage*/)
+{
+}
+
+void UnitScript::OnDamageResolved(Unit* /*attacker*/, Unit* /*victim*/, DamageResolution const& /*result*/)
 {
 }
 

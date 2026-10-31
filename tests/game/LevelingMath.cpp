@@ -1,12 +1,24 @@
 #include "tc_catch2.h"
 #include "../../src/modules/PlayerbotV2/Fleet/LevelingMath.h"
 #include "../../src/modules/PlayerbotV2/Fleet/LevelingEpisode.h"
+#include "../../src/server/game/Combat/DamageResolution.h"
 #include <cstdlib>
 #include <fstream>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 
 using namespace Playerbot::V2::Fleet::Leveling;
+TEST_CASE("Damage measurement distinguishes mitigation output, overkill and net health changes", "[TrainingTelemetry]")
+{
+    auto hit=MeasureDamageResolution(30,100,70);
+    REQUIRE(hit.effective==30);REQUIRE(hit.health_removed==30);REQUIRE(hit.overkill==0);
+    hit=MeasureDamageResolution(50,20,0);
+    REQUIRE(hit.effective==20);REQUIRE(hit.overkill==30);
+    hit=MeasureDamageResolution(20,100,95); // A reactive heal can hide part of the damage in net health.
+    REQUIRE(hit.effective==20);REQUIRE(hit.health_removed==5);
+    hit=MeasureDamageResolution(20,100,120);
+    REQUIRE(hit.health_removed==0);
+}
 static std::string SyntheticLevelingArtifact()
 {
     rapidjson::StringBuffer buffer;rapidjson::Writer<rapidjson::StringBuffer> w(buffer);w.StartObject();

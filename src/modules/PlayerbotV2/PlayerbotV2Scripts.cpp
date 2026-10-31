@@ -7,6 +7,7 @@
 // worker threads read the maps, so the module must not tick while they update), Shutdown with the world.
 
 #include "PlayerbotV2.h"
+#include "Fleet/TrainingCapture.h"
 #include "Config.h"
 #include "DB2Stores.h"
 #include "Group.h"
@@ -290,6 +291,11 @@ public:
         if (attacker && victim && victim->GetTypeId() == TYPEID_UNIT)
             if (Player* dealer = attacker->GetCharmerOrOwnerPlayerOrPlayerItself())
                 Playerbot::Raid::DealtHit(victim->GetEntry(), victim->GetName().c_str(), dealer->GetGUID().GetCounter(), damage);
+    }
+
+    void OnDamageResolved(Unit* attacker, Unit* victim, DamageResolution const& result) override
+    {
+        Playerbot::V2::Fleet::TrainingCapture::ResolvedDamage(attacker,victim,result);
     }
 
     // Raid mana ledger: healing that landed (the core passes the effective gain, overheal already removed).

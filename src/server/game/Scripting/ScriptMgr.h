@@ -72,6 +72,7 @@ struct AreaTriggerEntry;
 struct AuctionPosting;
 struct ConditionSourceInfo;
 struct Condition;
+struct DamageResolution;
 struct CreatureTemplate;
 struct CreatureData;
 struct ItemTemplate;
@@ -438,6 +439,9 @@ class TC_GAME_API UnitScript : public ScriptObject
 
         // Called just before OnDamage with the spell that dealt the damage (null for a melee swing)
         virtual void OnDamageSpell(Unit* attacker, Unit* victim, uint32 damage, SpellInfo const* spellInfo);
+
+        // Observation only, after damage resolution and health/death application. Must not change combat state.
+        virtual void OnDamageResolved(Unit* attacker, Unit* victim, DamageResolution const& result);
 
         // Called when DoT's Tick Damage is being Dealt
         virtual void ModifyPeriodicDamageAurasTick(Unit* target, Unit* attacker, uint32& damage);
@@ -1358,6 +1362,7 @@ class TC_GAME_API ScriptMgr
         void OnHeal(Unit* healer, Unit* reciever, uint32& gain);
         void OnDamage(Unit* attacker, Unit* victim, uint32& damage);
         void OnDamageSpell(Unit* attacker, Unit* victim, uint32 damage, SpellInfo const* spellInfo);
+        void OnDamageResolved(Unit* attacker, Unit* victim, DamageResolution const& result);
         void ModifyPeriodicDamageAurasTick(Unit* target, Unit* attacker, uint32& damage);
         void ModifyMeleeDamage(Unit* target, Unit* attacker, uint32& damage);
         void ModifySpellDamageTaken(Unit* target, Unit* attacker, int32& damage, SpellInfo const* spellInfo);

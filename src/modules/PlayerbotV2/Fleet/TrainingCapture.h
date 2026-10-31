@@ -4,6 +4,8 @@
 #include <string>
 class Player;
 class Creature;
+class Unit;
+struct DamageResolution;
 namespace Playerbot { struct BotSnapshot; struct Intent; struct NearbyUnit; class BotIntentEmitter; }
 
 namespace Playerbot::V2::Fleet::TrainingCapture
@@ -13,6 +15,7 @@ void Login(Player const* player);
 void Logout(Player const* player);
 void Death(Player const* player);
 void MonsterKill(Player const* player, Creature const* creature);
+void ResolvedDamage(Unit* attacker, Unit* victim, DamageResolution const& result);
 bool ControlsQuestTarget(std::uint64_t guid);
 bool PolicyRecordingAvailable(std::uint64_t guid);
 bool PolicyEvent(std::uint64_t guid,std::uint64_t source,char const* kind,std::string const& payload);
