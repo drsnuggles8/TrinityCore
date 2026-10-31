@@ -93,6 +93,14 @@ empty slot.
 The bots' starter-quest and junk-quest completion (`StarterQuestAutocomplete`, `JunkQuestResolver`) passed the choice's
 index where `RewardQuest` takes an item id, so those quests gave bots no choice item; they pass the item now.
 
+## NPCs players found missing (30-31 Oct)
+
+- **Ormin Pelford** (Downstream, 91733, Elwynn) and the three Waterlogged tools: `2026_10_30_02_world_downstream_ormin_pelford.sql`.
+- **High Priestess Mims** (258785, Priest Trainer, Ironforge Mystic Ward): `2026_10_31_00_world_ironforge_high_priestess_mims.sql`.
+  She also starts and ends the gnome priest racial quests Confounding Flash (94817, level 10) and Contingency Plan (94818,
+  level 20), which were in the database with no giver, so no gnome priest could learn its racials. The model is a stand-in
+  (Juli Stormkettle's), and live's giver for the two quests is not on any page found.
+
 ## Still missing (105 quests with an item reward, 629 in all)
 
 Questie has 629 quest ids our database lacks; the 116 with an item reward were checked one by one:
