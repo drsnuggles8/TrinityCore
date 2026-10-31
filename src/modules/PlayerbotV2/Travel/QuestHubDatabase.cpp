@@ -563,12 +563,13 @@ uint32 QuestHubDatabase::LoadQuestGiversFromDB()
     // index (GetQuestHubsInZone / GetQuestHubAtPosition with a zone). Resolve
     // the zone from the terrain, as ObjectMgr does for
     // Calculate.Creature.Zone.Area.Data (world thread, boot only).
+    // The terrain of each map is held for the whole loop. TerrainMgr keeps only weak references and no map is created yet at
+    // this point of the boot, so sTerrainMgr.GetZoneId built a new TerrainInfo for every giver (tile discovery, grid and vmap
+    // tile read from disk) and threw it away again: thousands of full terrain loads, minutes on a slow or virus-scanned disk.
     const bool vanilla = IsVanillaRealm();
-    // TerrainMgr keeps weak references. Before maps/players are loaded, a
-    // standalone GetZoneId call can destroy the terrain immediately and reload
-    // it for the next giver. Retain each terrain for this startup scan only.
-    std::unordered_map<uint32, std::shared_ptr<TerrainInfo>> giverTerrain;
     uint32 count = 0, no_quests = 0, zones_resolved = 0;
+    std::map<uint32, std::shared_ptr<TerrainInfo>> terrains;
+    const auto zone_t0 = std::chrono::steady_clock::now();
     do
     {
         Field* f = result->Fetch();
@@ -590,11 +591,11 @@ uint32 QuestHubDatabase::LoadQuestGiversFromDB()
             }
             if (d.zoneId == 0)
             {
-                auto [terrainIt, inserted] = giverTerrain.try_emplace(d.mapId);
-                if (inserted)
-                    terrainIt->second = sTerrainMgr.LoadTerrain(d.mapId);
-                if (terrainIt->second)
-                    d.zoneId = terrainIt->second->GetZoneId(PhasingHandler::GetEmptyPhaseShift(), d.mapId, d.position);
+                std::shared_ptr<TerrainInfo>& terrain = terrains[d.mapId];
+                if (!terrain)
+                    terrain = sTerrainMgr.LoadTerrain(d.mapId);
+                if (terrain)
+                    d.zoneId = terrain->GetZoneId(PhasingHandler::GetEmptyPhaseShift(), d.mapId, d.position);
                 if (d.zoneId != 0)
                     ++zones_resolved;
             }
@@ -607,7 +608,8 @@ uint32 QuestHubDatabase::LoadQuestGiversFromDB()
     if (vanilla)
         TC_LOG_INFO("playerbot.v2",
             "[QuestHubDatabase] Classic: {} questgiver-flagged spawns start no quest in this world DB (not hubs); "
-            "{} giver zones resolved from terrain.", no_quests, zones_resolved);
+            "{} giver zones resolved from terrain ({} ms, {} map(s)).", no_quests, zones_resolved,
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - zone_t0).count(), terrains.size());
     return count;
 }
 

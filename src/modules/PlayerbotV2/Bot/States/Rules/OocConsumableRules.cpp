@@ -20,6 +20,7 @@
 #include "Bot/BotIntentEmitter.h"
 #include "Bot/BotIntent.h"
 #include "Bot/ClassicUpkeep.h"
+#include "Bot/AlwaysBuffs.h"
 #include "Bot/DrinkSayRule.h"
 #include "Bot/PullSize.h"
 #include "Bot/QuestPull.h"
@@ -28,6 +29,7 @@
 #include "SharedDefines.h"
 #include "RaceMask.h"        // RACE_UNDEAD_PLAYER
 #include "GameTime.h"
+#include "Log.h"
 #include "Services.h"
 #include "Util/ConfigReader.h"
 
@@ -112,6 +114,101 @@ bool CannibalizeFire(BotSnapshotView const& s, BotAI& ai,
     return false;
 }
 
+// ---------- idle:always_buff ----------
+// Playerbot.AlwaysBuffs: a bot of level 58+ is kept in its role's flask / elixirs, scrolls and world buffs by putting the
+// auras on directly (no item, no cast, no GCD); on a battleground or arena map it is stripped of them instead. The gate is
+// true only when something is missing (or, in a battleground, still on), and the attempt is locked for a while, so a wrong
+// id cannot loop.
+constexpr uint64 kAlwaysBuffLockKey = 0xA1B0F;
+
+} // anonymous namespace
+
+BuffSet AlwaysBuffSetOf(BotSnapshotView const& s, GroupSnapshotView const& g)
+{
+    switch (Classic::RaidConsumableRoleOf(s, g))
+    {
+        case Classic::RaidConsumableRole::Tank:   return BuffSet::Tank;
+        case Classic::RaidConsumableRole::Healer: return BuffSet::Healer;
+        case Classic::RaidConsumableRole::Caster:
+            // The school elixir of the class: Shadow Power for a warlock or shadow priest (spec 258), Frost Power for a frost mage (64).
+            if (s.cls() == CLASS_WARLOCK || (s.cls() == CLASS_PRIEST && s.spec() == 258)) return BuffSet::CasterShadow;
+            if (s.cls() == CLASS_MAGE && s.spec() == 64) return BuffSet::CasterFrost;
+            return BuffSet::Caster;
+        case Classic::RaidConsumableRole::Hunter: return BuffSet::MeleeAgility;
+        case Classic::RaidConsumableRole::Melee:  break;
+    }
+    return (s.cls() == CLASS_ROGUE || s.cls() == CLASS_DRUID) ? BuffSet::MeleeAgility : BuffSet::MeleeStrength;
+}
+
+// The kinds on where the bot stands, as the mask the intent carries.
+uint8 AlwaysMask(BotSnapshotView const& s, GroupSnapshotView const& g)
+{
+    // Below the raiding levels the flasks and world buffs do not apply, so only the repair kind can be on.
+    bool const buffs = s.level() >= kAlwaysBuffMinLevel;
+    return uint8(((buffs && Classic::AlwaysOn(s, AlwaysSwitch::Consumables, &g)) ? kAlwaysMaskConsumables : 0)
+               | ((buffs && Classic::AlwaysOn(s, AlwaysSwitch::WorldBuffs, &g)) ? kAlwaysMaskWorldBuffs : 0)
+               | (Classic::AlwaysOn(s, AlwaysSwitch::Repair, &g) ? kAlwaysMaskRepair : 0));
+}
+
+namespace {
+
+bool AlwaysHasAura(BotSnapshotView const& s, uint32 id)
+{
+    for (AuraEntry const& a : s.raw().auras.own_auras)
+        if (a.spell_id == id)
+            return true;
+    return false;
+}
+
+// A row is out of step when its kind is on here and the aura is missing, or off here and the aura is on the bot. A Stone row has
+// nothing in the aura list (the weapon enchant is not in the snapshot) and is not checked.
+bool AlwaysRowOut(BotSnapshotView const& s, AlwaysAura const& a, uint8 mask)
+{
+    if (a.kind == AlwaysKind::Stone)
+        return false;
+    bool const on = (mask & (a.world ? kAlwaysMaskWorldBuffs : kAlwaysMaskConsumables)) != 0 && (!a.horde_only || s.is_horde());
+    for (uint32 id : AlwaysAuraEffects(a))
+        if (AlwaysHasAura(s, id) != on)
+            return true;
+    return false;
+}
+
+bool AlwaysBuffGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g, uint32)
+{
+    if (!s.is_alive())
+        return false;
+    if (ai.action_recently_tried(BotAI::ActionKind::AlwaysBuff, kAlwaysBuffLockKey, GameTime::GetGameTimeMS()))
+        return false;
+    uint8 const mask = AlwaysMask(s, g);
+    if ((mask & kAlwaysMaskRepair) && (s.lowest_equipped_durability_pct() < 100 || int64(s.gold()) < int64(kAlwaysGoldFloor) * 10000   /* gold() is copper */))
+        return true;
+    if (s.level() < kAlwaysBuffMinLevel)
+        return false;   // below the raiding levels nothing of the buffs is put on or taken off
+    for (AlwaysAura const& a : kWorldBuffs)
+        if (AlwaysRowOut(s, a, mask)) return true;
+    // The bot's own role rows; with both kinds off here, every role's rows (what an earlier place put on).
+    bool const any = (mask & (kAlwaysMaskConsumables | kAlwaysMaskWorldBuffs)) != 0;
+    if (any)
+    {
+        for (AlwaysAura const& a : AlwaysBuffRoleRows(AlwaysBuffSetOf(s, g)))
+            if (AlwaysRowOut(s, a, mask)) return true;
+        return false;
+    }
+    for (uint8 b = 0; b < kBuffSetCount; ++b)
+        for (AlwaysAura const& a : AlwaysBuffRoleRows(BuffSet(b)))
+            if (AlwaysRowOut(s, a, mask)) return true;
+    return false;
+}
+
+bool AlwaysBuffFire(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const& g,
+                    BotIntentEmitter& emit, uint32)
+{
+    emit.emit(QueueIntent{AlwaysBuffIntent{uint8(AlwaysBuffSetOf(s, g)), AlwaysMask(s, g)}});
+    ai.note_action_retry(BotAI::ActionKind::AlwaysBuff, kAlwaysBuffLockKey, GameTime::GetGameTimeMS());
+    ai.set_last_rule_fired("idle:always_buff");
+    return true;
+}
+
 // ---------- idle:ooc_potion ----------
 // Out of combat a healing potion is the last resort: only when the bot is
 // low and can't sit down to eat (something is fighting nearby, or it has no
@@ -124,7 +221,7 @@ bool OocPotionGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&
     if (ai.effective_role(s) == Role::Healer) return false;
     const auto thr = GetIdleConsumeThresholds(ai);
     if (s.hp_pct() >= thr.potion_below) return false;
-    if (Classic::SafeToRecover(s, &g) && Classic::BestConsumable(s, Classic::ConsumableKind::Food))
+    if (Classic::SafeToRecover(s, &g) && Classic::RecoveryConsumable(s, Classic::ConsumableKind::Food))
         return false;   // eat instead (idle:ooc_eat_food)
     return Classic::BestConsumable(s, Classic::ConsumableKind::HealingPotion) != 0;
 }
@@ -250,7 +347,12 @@ bool OocEatFoodFire(BotSnapshotView const& s, BotAI& ai,
     {
         emit.emit(UseItemByEntryIntent{pick.item, s.raw().guid});
         if (pick.drink)
+        {
             Classic::SayDrinkingIfDue(s, ai, emit, now_ms);
+            // The same line the dungeon autopilot's drink writes: a led group never reaches that path, and its drinks were invisible.
+            if (s.in_group() && ai.tank_diag_due(now_ms))
+                TC_LOG_INFO("playerbot.v2", "[healer_drink] {} drinks item {} at mana {}% (group, idle:ooc_eat_food)", s.name(), pick.item, s.power_pct(POWER_MANA));
+        }
         ai.set_last_rule_fired("idle:ooc_eat_food");
         return true;
     }
@@ -579,6 +681,9 @@ bool LootRollFire(BotSnapshotView const& s, BotAI& ai,
 // ---------- idle:equip_upgrade ----------
 bool EquipUpgradeGate(BotSnapshotView const& s, BotAI& ai, GroupSnapshotView const&, uint32 now_ms)
 {
+    // Raid resistance gear on (idle:classic_resist_gear): the own pieces score higher and would go straight back on.
+    if (ai.resist_gear_school() != 0)
+        return false;
     if (s.in_combat() || s.is_casting())
     {
         if (ai.pending_equip_upgrade_at_ms() != 0)
@@ -669,6 +774,14 @@ bool EquipUpgradeFire(BotSnapshotView const& s, BotAI& ai,
 
 void RegisterOocConsumableRules(IdleRuleRegistry& r)
 {
+    {
+        IdleRule rule;
+        rule.name     = "idle:always_buff";
+        rule.priority = 672;
+        rule.gate     = &AlwaysBuffGate;
+        rule.fire     = &AlwaysBuffFire;
+        r.register_rule(std::move(rule));
+    }
     {
         IdleRule rule;
         rule.name     = "idle:cannibalize";
