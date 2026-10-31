@@ -10,12 +10,15 @@ inline double EpisodeNumber(rapidjson::Value const& v)
 struct Task
 {
     std::string id;std::uint32_t goal=6;double maximum=5400,stagnation=900;
+    bool death_terminates=true,reconsider_completed=false;
     std::vector<std::uint32_t> required,eligible;RewardSpec reward;
     static Task Parse(rapidjson::Value const& value)
     {
         Task t;auto const& id=Field(value,"id");if(!id.IsString())throw std::runtime_error("Missing leveling task identity");t.id=id.GetString();
         t.goal=std::uint32_t(EpisodeNumber(Field(value,"goal_level")));t.maximum=EpisodeNumber(Field(value,"max_seconds"));t.stagnation=EpisodeNumber(Field(value,"no_progress_seconds"));
         if(t.goal<1||t.goal>10||t.maximum<=0||t.stagnation<=0)throw std::runtime_error("Invalid leveling task bounds");
+        for(auto [name,destination]:{std::pair{"death_terminates",&t.death_terminates},std::pair{"reconsider_completed_actions",&t.reconsider_completed}})
+            if(value.HasMember(name)){if(!value[name].IsBool())throw std::runtime_error("Invalid task option");*destination=value[name].GetBool();}
         for(auto [name,destination]:{std::pair{"required_quests",&t.required},std::pair{"eligible_quests",&t.eligible}})
         {
             auto const& list=Field(value,name);if(!list.IsArray()||list.Size()>100)throw std::runtime_error("Invalid leveling task quests");

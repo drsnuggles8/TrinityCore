@@ -482,6 +482,22 @@ bool Hold(Choice const& c,BotSnapshot const& s)
     if(s.vitals.in_combat&&(c.kind==Kind::Attack||c.kind==Kind::Cast||c.kind==Kind::Heal))return false;
     return true;
 }
+bool Completed(Choice const& c,BotSnapshot const& s,Frame const& frame,Actor const& actor)
+{
+    switch(c.kind)
+    {
+        case Kind::Attack:case Kind::Cast:
+            for(auto const& enemy:s.combat.nearby_enemies)if(enemy.guid==c.target)return enemy.hp<=0;
+            return !s.vitals.in_combat;
+        case Kind::Loot:
+            return std::none_of(frame.affordances.begin(),frame.affordances.end(),[&](auto const& v){return v.target==c.target&&(v.kind==Kind::Loot||v.kind==Kind::Approach);});
+        case Kind::Accept:
+            return std::any_of(s.quest_log.quests.begin(),s.quest_log.quests.end(),[&](auto const& q){return q.quest_id==c.quest;});
+        case Kind::Turnin:return actor.episode.rewarded.contains(c.quest);
+        case Kind::Equip:return c.equip_slot<19&&s.inventory.equipped[c.equip_slot].entry==c.item;
+        default:return false;
+    }
+}
 }
 
 bool Controls(std::uint64_t guid) {return bool(model)&&guids.contains(guid)&&IsTrainingPlayerGuid(guid);}
@@ -525,8 +541,8 @@ void Initialize()
             auto id=std::stoull(it->name.GetString());if(!IsTrainingPlayerGuid(id))throw std::runtime_error("Episode participant is not a training player");participants.insert(id);
         }
         for(auto id:guids)if(!participants.contains(id))throw std::runtime_error("Controller lacks an episode participant seed");
-        TC_LOG_INFO("playerbot.v2","[leveling_policy] checkpoint={} epoch={} step={} actors={} parity=passed authority=leveling_options",
-                    model->checkpoint,model->epoch,model->step,guids.size());
+        TC_LOG_INFO("playerbot.v2","[leveling_policy] checkpoint={} epoch={} step={} actors={} parity=passed authority=leveling_options goal={} death_terminal={} reconsider_completed={}",
+                    model->checkpoint,model->epoch,model->step,guids.size(),task.goal,task.death_terminates,task.reconsider_completed);
     }
     catch(std::exception const& e){model.reset();TC_LOG_ERROR("playerbot.v2","[leveling_policy] disabled: {}",e.what());}
 }
@@ -598,7 +614,10 @@ void Observe(Player const* player,BotSnapshot const& s,std::uint64_t xp,std::uin
         a->episode.Advance(p,frame.level,credit,rewarded,task);
         frame.state=Context(s,*a,p);a->frames.push_back(frame);if(a->frames.size()>64)a->frames.pop_front();
         bool death=a->pending.active&&p.deaths>a->pending.before.deaths;
-        if(a->pending.active&&(!p.alive||death||!a->episode.terminal.empty()||!frame.allowed))Finish(s.bot_id,*a,frame,!p.alive||death||!a->episode.terminal.empty(),!frame.allowed);
+        bool episode_end=!a->episode.terminal.empty();
+        bool death_boundary=task.death_terminates&&(!p.alive||death);
+        bool recovered=!task.death_terminates&&death&&p.alive;
+        if(a->pending.active&&(episode_end||death_boundary||recovered||!frame.allowed))Finish(s.bot_id,*a,frame,episode_end||death_boundary,!frame.allowed);
         if(!a->episode.terminal.empty())
         {
             a->scope_finished=true;
@@ -624,7 +643,8 @@ bool Tick(BotSnapshot const& s,BotAI& ai,BotIntentEmitter& emit)
         if(a->scope_finished){if(!s.vitals.in_combat){emit.stop_attack();emit.stop_movement();return true;}return false;}
         if(!Controls(s.bot_id)||!TrainingCapture::PolicyRecordingAvailable(s.bot_id))return false;
         BotSnapshotView v(s);
-        if(a->pending.active&&(std::uint32_t(s.published_at_ms-a->pending.before.ms)<5000||v.is_casting()))return Hold(a->pending.action,s);
+        if(a->pending.active&&!ReadyForDecision(std::uint32_t(s.published_at_ms-a->pending.before.ms),v.is_casting(),
+            Completed(a->pending.action,s,*frame,*a),task.reconsider_completed))return Hold(a->pending.action,s);
         if(a->pending.active)Finish(s.bot_id,*a,*frame,false,false);
         if(v.is_casting())return false;
         auto menu=Menu(s,ai,frame->state,frame->affordances,frame->goals,*a);
@@ -672,7 +692,12 @@ void Logout(std::uint64_t guid)
     if(!Participant(guid))return;
     auto a=Get(guid);if(a)
     {
-        std::lock_guard lock(a->mutex);if(!a->frames.empty())try{Finish(guid,*a,a->frames.back(),false,true);}catch(...){a->pending.active=false;}
+        std::lock_guard lock(a->mutex);if(!a->frames.empty())try
+        {
+            // A dead state's value is never used as an invented recovery bootstrap at a recording cut.
+            if(!task.death_terminates&&!a->frames.back().progress.alive)a->pending.active=false;
+            else Finish(guid,*a,a->frames.back(),false,true);
+        }catch(...){a->pending.active=false;}
     }
     std::lock_guard lock(actors_mutex);actors.erase(guid);
 }

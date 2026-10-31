@@ -81,6 +81,15 @@ TEST_CASE("Task reward parsing retains time discount precision", "[LevelingMath]
     Progress a,b;a.ms=1000;b.ms=6000;auto r=Outcome(a,b,false,400,task.reward);
     REQUIRE(r.discount==std::pow(.9998,5));
 }
+TEST_CASE("Completed actions can be reconsidered promptly without interrupting casts", "[LevelingMath]")
+{
+    REQUIRE_FALSE(ReadyForDecision(499,false,true,true));
+    REQUIRE(ReadyForDecision(500,false,true,true));
+    REQUIRE_FALSE(ReadyForDecision(1500,false,false,true));
+    REQUIRE_FALSE(ReadyForDecision(1500,false,true,false));
+    REQUIRE_FALSE(ReadyForDecision(8000,true,true,true));
+    REQUIRE(ReadyForDecision(5000,false,false,false));
+}
 TEST_CASE("Leveling masked sampling preserves probabilities for every selected index", "[LevelingMath]")
 {
     std::array<float,3> scores{0,1,2};

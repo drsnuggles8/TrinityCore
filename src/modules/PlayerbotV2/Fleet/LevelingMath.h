@@ -135,6 +135,10 @@ struct Progress
     double potential=0,x=0,y=0,z=0,hp=1,mana=1;
     bool alive=true,combat=false;
 };
+inline bool ReadyForDecision(std::uint32_t elapsed,bool casting,bool completed,bool reconsiderCompleted)
+{
+    return !casting&&(elapsed>=5000||(reconsiderCompleted&&completed&&elapsed>=500));
+}
 struct RewardSpec
 {
     double xp=1,quest=1,death=1,completion=4,failure=2,time=.0005,stall=.001,potential=.1,refusal=.01,gamma=.9998;
